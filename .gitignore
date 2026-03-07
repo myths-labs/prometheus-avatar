@@ -33,3 +33,11 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# Internal project management (not for public)
+CLAUDE.md
+STATUS.md
+MARKETING_STATUS.md
+PRD.md
+.agent/
+supabase/
