@@ -1,0 +1,60 @@
+{
+    "id": "prometheus-avatar",
+    "name": "Prometheus Avatar",
+    "version": "0.1.0",
+    "description": "Give your OpenClaw agent a Live2D avatar with real-time lip-sync, emotion expressions, and TTS",
+    "type": "tool",
+    "author": "Myths Labs",
+    "license": "MIT",
+    "repository": "https://github.com/myths-labs/prometheus",
+    "configSchema": {
+        "avatarId": {
+            "type": "string",
+            "description": "Avatar model ID from Prometheus Marketplace (or URL to a .model3.json file)",
+            "required": false
+        },
+        "modelUrl": {
+            "type": "string",
+            "description": "Direct URL to a Live2D model file (.model3.json)",
+            "required": false
+        },
+        "ttsProvider": {
+            "type": "string",
+            "enum": [
+                "web-speech",
+                "elevenlabs",
+                "azure",
+                "sherpa-onnx"
+            ],
+            "default": "web-speech",
+            "description": "Text-to-speech provider"
+        },
+        "ttsVoice": {
+            "type": "string",
+            "description": "Voice name or ID for TTS",
+            "required": false
+        },
+        "enableLipSync": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable audio-driven lip synchronization"
+        },
+        "enableEmotion": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable emotion analysis from text"
+        }
+    },
+    "events": {
+        "listens": [
+            "agent:message",
+            "agent:thinking",
+            "agent:error"
+        ],
+        "emits": [
+            "avatar:speak",
+            "avatar:emotion",
+            "avatar:ready"
+        ]
+    }
+}

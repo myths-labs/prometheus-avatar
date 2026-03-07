@@ -1,0 +1,50 @@
+{
+    "name": "@prometheus-avatar/core",
+    "version": "0.1.0",
+    "description": "Give your AI agent an embodied avatar — Live2D rendering, TTS, lip-sync, and emotion analysis in one SDK",
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "scripts": {
+        "build": "tsup src/index.ts --format esm --dts --clean",
+        "dev": "tsup src/index.ts --format esm --dts --watch",
+        "clean": "rm -rf dist",
+        "lint": "tsc --noEmit"
+    },
+    "dependencies": {
+        "pixi.js": "^6.5.10",
+        "pixi-live2d-display": "^0.4.0"
+    },
+    "devDependencies": {
+        "tsup": "^8.0.0",
+        "typescript": "^5.4.0"
+    },
+    "keywords": [
+        "live2d",
+        "avatar",
+        "ai",
+        "llm",
+        "tts",
+        "lip-sync",
+        "embodied-intelligence",
+        "openclaw",
+        "vtuber"
+    ],
+    "license": "MIT",
+    "author": "Myths Labs (JC)",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/myths-labs/prometheus"
+    }
+}

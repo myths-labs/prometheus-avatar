@@ -1,0 +1,16 @@
+{
+    "name": "prometheus",
+    "private": true,
+    "description": "AI Avatar Embodied Intelligence Framework + Marketplace",
+    "scripts": {
+        "dev": "pnpm -r --parallel dev",
+        "build": "pnpm -r build",
+        "lint": "pnpm -r lint",
+        "clean": "pnpm -r clean"
+    },
+    "engines": {
+        "node": ">=18.0.0",
+        "pnpm": ">=8.0.0"
+    },
+    "packageManager": "pnpm@9.15.0"
+}
