@@ -23,10 +23,11 @@ export default function FeatureCards() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {FEATURES.map((feature) => (
+                {FEATURES.map((feature, i) => (
                     <div
                         key={feature.title}
-                        className="card-dark p-7 group cursor-default hover:border-[rgba(0,212,170,0.12)] transition-all duration-300"
+                        className="card-dark card-glow-pulse p-7 group cursor-default hover:border-[rgba(0,212,170,0.12)] transition-all duration-300"
+                        style={{ animationDelay: `${i * 0.5}s` }}
                     >
                         <div className="relative z-10">
                             <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${feature.accent} flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform`}>

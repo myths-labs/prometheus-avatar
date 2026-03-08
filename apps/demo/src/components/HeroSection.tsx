@@ -59,7 +59,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
       {/* Content */}
       <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 text-[#a8b8d0] text-sm font-medium mb-10">
+        <div className="badge-shimmer inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 text-[#a8b8d0] text-sm font-medium mb-10">
           <span className="w-2 h-2 rounded-full bg-[#00d4aa] animate-pulse" />
           Open Source — MIT License
         </div>
@@ -68,7 +68,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
         <h1 className="heading-serif text-5xl md:text-7xl lg:text-[5.5rem] mb-8">
           <span className="text-[#eae6df]">Give Your AI</span>
           <br />
-          <em>A Body</em>
+          <em className="text-gradient-animated">A Body</em>
         </h1>
 
         {/* Subtitle — clean, spacious */}
@@ -95,13 +95,20 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
           </a>
         </div>
 
+        {/* npm + GitHub badges */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <img src="https://img.shields.io/npm/v/@prometheusavatar/core?color=00d4aa&label=npm&style=flat-square" alt="npm" className="h-5" />
+          <img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=flat-square" alt="stars" className="h-5" />
+          <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT" className="h-5" />
+        </div>
+
         {/* Prophecy tagline */}
         <p className="prophecy-quote max-w-lg mx-auto mb-12">
           &ldquo;Like Prometheus bringing fire to humanity — we bring embodiment to AI.&rdquo;
         </p>
 
         {/* Code snippet */}
-        <div className="card-dark inline-block px-8 py-5 text-left font-mono text-sm">
+        <div className="card-dark code-shimmer inline-block px-8 py-5 text-left font-mono text-sm">
           <div className="relative z-10">
             <div className="text-[#6b7a8d] mb-2">{"// 5 lines to bring your AI to life"}</div>
             <div>

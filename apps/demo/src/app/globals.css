@@ -377,3 +377,109 @@ body {
 .typing-dot:nth-child(3) {
   animation: typing 1.4s infinite 0.4s;
 }
+
+/* ═══ Animated Gradient Text ═══ */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.text-gradient-animated {
+  background: linear-gradient(270deg, var(--teal), var(--gold-light), var(--teal-light), var(--teal));
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 6s ease-in-out infinite;
+}
+
+/* ═══ Shimmer highlight for code blocks ═══ */
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+
+  100% {
+    left: 200%;
+  }
+}
+
+.code-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.code-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 170, 0.06), transparent);
+  animation: shimmer 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ═══ Glow border pulse ═══ */
+@keyframes glowPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(0, 212, 170, 0);
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(0, 212, 170, 0.08);
+    border-color: rgba(0, 212, 170, 0.12);
+  }
+}
+
+.card-glow-pulse {
+  animation: glowPulse 4s ease-in-out infinite;
+}
+
+/* ═══ Fade-in on scroll ═══ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+/* ═══ Badge shimmer ═══ */
+.badge-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.badge-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -100%;
+  width: 60%;
+  height: 200%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}

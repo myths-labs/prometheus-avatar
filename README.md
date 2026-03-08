@@ -21,10 +21,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
-  <img src="https://img.shields.io/badge/Live2D-Cubism_2_%26_4-ff69b4.svg" alt="Live2D" />
-  <img src="https://img.shields.io/badge/TTS-Multi--language-green.svg" alt="TTS" />
-  <img src="https://img.shields.io/badge/framework-Next.js_%7C_React-black.svg" alt="Framework" />
+  <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/npm/v/@prometheusavatar/core?color=00d4aa&label=npm&style=flat-square" alt="npm" /></a>
+  <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=flat-square" alt="GitHub Stars" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/Live2D-Cubism_2_%26_4-ff69b4.svg?style=flat-square" alt="Live2D" />
+  <img src="https://img.shields.io/badge/TTS-Multi--language-green.svg?style=flat-square" alt="TTS" />
 </p>
 
 ---
