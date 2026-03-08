@@ -61,10 +61,24 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                         "*"
                     );
 
-                    // TTS in parent window
+                    // TTS in parent window — vary voice by avatar
                     if (typeof window !== "undefined" && window.speechSynthesis) {
                         const utterance = new SpeechSynthesisUtterance(text);
-                        utterance.rate = 1.0;
+                        // Different pitch/rate per avatar
+                        if (modelUrl.includes("shizuku")) {
+                            utterance.pitch = 1.3;
+                            utterance.rate = 0.9;
+                        } else if (modelUrl.includes("koharu")) {
+                            utterance.pitch = 1.6;
+                            utterance.rate = 1.05;
+                        } else {
+                            utterance.pitch = 1.0;
+                            utterance.rate = 1.0;
+                        }
+                        // Try to pick a female voice
+                        const voices = window.speechSynthesis.getVoices();
+                        const preferred = voices.find(v => v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Google") && v.lang.startsWith("en"));
+                        if (preferred) utterance.voice = preferred;
                         window.speechSynthesis.speak(utterance);
                     }
 

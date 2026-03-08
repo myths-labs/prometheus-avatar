@@ -8,12 +8,10 @@ import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
 
-const CDN_BASE = "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets";
-
 const AVATARS = [
-  { id: "haru", name: "Haru", description: "Friendly and expressive", modelUrl: `${CDN_BASE}/haru/haru_greeter_t03.model3.json`, thumbnail: "🧑‍🎤", badge: "official" },
-  { id: "shizuku", name: "Shizuku", description: "Calm and elegant", modelUrl: `${CDN_BASE}/shizuku/shizuku.model.json`, thumbnail: "👩", badge: "official" },
-  { id: "mark", name: "Mark", description: "Cool and composed", modelUrl: `${CDN_BASE}/haru/haru_greeter_t03.model3.json`, thumbnail: "🧑‍💼", badge: "official" },
+  { id: "haru", name: "Haru", description: "Friendly and expressive", modelUrl: "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json", thumbnail: "🧑‍🎤", badge: "official" },
+  { id: "shizuku", name: "Shizuku", description: "Calm and elegant", modelUrl: "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/shizuku/shizuku.model.json", thumbnail: "👩", badge: "official" },
+  { id: "koharu", name: "Koharu", description: "Sweet and gentle", modelUrl: "https://cdn.jsdelivr.net/npm/live2d-widget-model-koharu/assets/koharu.model.json", thumbnail: "🌸", badge: "official" },
 ];
 
 export default function HomeClient() {

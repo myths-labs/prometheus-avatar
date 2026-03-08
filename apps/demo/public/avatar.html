@@ -1,13 +1,25 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <style>
-    * { margin: 0; padding: 0; }
-    body { background: transparent; overflow: hidden; }
-    canvas { display: block; }
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: transparent;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+    }
   </style>
 </head>
+
 <body>
   <!-- Cubism 2 + 4 runtimes -->
   <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
@@ -33,10 +45,11 @@
         const model = await PIXI.live2d.Live2DModel.from(modelUrl, { autoInteract: true });
         window._live2dModel = model;
 
-        const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.85;
+        const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.8;
         model.scale.set(scale);
-        model.x = (window.innerWidth - model.width * scale) / 2;
-        model.y = (window.innerHeight - model.height * scale) / 2;
+        model.anchor.set(0.5, 0.5);
+        model.x = window.innerWidth / 2;
+        model.y = window.innerHeight / 2;
 
         app.stage.addChild(model);
 
@@ -60,7 +73,7 @@
             };
             const candidates = expressionMap[emotion] || ["neutral"];
             for (const expr of candidates) {
-              try { model.expression(expr); break; } catch {}
+              try { model.expression(expr); break; } catch { }
             }
 
             // Mouth animation
@@ -75,12 +88,12 @@
                 } catch {
                   try {
                     model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", v);
-                  } catch {}
+                  } catch { }
                 }
                 requestAnimationFrame(animMouth);
               } else {
-                try { model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", 0); } catch {}
-                try { model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", 0); } catch {}
+                try { model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", 0); } catch { }
+                try { model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", 0); } catch { }
                 window.parent.postMessage({ type: "speak-done" }, "*");
               }
             }
@@ -103,12 +116,14 @@
     window.addEventListener("resize", () => {
       const model = window._live2dModel;
       if (model) {
-        const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.85;
+        const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.8;
         model.scale.set(scale);
-        model.x = (window.innerWidth - model.width * scale) / 2;
-        model.y = (window.innerHeight - model.height * scale) / 2;
+        model.anchor.set(0.5, 0.5);
+        model.x = window.innerWidth / 2;
+        model.y = window.innerHeight / 2;
       }
     });
   </script>
 </body>
+
 </html>
