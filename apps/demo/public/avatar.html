@@ -72,44 +72,107 @@
 
       const dataArray = new Uint8Array(anal.frequencyBinCount);
       let animFrame;
+      let smoothedValue = 0; // Smoothing for natural movement
+      let prevValue = 0;
 
       function animate() {
         anal.getByteFrequencyData(dataArray);
-        // Focus on speech frequencies (300Hz - 3000Hz)
-        let sum = 0;
-        const start = Math.floor(300 / (ctx.sampleRate / anal.fftSize));
-        const end = Math.floor(3000 / (ctx.sampleRate / anal.fftSize));
-        for (let i = start; i < end && i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / (end - start) / 255;
-        // Map to mouth value with smoothing
-        const mouthValue = Math.min(1, avg * 2.5);
-        setMouth(model, mouthValue);
+
+        // Separate vowel frequencies (300-1000Hz) and consonant frequencies (1500-4000Hz)
+        const vowelStart = Math.floor(300 / (ctx.sampleRate / anal.fftSize));
+        const vowelEnd = Math.floor(1000 / (ctx.sampleRate / anal.fftSize));
+        const consStart = Math.floor(1500 / (ctx.sampleRate / anal.fftSize));
+        const consEnd = Math.floor(4000 / (ctx.sampleRate / anal.fftSize));
+
+        let vowelSum = 0, consSum = 0;
+        for (let i = vowelStart; i < vowelEnd && i < dataArray.length; i++) vowelSum += dataArray[i];
+        for (let i = consStart; i < consEnd && i < dataArray.length; i++) consSum += dataArray[i];
+
+        const vowelAvg = vowelSum / Math.max(1, vowelEnd - vowelStart) / 255;
+        const consAvg = consSum / Math.max(1, consEnd - consStart) / 255;
+
+        // Vowels = mouth open wide, consonants = mouth narrower
+        const rawValue = Math.min(1, vowelAvg * 2.0 + consAvg * 0.8);
+
+        // Smooth with exponential easing (fast open, slow close — more natural)
+        const openSpeed = 0.4;  // Mouth opens quickly
+        const closeSpeed = 0.15; // Mouth closes slowly (more natural)
+        const speed = rawValue > smoothedValue ? openSpeed : closeSpeed;
+        smoothedValue += (rawValue - smoothedValue) * speed;
+
+        // Add micro-variation to prevent robotic feel
+        const microVar = (Math.random() - 0.5) * 0.03;
+        const finalValue = Math.max(0, Math.min(1, smoothedValue + microVar));
+
+        setMouth(model, finalValue);
+        prevValue = finalValue;
         animFrame = requestAnimationFrame(animate);
       }
       animate();
 
       return () => {
         cancelAnimationFrame(animFrame);
-        setMouth(model, 0);
-        try { source.disconnect(); } catch { }
+        // Smooth close instead of abrupt snap
+        let closeFrame;
+        let closeVal = prevValue;
+        function smoothClose() {
+          closeVal *= 0.7;
+          if (closeVal > 0.01) {
+            setMouth(model, closeVal);
+            closeFrame = requestAnimationFrame(smoothClose);
+          } else {
+            setMouth(model, 0);
+          }
+        }
+        smoothClose();
       };
     }
 
-    // Fallback: simulated mouth for browser TTS
+    // Fallback: simulated mouth with natural speech rhythm
     function animateMouthSimulated(model, durationMs) {
       const start = Date.now();
       let frame;
+      let smoothedValue = 0;
+
+      // Generate random "syllable" timestamps for natural rhythm
+      const syllableDuration = 120 + Math.random() * 60; // 120-180ms per syllable
+      const pauseChance = 0.12; // 12% chance of brief pause (breathing, thinking)
+
       function animate() {
         const elapsed = Date.now() - start;
         if (elapsed < durationMs) {
-          const fast = Math.sin(elapsed / 80) * 0.5 + 0.5;
-          const slow = Math.sin(elapsed / 200) * 0.3 + 0.3;
-          setMouth(model, Math.min(1, fast * 0.7 + slow * 0.3));
+          // Syllable rhythm
+          const syllablePos = (elapsed % syllableDuration) / syllableDuration;
+          const syllableShape = Math.sin(syllablePos * Math.PI); // Open→close per syllable
+
+          // Vary intensity over time (sentence rhythm: start soft, peak, trail off)
+          const sentencePos = elapsed / durationMs;
+          const sentenceEnvelope = Math.sin(sentencePos * Math.PI) * 0.4 + 0.6; // 0.6→1.0→0.6
+
+          // Random pauses
+          const isPause = Math.sin(elapsed / 400) > (1 - pauseChance * 2) && syllablePos < 0.2;
+
+          const targetValue = isPause ? 0.05 : syllableShape * sentenceEnvelope * (0.5 + Math.random() * 0.3);
+
+          // Smooth
+          const speed = targetValue > smoothedValue ? 0.35 : 0.15;
+          smoothedValue += (targetValue - smoothedValue) * speed;
+
+          setMouth(model, Math.max(0, Math.min(1, smoothedValue)));
           frame = requestAnimationFrame(animate);
         } else {
-          setMouth(model, 0);
+          // Smooth close
+          let closeVal = smoothedValue;
+          function smoothClose() {
+            closeVal *= 0.75;
+            if (closeVal > 0.01) {
+              setMouth(model, closeVal);
+              frame = requestAnimationFrame(smoothClose);
+            } else {
+              setMouth(model, 0);
+            }
+          }
+          smoothClose();
         }
       }
       animate();
