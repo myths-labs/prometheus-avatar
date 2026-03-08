@@ -399,33 +399,25 @@ body {
 }
 
 .text-gradient-animated {
-  /* ═══ NO MORE background-clip:text — it clips italic descenders ═══ */
-  /* Instead: render text normally, apply gradient via CSS filter */
-  color: #00d4aa;
+  background: linear-gradient(270deg, var(--teal), var(--gold-light), var(--teal-light), var(--teal));
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 6s ease-in-out infinite;
   display: inline-block;
-  position: relative;
-  animation: gradientColor 6s ease-in-out infinite;
 }
 
-@keyframes gradientColor {
-  0% {
-    color: #00d4aa;
-  }
+/* ═══ Avatar speaking glow pulse ═══ */
+@keyframes speakPulse {
 
-  25% {
-    color: #e8d48b;
+  0%,
+  100% {
+    opacity: 0.6;
   }
 
   50% {
-    color: #4aecd0;
-  }
-
-  75% {
-    color: #c9a84c;
-  }
-
-  100% {
-    color: #00d4aa;
+    opacity: 1;
   }
 }
 

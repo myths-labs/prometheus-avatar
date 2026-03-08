@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import AvatarCanvas, { AvatarCanvasHandle } from "@/components/AvatarCanvas";
 import ChatPanel from "@/components/ChatPanel";
 import AvatarSelector from "@/components/AvatarSelector";
@@ -9,10 +9,7 @@ import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
 import { useMarketplaceAssets } from "@/lib/useMarketplaceAssets";
 import EffectOverlay from "@/components/EffectOverlay";
-import dynamic from "next/dynamic";
 
-// Dynamic import to avoid SSR issues with camera API
-const FaceTracker = dynamic(() => import("@/components/FaceTracker"), { ssr: false });
 
 const AVATARS = [
   { id: "haru", name: "Haru", description: "Friendly and expressive", modelUrl: "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json", thumbnail: "🧑‍🎤", badge: "official" },
@@ -25,15 +22,17 @@ export default function HomeClient() {
   const [currentEmotion, setCurrentEmotion] = useState("neutral");
   const [isAvatarReady, setIsAvatarReady] = useState(false);
   const [voiceOverride, setVoiceOverride] = useState<string | null>(null);
-  const [vtubMode, setVtubMode] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const avatarRef = useRef<AvatarCanvasHandle>(null);
   const demoRef = useRef<HTMLDivElement>(null);
 
-  // VTuber mode: send face angles to avatar iframe
-  const handleFaceAngles = useCallback((angles: { x: number; y: number; z: number }) => {
-    const iframe = document.querySelector('iframe') as HTMLIFrameElement;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'set-head-angles', ...angles }, '*');
+  // Track speaking state for glow effect
+  const handleSpeak = useCallback(async (text: string) => {
+    setIsSpeaking(true);
+    try {
+      await avatarRef.current?.speak(text);
+    } finally {
+      setIsSpeaking(false);
     }
   }, []);
 
@@ -50,9 +49,8 @@ export default function HomeClient() {
   // Wire persona changes to ChatPanel's system prompt
   const systemPrompt = marketplace.personaPrompt || undefined;
 
-  const handleSpeak = useCallback(async (text: string) => {
-    if (avatarRef.current) { try { await avatarRef.current.speak(text); } catch (e) { console.error(e); } }
-  }, []);
+
+
   const handleInterrupt = useCallback(() => {
     if (avatarRef.current) { try { avatarRef.current.interrupt?.(); } catch { } }
   }, []);
@@ -92,15 +90,15 @@ export default function HomeClient() {
               </div>
             )}
             <div className="w-full aspect-[4/3] relative z-10">
+              {/* Speaking glow ring */}
+              {isSpeaking && (
+                <div className="absolute inset-0 rounded-2xl z-20 pointer-events-none" style={{
+                  boxShadow: '0 0 30px rgba(0,212,170,0.3), inset 0 0 30px rgba(0,212,170,0.05)',
+                  animation: 'speakPulse 1.5s ease-in-out infinite',
+                }} />
+              )}
               <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} voiceOverride={marketplace.voiceConfig?.voiceId || voiceOverride} />
               <div className="absolute top-4 right-4 flex items-center gap-2">
-                {/* VTuber mode toggle */}
-                <button
-                  onClick={() => setVtubMode(!vtubMode)}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-all ${vtubMode ? 'bg-[#00d4aa]/20 text-[#00d4aa] border-[#00d4aa]/30' : 'bg-white/5 text-[#7a8a9d] border-white/10 hover:border-[#00d4aa]/20'}`}
-                >
-                  {vtubMode ? '🎥 VTuber ON' : '📷 VTuber'}
-                </button>
                 <div className={`emotion-badge ${currentEmotion === "happy" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
                   : currentEmotion === "sad" ? "bg-[#4a7ab5]/20 text-[#7ab5e0]"
                     : currentEmotion === "angry" ? "bg-[#c94c4c]/20 text-[#e88b8b]"
@@ -127,9 +125,6 @@ export default function HomeClient() {
           </div>
           <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} onVoiceChange={(v) => setVoiceOverride(v)} systemPrompt={systemPrompt} />
         </div>
-
-        {/* VTuber camera tracker */}
-        <FaceTracker enabled={vtubMode} onFaceAngles={handleFaceAngles} />
       </section>
 
       {/* CTA — Aithena-style clean card */}
