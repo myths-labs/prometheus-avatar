@@ -108,7 +108,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
               <span className="text-[#00d4aa]">import</span>{" "}
               <span className="text-[#c9a84c]">{"{ createAvatar }"}</span>{" "}
               <span className="text-[#00d4aa]">from</span>{" "}
-              <span className="text-[#e8d48b]">&apos;@prometheus-avatar/core&apos;</span>
+              <span className="text-[#e8d48b]">&apos;@prometheusavatar/core&apos;</span>
             </div>
             <div className="mt-1">
               <span className="text-[#00d4aa]">const</span>{" "}
