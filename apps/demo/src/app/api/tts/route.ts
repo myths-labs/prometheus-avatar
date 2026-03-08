@@ -36,48 +36,62 @@ const GEMINI_VOICES: Record<string, string> = {
 async function generateGeminiTTS(text: string, voiceName: string): Promise<Buffer | null> {
     if (!GEMINI_API_KEY) return null;
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text }]
-                }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: {
-                                voiceName: voiceName,
+    // Try dedicated TTS model first, then regular Gemini with audio output
+    const models = [
+        "gemini-2.5-flash-preview-tts",
+        "gemini-2.0-flash",
+    ];
+
+    for (const model of models) {
+        try {
+            console.log(`[Gemini TTS] Trying model: ${model}`);
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: `Please speak this text naturally: ${text}` }]
+                        }],
+                        generationConfig: {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: {
+                                voiceConfig: {
+                                    prebuiltVoiceConfig: {
+                                        voiceName: voiceName,
+                                    }
+                                }
                             }
-                        }
-                    }
-                },
-            }),
+                        },
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const errText = await response.text();
+                console.warn(`[Gemini TTS] ${model} ${response.status}: ${errText.slice(0, 200)}`);
+                continue; // Try next model
+            }
+
+            const data = await response.json();
+            const audioPart = data.candidates?.[0]?.content?.parts?.find(
+                (p: any) => p.inlineData?.mimeType?.startsWith("audio/")
+            );
+
+            if (!audioPart?.inlineData?.data) {
+                console.warn(`[Gemini TTS] ${model}: No audio data in response`);
+                continue;
+            }
+
+            console.log(`[Gemini TTS] ✅ Success with ${model}`);
+            return Buffer.from(audioPart.inlineData.data, "base64");
+        } catch (e: any) {
+            console.warn(`[Gemini TTS] ${model} error: ${e.message}`);
         }
-    );
-
-    if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[Gemini TTS] ${response.status}: ${errText.slice(0, 200)}`);
-        return null;
     }
 
-    const data = await response.json();
-
-    // Extract audio from Gemini response
-    const audioPart = data.candidates?.[0]?.content?.parts?.find(
-        (p: any) => p.inlineData?.mimeType?.startsWith("audio/")
-    );
-
-    if (!audioPart?.inlineData?.data) {
-        console.error("[Gemini TTS] No audio data in response");
-        return null;
-    }
-
-    return Buffer.from(audioPart.inlineData.data, "base64");
+    return null;
 }
 
 // ElevenLabs TTS (reliable REST API)
