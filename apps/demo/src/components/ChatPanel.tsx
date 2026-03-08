@@ -10,7 +10,7 @@ interface Message {
 }
 
 interface ChatPanelProps {
-    onSendMessage: (text: string) => Promise<void>;
+    onSendMessage: (text: string) => void | Promise<void>;
     onInterrupt?: () => void;
     isAvatarReady: boolean;
     onVoiceChange?: (voice: string) => void;
@@ -115,11 +115,15 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                     throw new Error(err.error || "API error");
                 }
 
-                // ═══ CONSUME SSE STREAM — text display only ═══
+                // ═══ CONSUME SSE STREAM — display + speak per sentence ═══
                 const reader = response.body!.getReader();
                 const decoder = new TextDecoder();
                 let fullReply = "";
+                let spokenUpTo = 0;
                 let buffer = "";
+                isSpeakingRef.current = true;
+
+                const sentenceEnd = /[.!?。！？\n]/;
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -138,23 +142,36 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                             const json = JSON.parse(data);
                             if (json.token) {
                                 fullReply += json.token;
-                                // Real-time typing effect in chat bubble
+                                // Real-time typing effect
                                 setMessages(prev => prev.map(m =>
                                     m.id === thinkingId ? { ...m, content: fullReply } : m
                                 ));
+
+                                // Detect sentence boundary → enqueue for speech (queue handles ordering)
+                                const unspoken = fullReply.slice(spokenUpTo);
+                                const match = unspoken.search(sentenceEnd);
+                                if (match !== -1) {
+                                    const sentence = unspoken.slice(0, match + 1).trim();
+                                    if (sentence.length > 0) {
+                                        spokenUpTo += match + 1;
+                                        onSendMessage(sentence); // SAFE: HomeClient queues these
+                                    }
+                                }
                             }
-                        } catch { /* skip parse errors */ }
+                        } catch { }
                     }
                 }
 
-                // ═══ SPEAK complete reply ONCE — consistent voice, no overlaps ═══
-                if (fullReply.trim().length > 0) {
-                    setMessages(prev => prev.map(m =>
-                        m.id === thinkingId ? { ...m, content: fullReply } : m
-                    ));
-                    isSpeakingRef.current = true;
-                    await onSendMessage(fullReply.trim());
+                // Speak remaining text
+                const remaining = fullReply.slice(spokenUpTo).trim();
+                if (remaining.length > 0) {
+                    onSendMessage(remaining);
                 }
+
+                // Final message update
+                setMessages(prev => prev.map(m =>
+                    m.id === thinkingId ? { ...m, content: fullReply } : m
+                ));
             }
         } catch (err: any) {
             console.error("Chat error:", err);

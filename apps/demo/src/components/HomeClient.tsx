@@ -29,16 +29,29 @@ export default function HomeClient() {
   const [vtubMode, setVtubMode] = useState(false);
   const avatarRef = useRef<AvatarCanvasHandle>(null);
   const demoRef = useRef<HTMLDivElement>(null);
+  const speechQueueRef = useRef<string[]>([]);
+  const isProcessingQueueRef = useRef(false);
 
-  // Track speaking state for glow effect
-  const handleSpeak = useCallback(async (text: string) => {
+  // ═══ SPEECH QUEUE: sentences enqueued safely, played one by one ═══
+  const processQueue = useCallback(async () => {
+    if (isProcessingQueueRef.current) return;
+    isProcessingQueueRef.current = true;
     setIsSpeaking(true);
-    try {
-      await avatarRef.current?.speak(text);
-    } finally {
-      setIsSpeaking(false);
+
+    while (speechQueueRef.current.length > 0) {
+      const sentence = speechQueueRef.current.shift()!;
+      await avatarRef.current?.speak(sentence);
     }
+
+    isProcessingQueueRef.current = false;
+    setIsSpeaking(false);
   }, []);
+
+  // handleSpeak can be called multiple times safely — sentences are queued
+  const handleSpeak = useCallback((text: string) => {
+    speechQueueRef.current.push(text);
+    processQueue();
+  }, [processQueue]);
 
   // VTuber mode: send face angles to avatar iframe
   const handleFaceAngles = useCallback((angles: { x: number; y: number; z: number }) => {
@@ -64,6 +77,8 @@ export default function HomeClient() {
 
 
   const handleInterrupt = useCallback(() => {
+    speechQueueRef.current = []; // Clear queued sentences
+    isProcessingQueueRef.current = false;
     if (avatarRef.current) { try { avatarRef.current.interrupt?.(); } catch { } }
   }, []);
   const handleEmotionChange = useCallback((emotion: string) => { setCurrentEmotion(emotion); }, []);
