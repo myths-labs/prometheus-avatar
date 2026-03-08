@@ -51,7 +51,9 @@ body {
   font-family: var(--font-playfair), Georgia, 'Times New Roman', serif;
   font-weight: 400;
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.2;
+  overflow: visible;
+  padding-bottom: 0.05em;
 }
 
 .heading-serif em {
