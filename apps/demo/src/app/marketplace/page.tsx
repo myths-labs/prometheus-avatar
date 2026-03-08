@@ -324,7 +324,7 @@ export default function MarketplacePage() {
                             <div className="text-2xl font-bold text-purple-400 mb-1">80%</div>
                             <p className="text-xs text-[#a8b8d0]">20% platform fee</p>
                             <div className="mt-3 pt-3 border-t border-white/5">
-                                <p className="text-[10px] text-[#c9a84c]">✨ Member: <span className="font-bold">90%</span> (10% fee)</p>
+                                <p className="text-xs text-[#c9a84c]">✨ Member: <span className="font-bold">90%</span> (10% fee)</p>
                             </div>
                         </div>
                         {/* AI Agent */}
@@ -335,7 +335,7 @@ export default function MarketplacePage() {
                             <div className="text-2xl font-bold text-[#c9a84c] mb-1">85%</div>
                             <p className="text-xs text-[#a8b8d0]">15% platform fee</p>
                             <div className="mt-3 pt-3 border-t border-white/5">
-                                <p className="text-[10px] text-[#c9a84c]">✨ Member: <span className="font-bold">92.5%</span> (7.5% fee)</p>
+                                <p className="text-xs text-[#c9a84c]">✨ Member: <span className="font-bold">92.5%</span> (7.5% fee)</p>
                             </div>
                         </div>
                         {/* Lobster */}
@@ -346,7 +346,7 @@ export default function MarketplacePage() {
                             <div className="text-2xl font-bold text-red-400 mb-1">90%</div>
                             <p className="text-xs text-[#a8b8d0]">10% platform fee</p>
                             <div className="mt-3 pt-3 border-t border-white/5">
-                                <p className="text-[10px] text-[#c9a84c]">✨ Member: <span className="font-bold">95%</span> (5% fee)</p>
+                                <p className="text-xs text-[#c9a84c]">✨ Member: <span className="font-bold">95%</span> (5% fee)</p>
                             </div>
                         </div>
                     </div>
