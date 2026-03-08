@@ -129,15 +129,22 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     allow="autoplay"
                 />
                 {!ready && !error && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                        <div className="text-4xl animate-pulse">⏳</div>
-                        <p className="text-xs text-[#a8b8d0]">Loading avatar...</p>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0a0f1a]/80 backdrop-blur-sm rounded-xl">
+                        <div className="relative">
+                            <div className="w-16 h-16 rounded-full border-2 border-[#00d4aa]/30 animate-spin" style={{ borderTopColor: '#00d4aa' }} />
+                            <div className="absolute inset-0 flex items-center justify-center text-2xl">🎭</div>
+                        </div>
+                        <p className="text-sm text-[#a8b8d0] font-light">Loading avatar...</p>
                     </div>
                 )}
                 {error && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                        <div className="text-5xl">🤖</div>
-                        <p className="text-xs text-[#6b7a8d] text-center max-w-[200px]">{error}</p>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0a0f1a]/80 backdrop-blur-sm rounded-xl">
+                        <div className="text-5xl">😵</div>
+                        <p className="text-sm text-[#c94c4c] text-center max-w-[240px]">{error}</p>
+                        <button
+                            onClick={() => { setError(null); setReady(false); iframeRef.current?.contentWindow?.location.reload(); }}
+                            className="px-4 py-1.5 text-xs rounded-full bg-[#00d4aa]/15 text-[#00f0c8] border border-[#00d4aa]/20 hover:bg-[#00d4aa]/25 transition-all"
+                        >🔄 Retry</button>
                     </div>
                 )}
             </div>

@@ -60,54 +60,73 @@ npm install @prometheusavatar/core
 ### Usage
 
 ```typescript
-import { AvatarEngine } from '@prometheusavatar/core';
+import { createAvatar } from '@prometheusavatar/core';
 
-// Initialize
-const avatar = new AvatarEngine({
-  container: document.getElementById('avatar'),
-  model: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json',
+// Initialize — loads model, TTS, lip-sync, emotion
+const avatar = await createAvatar({
+  container: document.getElementById('avatar')!,
+  modelUrl: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json',
 });
 
-// Make the avatar speak with emotion
-await avatar.speak("Hello! I'm your AI assistant.", { emotion: 'happy' });
-```
+// Avatar speaks with auto-detected emotion + lip-sync
+await avatar.speak('Hello! I\'m your AI assistant. 😊');
 
-### With React / Next.js
-
-```tsx
-import { AvatarCanvas } from '@prometheusavatar/core/react';
-
-export default function App() {
-  return (
-    <AvatarCanvas
-      modelUrl="https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/shizuku/shizuku.model.json"
-      onReady={() => console.log('Avatar loaded!')}
-    />
-  );
-}
+// React to emotion changes
+avatar.on('emotion:change', ({ result }) => {
+  console.log(`Emotion: ${result.emotion} (${result.confidence})`);
+});
 ```
 
 ## 🏗️ Architecture
 
+```mermaid
+graph TB
+    subgraph SDK["@prometheusavatar/core"]
+        PA[PrometheusAvatar] --> R[Live2DRenderer]
+        PA --> TTS[WebSpeechTTS]
+        PA --> LS[LipSyncEngine]
+        PA --> EA[EmotionAnalyzer]
+    end
+
+    subgraph Demo["apps/demo"]
+        NX[Next.js App] --> AC[AvatarCanvas]
+        NX --> CP[ChatPanel]
+        NX --> MP[Marketplace]
+        AC --> IF["iframe sandbox"]
+        IF --> L2D[Live2D Cubism SDK]
+    end
+
+    subgraph APIs["Backend APIs"]
+        CHAT["/api/chat"] --> GEM[Gemini 2.0 Flash]
+        TTSR["/api/tts"] --> GTTS[Gemini TTS]
+        TTSR --> EL[ElevenLabs]
+    end
+
+    CP --> CHAT
+    AC --> TTSR
+```
+
 ```
 prometheus-avatar/
 ├── packages/
-│   └── sdk/                  # @prometheusavatar/core — the NPM package
-│       ├── src/
-│       │   ├── engine.ts     # Core avatar rendering engine
-│       │   ├── tts.ts        # Text-to-speech with lip sync
-│       │   ├── emotion.ts    # Emotion detection from text
-│       │   └── index.ts      # Public API exports
-│       └── package.json
+│   ├── sdk/                  # @prometheusavatar/core
+│   │   └── src/
+│   │       ├── avatar.ts     # PrometheusAvatar orchestrator
+│   │       ├── renderer.ts   # Live2D rendering via PIXI.js
+│   │       ├── tts.ts        # Pluggable TTS engine
+│   │       ├── lip-sync.ts   # Audio → mouth shape mapping
+│   │       ├── emotion.ts    # Text → emotion detection
+│   │       └── types.ts      # TypeScript interfaces
+│   └── openclaw-plugin/      # OpenClaw marketplace integration
 ├── apps/
-│   └── demo/                 # Next.js demo site — prometheus-avatar.vercel.app
-│       ├── public/
-│       │   └── avatar.html   # Standalone Live2D renderer (iframe sandbox)
+│   └── demo/                 # prometheus-avatar.vercel.app
+│       ├── public/avatar.html # Live2D renderer (iframe)
 │       └── src/
-│           ├── components/   # AvatarCanvas, ChatPanel, AvatarSelector...
+│           ├── components/   # AvatarCanvas, ChatPanel, VoiceSelector
 │           └── app/
-│               ├── page.tsx            # Landing page
-│               └── marketplace/page.tsx # Avatar marketplace
+│               ├── api/chat/ # LLM endpoint (Gemini/Groq)
+│               ├── api/tts/  # TTS endpoint (Gemini/ElevenLabs)
+│               └── marketplace/ # Asset marketplace
 └── README.md
 ```
 
@@ -179,14 +198,14 @@ npm install @prometheusavatar/core
 ```
 
 ```typescript
-import { AvatarEngine } from '@prometheusavatar/core';
+import { createAvatar } from '@prometheusavatar/core';
 
-const avatar = new AvatarEngine({
-  container: document.getElementById('avatar'),
-  model: 'haru模型URL',
+const avatar = await createAvatar({
+  container: document.getElementById('avatar')!,
+  modelUrl: 'haru模型URL',
 });
 
-await avatar.speak("你好！我是你的AI助手。", { emotion: 'happy' });
+await avatar.speak('你好！我是你的AI助手。😊');
 ```
 
 ### 🌐 在线体验

@@ -25,6 +25,26 @@ const SORT_OPTIONS = [
     { value: "rating", label: "Top Rated" },
 ];
 
+// Demo data — shown when Supabase is empty or unavailable
+const DEMO_ASSETS = [
+    { id: "1", name: "Haru — School Uniform", description: "Classic anime school girl avatar with full expression set and idle animations", category: "skins", price: 0, is_free: true, thumbnail: "🎓", downloads: 12400, rating: 4.9, badge: "official", tags: ["live2d", "anime", "school"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+    { id: "2", name: "Shizuku — Evening Dress", description: "Elegant evening gown variant with special sparkle effects", category: "skins", price: 4.99, is_free: false, thumbnail: "👗", downloads: 8200, rating: 4.8, badge: "official", tags: ["live2d", "elegant"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+    { id: "3", name: "Sakura Voice Pack", description: "Sweet Japanese female voice — warm, friendly, perfect for companions", category: "voices", price: 2.99, is_free: false, thumbnail: "🌸", downloads: 15600, rating: 4.7, badge: "popular", tags: ["voice", "japanese", "female"], creator: { id: "c2", name: "VoiceCraft AI", avatar_url: null, is_official: false, is_agent: true } },
+    { id: "4", name: "Natural Chinese Female", description: "Native Mandarin voice with natural intonation — great for Chinese market", category: "voices", price: 3.99, is_free: false, thumbnail: "🇨🇳", downloads: 9800, rating: 4.9, badge: "popular", tags: ["voice", "chinese", "female"], creator: { id: "c2", name: "VoiceCraft AI", avatar_url: null, is_official: false, is_agent: true } },
+    { id: "5", name: "Particle Aura", description: "Glowing particle effect around avatar — reacts to emotion changes", category: "effects", price: 1.99, is_free: false, thumbnail: "✨", downloads: 6300, rating: 4.5, badge: null, tags: ["effect", "particles"], creator: { id: "c3", name: "PixelDream", avatar_url: null, is_official: false, is_agent: false } },
+    { id: "6", name: "Cherry Blossom Rain", description: "Beautiful falling sakura petals background effect", category: "effects", price: 0, is_free: true, thumbnail: "🌺", downloads: 18900, rating: 4.8, badge: "official", tags: ["effect", "sakura", "free"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+    { id: "7", name: "Dance Motion Pack", description: "5 dance animations: K-pop, waltz, hip-hop, ballet, folk", category: "motions", price: 5.99, is_free: false, thumbnail: "💃", downloads: 4200, rating: 4.6, badge: null, tags: ["motion", "dance"], creator: { id: "c4", name: "MotionStudio", avatar_url: null, is_official: false, is_agent: false } },
+    { id: "8", name: "Cat Ears & Tail", description: "Cute nekomimi accessories set — ears react to emotions", category: "accessories", price: 1.49, is_free: false, thumbnail: "🐱", downloads: 11200, rating: 4.9, badge: "popular", tags: ["accessory", "cat", "cute"], creator: { id: "c5", name: "KawaiiCraft", avatar_url: null, is_official: false, is_agent: false } },
+    { id: "9", name: "Cyberpunk Neon Room", description: "Futuristic background scene with animated neon signs and rain", category: "scenes", price: 3.49, is_free: false, thumbnail: "🌃", downloads: 5700, rating: 4.7, badge: null, tags: ["scene", "cyberpunk"], creator: { id: "c3", name: "PixelDream", avatar_url: null, is_official: false, is_agent: false } },
+    { id: "10", name: "Cozy Café Scene", description: "Warm coffee shop backdrop with ambient sounds and steam effects", category: "scenes", price: 0, is_free: true, thumbnail: "☕", downloads: 14300, rating: 4.8, badge: "official", tags: ["scene", "cafe", "cozy"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+    { id: "11", name: "Tsundere Persona", description: "Personality module — classic tsundere behavior with dynamic emotion shifts", category: "personas", price: 2.49, is_free: false, thumbnail: "😤", downloads: 7800, rating: 4.6, badge: null, tags: ["persona", "tsundere"], creator: { id: "c2", name: "VoiceCraft AI", avatar_url: null, is_official: false, is_agent: true } },
+    { id: "12", name: "Extended Emotion Pack", description: "12 extra expressions: smug, embarrassed, sleepy, excited, love, and more", category: "expressions", price: 1.99, is_free: false, thumbnail: "😍", downloads: 9100, rating: 4.8, badge: "official", tags: ["expression", "emotion"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+    { id: "13", name: "Starter Bundle", description: "Everything you need — Haru skin + voice pack + basic effects + expressions", category: "bundles", price: 0, is_free: true, thumbnail: "🎁", downloads: 22100, rating: 4.9, badge: "official", tags: ["bundle", "starter"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+    { id: "14", name: "Creator Pro Bundle", description: "Premium collection: 3 skins + 2 voice packs + 5 scenes + all effects", category: "bundles", price: 19.99, is_free: false, thumbnail: "💎", downloads: 3400, rating: 4.9, badge: "popular", tags: ["bundle", "premium"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+    { id: "15", name: "Deep Male Voice", description: "Professional male narrator voice — perfect for serious AI assistants", category: "voices", price: 2.99, is_free: false, thumbnail: "🎙️", downloads: 6700, rating: 4.5, badge: null, tags: ["voice", "male", "professional"], creator: { id: "c2", name: "VoiceCraft AI", avatar_url: null, is_official: false, is_agent: true } },
+    { id: "16", name: "Idle Fidget Animations", description: "Natural idle movements — hair play, stretching, looking around", category: "motions", price: 0, is_free: true, thumbnail: "🙆", downloads: 16500, rating: 4.7, badge: "official", tags: ["motion", "idle", "free"], creator: { id: "c1", name: "Myths Labs", avatar_url: null, is_official: true, is_agent: false } },
+] as (Asset & { creator?: Creator })[];
+
 export default function MarketplacePage() {
     const [assets, setAssets] = useState<(Asset & { creator?: Creator })[]>([]);
     const [loading, setLoading] = useState(true);
@@ -58,9 +78,26 @@ export default function MarketplacePage() {
 
             const { data, error } = await query;
             if (error) throw error;
-            setAssets(data || []);
+
+            // Fallback to demo data if Supabase is empty
+            if (!data || data.length === 0) {
+                let demo = selectedCategory === "all" ? DEMO_ASSETS : DEMO_ASSETS.filter(a => a.category === selectedCategory);
+                // Client-side sort for demo data
+                switch (sortBy) {
+                    case "popular": demo = [...demo].sort((a, b) => b.downloads - a.downloads); break;
+                    case "price_low": demo = [...demo].sort((a, b) => a.price - b.price); break;
+                    case "price_high": demo = [...demo].sort((a, b) => b.price - a.price); break;
+                    case "rating": demo = [...demo].sort((a, b) => b.rating - a.rating); break;
+                }
+                setAssets(demo);
+            } else {
+                setAssets(data);
+            }
         } catch (err) {
             console.error("Failed to fetch assets:", err);
+            // On error, show demo data
+            let demo = selectedCategory === "all" ? DEMO_ASSETS : DEMO_ASSETS.filter(a => a.category === selectedCategory);
+            setAssets(demo);
         } finally {
             setLoading(false);
         }
