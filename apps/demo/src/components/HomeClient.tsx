@@ -1,12 +1,23 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import AvatarCanvas, { AvatarCanvasHandle } from "@/components/AvatarCanvas";
+import dynamic from "next/dynamic";
+import type { AvatarCanvasHandle } from "@/components/AvatarCanvas";
 import ChatPanel from "@/components/ChatPanel";
 import AvatarSelector from "@/components/AvatarSelector";
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
+
+// Load AvatarCanvas with SSR disabled — pixi.js needs browser APIs
+const AvatarCanvas = dynamic(() => import("@/components/AvatarCanvas"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full min-h-[300px] flex items-center justify-center">
+      <div className="text-4xl animate-pulse">⏳</div>
+    </div>
+  ),
+});
 
 const CDN_BASE = "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets";
 
