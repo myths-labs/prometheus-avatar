@@ -381,11 +381,17 @@ export default function MarketplacePage() {
                 <div className="max-w-3xl mx-auto">
                     <h3 className="text-lg font-semibold text-[#eae6df] mb-6">Accepted Payments</h3>
                     <div className="flex flex-wrap justify-center gap-3">
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#635BFF] border border-white/5 font-semibold">Stripe</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#1677FF] border border-white/5 font-semibold">Alipay</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#07C160] border border-white/5 font-semibold">WeChat Pay</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#0052FF] border border-white/5 font-semibold">x402</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#2775CA] border border-white/5 font-semibold">USDC / USDT</span>
+                        <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2">
+                            <img src="/stripe_logo.png" alt="Stripe" className="h-5 object-contain" /> Stripe
+                        </span>
+                        <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2">
+                            <img src="/alipay_logo.svg" alt="Alipay" className="h-5 object-contain" /> Alipay
+                        </span>
+                        <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2">
+                            <img src="/wechat_pay_icon-logo_brandlogos.net_6qpmj.png" alt="WeChat Pay" className="h-5 object-contain" /> WeChat Pay
+                        </span>
+                        <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#0052FF] border border-white/5 font-semibold">x402</span>
+                        <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#2775CA] border border-white/5 font-semibold">USDC / USDT</span>
                     </div>
                 </div>
             </section>
