@@ -29,8 +29,8 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
     const [isProcessing, setIsProcessing] = useState(false);
     const [mode, setMode] = useState<"direct" | "llm">("llm");
     const [showSettings, setShowSettings] = useState(false);
-    const [isPTT, setIsPTT] = useState(false); // Push-to-talk active (holding)
-    const [pttText, setPttText] = useState(""); // Accumulated PTT text
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordText, setRecordText] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
@@ -50,8 +50,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         ]);
     }, []);
 
-    // Core send — uses browser TTS in voice mode for speed, ElevenLabs for text mode
-    const sendMessage = useCallback(async (text: string, skipTTS = false) => {
+    const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || isProcessingRef.current) return;
         isProcessingRef.current = true;
         setIsProcessing(true);
@@ -72,7 +71,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                 });
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
-                    throw new Error(err.error || "API failed");
+                    throw new Error(err.error || "API error");
                 }
                 const data = await response.json();
                 addMessage("assistant", data.reply);
@@ -88,27 +87,35 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         }
     }, [mode, messages, onSendMessage, addMessage]);
 
-    // Interrupt avatar
-    const handleInterrupt = useCallback(() => {
-        onInterrupt?.();
-    }, [onInterrupt]);
+    // Toggle recording on/off
+    const toggleRecording = useCallback(() => {
+        if (isRecording) {
+            // STOP recording
+            try { recognitionRef.current?.stop(); } catch { }
+            recognitionRef.current = null;
+            setIsRecording(false);
 
-    // ========== PUSH-TO-TALK ==========
-    const startPTT = useCallback(() => {
-        if (isProcessingRef.current) {
-            // If AI is talking, interrupt first
-            handleInterrupt();
+            // Send whatever was recorded
+            const text = recordText.trim();
+            setRecordText("");
+            if (text) {
+                sendMessage(text);
+            }
             return;
         }
 
+        // If AI is talking, interrupt
+        if (isProcessingRef.current) {
+            onInterrupt?.();
+            return;
+        }
+
+        // START recording
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("Your browser doesn't support voice. Try Chrome.");
+            alert("Your browser doesn't support voice input. Use Chrome.");
             return;
         }
-
-        setIsPTT(true);
-        setPttText("");
 
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
@@ -120,36 +127,26 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
             for (let i = 0; i < event.results.length; i++) {
                 transcript += event.results[i][0].transcript;
             }
-            setPttText(transcript);
+            setRecordText(transcript);
         };
 
-        recognition.onerror = () => { };
-        recognition.onend = () => { };
+        recognition.onerror = (event: any) => {
+            console.warn("Speech error:", event.error);
+            if (event.error !== "aborted") {
+                setIsRecording(false);
+            }
+        };
+
+        recognition.onend = () => {
+            // Don't auto-restart — user controls via button
+        };
 
         recognitionRef.current = recognition;
+        setIsRecording(true);
+        setRecordText("");
         try { recognition.start(); } catch { }
-    }, [handleInterrupt]);
+    }, [isRecording, recordText, sendMessage, onInterrupt]);
 
-    const stopPTT = useCallback(() => {
-        setIsPTT(false);
-
-        // Stop recognition
-        try { recognitionRef.current?.stop(); } catch { }
-        recognitionRef.current = null;
-
-        // Get the text and send
-        // Use setTimeout to get the latest pttText from state
-        setTimeout(() => {
-            const textEl = document.getElementById("ptt-text-holder");
-            const text = textEl?.getAttribute("data-text") || "";
-            if (text.trim()) {
-                sendMessage(text.trim());
-            }
-            setPttText("");
-        }, 300);
-    }, [sendMessage]);
-
-    // Text mode send
     const handleSend = useCallback(() => {
         const text = input.trim();
         if (!text) return;
@@ -162,10 +159,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
     }, [sendMessage]);
 
     return (
-        <div className="glass-strong flex flex-col h-[500px]">
-            {/* Hidden element to pass PTT text */}
-            <div id="ptt-text-holder" data-text={pttText} style={{ display: "none" }} />
-
+        <div className="glass-strong flex flex-col h-[500px] relative">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-[rgba(0,212,170,0.06)]">
                 <div className="flex items-center gap-3">
@@ -182,15 +176,14 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                     </div>
                 </div>
                 <button className="text-[#5a6a80] hover:text-[#8a9ab5] text-xs" onClick={() => setShowSettings(!showSettings)}>
-                    ⚙️ Settings
+                    ⚙️
                 </button>
             </div>
 
             {showSettings && (
                 <div className="px-5 py-3 border-b border-[rgba(0,212,170,0.06)] bg-black/20">
-                    <p className="text-xs text-[#8a9ab5]"><strong>LLM Chat:</strong> AI responds intelligently</p>
-                    <p className="text-xs text-[#5a6a80] mt-1"><strong>Direct:</strong> Avatar speaks your text</p>
-                    <p className="text-xs text-[#5a6a80] mt-1"><strong>🎤 Hold mic:</strong> Push-to-talk — hold to speak, release to send</p>
+                    <p className="text-xs text-[#8a9ab5]"><strong>LLM Chat:</strong> Groq Llama 3.3 — smart AI responses</p>
+                    <p className="text-xs text-[#5a6a80] mt-1"><strong>Direct:</strong> Avatar speaks your text exactly</p>
                 </div>
             )}
 
@@ -199,7 +192,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                 {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center gap-4">
                         <p className="text-[#5a6a80] text-sm text-center">
-                            Chat with AI — type or hold 🎤 to speak
+                            Chat with AI — type or tap 🎤
                         </p>
                         <div className="flex flex-wrap justify-center gap-2">
                             {QUICK_PROMPTS.map((prompt) => (
@@ -218,7 +211,6 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                         </div>
                     ))
                 )}
-
                 {isProcessing && (
                     <div className="flex justify-start message-enter">
                         <div className="bg-white/5 px-4 py-3 rounded-2xl rounded-bl-md flex gap-1.5">
@@ -229,43 +221,44 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* PTT overlay */}
-            {isPTT && (
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-2xl">
-                    <div className="text-6xl mb-4 animate-pulse">🎤</div>
-                    <p className="text-white text-lg font-medium mb-2">Listening...</p>
-                    <p className="text-[#00d4aa] text-sm max-w-[80%] text-center min-h-[40px]">
-                        {pttText || "Start speaking..."}
+            {/* Recording overlay */}
+            {isRecording && (
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl"
+                    style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+                    onClick={toggleRecording}
+                >
+                    <div className="text-6xl mb-6" style={{ animation: "pulse 1.5s ease-in-out infinite" }}>🎤</div>
+                    <p className="text-white text-lg font-medium mb-3">Listening...</p>
+                    <p className="text-[#00f0c8] text-base max-w-[80%] text-center min-h-[50px] px-4">
+                        {recordText || "Start speaking..."}
                     </p>
-                    <p className="text-[#5a6a80] text-xs mt-4">Release to send</p>
+                    <button
+                        className="mt-6 px-6 py-2 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 text-sm hover:bg-red-500/30 transition-all"
+                        onClick={(e) => { e.stopPropagation(); toggleRecording(); }}
+                    >
+                        ⏹ Stop & Send
+                    </button>
                 </div>
             )}
 
             {/* Input */}
             <div className="px-5 py-3 border-t border-[rgba(0,212,170,0.06)]">
                 <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
-                    {/* Push-to-talk button */}
                     <button
                         type="button"
-                        onMouseDown={startPTT}
-                        onMouseUp={stopPTT}
-                        onMouseLeave={() => { if (isPTT) stopPTT(); }}
-                        onTouchStart={(e) => { e.preventDefault(); startPTT(); }}
-                        onTouchEnd={(e) => { e.preventDefault(); stopPTT(); }}
-                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 select-none ${isPTT
-                                ? "bg-red-500/30 text-red-400 scale-110 shadow-lg shadow-red-500/30"
-                                : isProcessing
-                                    ? "bg-orange-500/20 text-orange-400 cursor-pointer"
-                                    : "bg-black/30 text-[#5a6a80] hover:text-[#00d4aa] hover:bg-black/40 active:scale-95"
+                        onClick={toggleRecording}
+                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${isProcessing
+                                ? "bg-orange-500/20 text-orange-400"
+                                : "bg-black/30 text-[#5a6a80] hover:text-[#00d4aa] hover:bg-black/40 active:scale-90"
                             }`}
-                        title={isProcessing ? "Tap to interrupt" : "Hold to speak"}
+                        title={isProcessing ? "Tap to interrupt" : "Tap to record voice"}
                     >
-                        {isPTT ? "🔴" : isProcessing ? "⏹️" : "🎤"}
+                        {isProcessing ? "⏹️" : "🎤"}
                     </button>
 
                     <input ref={inputRef} type="text" value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder={isProcessing ? "AI is responding..." : isAvatarReady ? "Type or hold 🎤 to speak..." : "Loading..."}
+                        placeholder={isProcessing ? "AI responding..." : isAvatarReady ? "Type a message..." : "Loading..."}
                         disabled={!isAvatarReady || isProcessing}
                         className="flex-1 bg-black/30 border border-[rgba(0,212,170,0.08)] rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#5a6a80] focus:outline-none focus:border-[#00d4aa]/30 transition-colors disabled:opacity-40"
                     />

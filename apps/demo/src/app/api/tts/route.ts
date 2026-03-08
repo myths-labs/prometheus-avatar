@@ -27,13 +27,13 @@ async function generateEdgeTTS(text: string, voice: string): Promise<Buffer> {
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
-    const readable = tts.toStream(text);
+    const { audioStream } = tts.toStream(text);
     const chunks: Buffer[] = [];
 
     return new Promise((resolve, reject) => {
-        readable.on("data", (chunk: Buffer) => chunks.push(chunk));
-        readable.on("end", () => resolve(Buffer.concat(chunks)));
-        readable.on("error", reject);
+        audioStream.on("data", (chunk: Buffer) => chunks.push(chunk));
+        audioStream.on("end", () => resolve(Buffer.concat(chunks)));
+        audioStream.on("error", reject);
     });
 }
 
@@ -71,12 +71,15 @@ export async function POST(req: NextRequest) {
         const chinese = isChinese(text);
 
         let audioBuffer: Buffer | null = null;
+        let engine = "none";
 
         if (chinese) {
             // Chinese → Microsoft Edge TTS (much better quality)
             const voice = EDGE_VOICES[avatarId] || EDGE_VOICES.haru;
+            console.log(`[TTS] Chinese detected → Edge TTS voice: ${voice}`);
             try {
                 audioBuffer = await generateEdgeTTS(text, voice);
+                engine = "edge-tts";
             } catch (e) {
                 console.error("Edge TTS error:", e);
             }
