@@ -100,9 +100,8 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 };
                 const voiceMapping = voiceOverride ? VOICE_MAP[voiceOverride] : undefined;
 
-                // Local helper: play a single sentence with TTS + lip sync
-                const playSentence = async (sentenceText: string, sentenceEmotion: string) => {
-                    let audioUrl: string | null = null;
+                // Fetch TTS audio (returns audioUrl or null)
+                const fetchTTS = async (sentenceText: string): Promise<string | null> => {
                     try {
                         const res = await fetch("/api/tts", {
                             method: "POST",
@@ -111,12 +110,16 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                         });
                         if (res.ok) {
                             const blob = await res.blob();
-                            audioUrl = URL.createObjectURL(blob);
+                            return URL.createObjectURL(blob);
                         }
                     } catch (e) {
-                        console.error("[TTS] Sentence fetch failed:", e);
+                        console.error("[TTS] fetch failed:", e);
                     }
+                    return null;
+                };
 
+                // Play audio in avatar iframe (waits for completion)
+                const playInAvatar = async (sentenceText: string, sentenceEmotion: string, audioUrl: string | null) => {
                     if (iframeRef.current?.contentWindow) {
                         iframeRef.current.contentWindow.postMessage(
                             { type: "speak", text: sentenceText, emotion: sentenceEmotion, audioUrl, useBrowserTTS: !audioUrl },
@@ -132,31 +135,44 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     }
                 };
 
-                // ═══ STREAMING TTS: Split into sentences, play each as soon as ready ═══
+                // ═══ STREAMING TTS WITH PARALLEL PREFETCH ═══
                 const sentences = text
                     .split(/(?<=[.!?。！？\n])\s*/)
                     .map(s => s.trim())
                     .filter(s => s.length > 0);
 
                 if (sentences.length <= 1) {
-                    await playSentence(text, emotion);
+                    const audio = await fetchTTS(text);
+                    await playInAvatar(text, emotion, audio);
                 } else {
                     let interrupted = false;
+
+                    // Start fetching first sentence's TTS immediately
+                    let nextAudioPromise: Promise<string | null> = fetchTTS(sentences[0]);
+
                     for (let i = 0; i < sentences.length; i++) {
                         if (interrupted) break;
 
-                        // Detect emotion for THIS sentence — expression changes mid-speech!
                         const sentenceEmotion = detectEmotion(sentences[i]);
                         if (sentenceEmotion !== "neutral") {
                             onEmotionChange?.(sentenceEmotion);
                         }
 
+                        // Wait for THIS sentence's TTS (was prefetched)
+                        const audioUrl = await nextAudioPromise;
+
+                        // PREFETCH next sentence's TTS while this one plays!
+                        if (i + 1 < sentences.length) {
+                            nextAudioPromise = fetchTTS(sentences[i + 1]);
+                        }
+
+                        // Play current sentence
                         const wasInterrupted = await new Promise<boolean>((resolve) => {
                             speakResolveRef.current = () => {
                                 interrupted = true;
                                 resolve(true);
                             };
-                            playSentence(sentences[i], sentenceEmotion).then(() => resolve(false));
+                            playInAvatar(sentences[i], sentenceEmotion, audioUrl).then(() => resolve(false));
                         });
 
                         if (wasInterrupted) break;
