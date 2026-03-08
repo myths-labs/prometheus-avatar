@@ -78,7 +78,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
         </p>
 
         {/* CTAs — pill buttons like Aithena */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
           <button onClick={onTryDemo} className="btn-primary text-base">
             🔥 Try Live Demo
           </button>
@@ -95,11 +95,18 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
           </a>
         </div>
 
+        {/* 🦞 OpenClaw callout — cold start target audience */}
+        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff6b35]/10 to-[#00d4aa]/10 border border-[#ff6b35]/20 text-sm mb-8 hover:border-[#ff6b35]/40 transition-colors cursor-default">
+          <span className="text-lg">🦞</span>
+          <span className="text-[#e8d48b] font-medium">First-class OpenClaw plugin</span>
+          <span className="text-[#a8b8d0]">— millions of lobsters, meet your new body.</span>
+        </div>
+
         {/* npm + GitHub badges */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <img src="https://img.shields.io/npm/v/@prometheusavatar/core?color=00d4aa&label=npm&style=flat-square" alt="npm" className="h-5" />
-          <img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=flat-square" alt="stars" className="h-5" />
-          <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT" className="h-5" />
+          <img src="https://img.shields.io/badge/npm-v0.7.2-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm v0.7.2" className="h-5" />
+          <img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="stars" className="h-5" />
+          <img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="MIT" className="h-5" />
         </div>
 
         {/* Prophecy tagline */}
