@@ -10,8 +10,8 @@ export default function Header() {
         <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-[rgba(0,212,170,0.06)]">
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                 {/* Logo */}
-                <a href="/" className="flex items-center gap-3 group">
-                    <Image src="/logo-small.png" alt="Prometheus" width={40} height={40} className="group-hover:scale-110 transition-transform drop-shadow-[0_0_8px_rgba(0,212,170,0.4)]" />
+                <a href="/" className="flex items-center gap-1.5 group">
+                    <Image src="/logo-small.png" alt="Prometheus" width={48} height={48} className="group-hover:scale-110 transition-transform drop-shadow-[0_0_8px_rgba(0,212,170,0.4)]" />
                     <span
                         className="heading-serif text-lg tracking-[0.18em] uppercase"
                         style={{ fontWeight: 400 }}
