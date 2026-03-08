@@ -1,5 +1,5 @@
 {
     "installCommand": "cd ../.. && pnpm install",
-    "buildCommand": "cd ../.. && pnpm --filter @prometheusavatar/core build && cd apps/demo && npx next build",
-    "framework": "nextjs"
+    "buildCommand": "cd ../.. && pnpm --filter @prometheusavatar/core build && cd apps/demo && next build",
+    "outputDirectory": ".next"
 }
