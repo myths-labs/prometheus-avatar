@@ -289,19 +289,29 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Recording overlay */}
+            {/* Recording overlay — premium waveform */}
             {isRecording && (
                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl"
-                    style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
-                    onClick={toggleRecording}
+                    style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)" }}
                 >
-                    <div className="text-6xl mb-6" style={{ animation: "pulse 1.5s ease-in-out infinite" }}>🎤</div>
-                    <p className="text-white text-lg font-medium mb-3">Listening...</p>
-                    <p className="text-[#00f0c8] text-base max-w-[80%] text-center min-h-[50px] px-4">
+                    {/* Waveform bars */}
+                    <div className="flex items-end gap-1.5 mb-6 h-16">
+                        {Array.from({ length: 12 }).map((_, i) => (
+                            <div key={i} className="w-1.5 rounded-full bg-[#00d4aa]"
+                                style={{
+                                    height: `${20 + Math.random() * 80}%`,
+                                    animation: `waveBar 0.6s ease-in-out ${i * 0.05}s infinite alternate`,
+                                    opacity: 0.5 + Math.random() * 0.5,
+                                }}
+                            />
+                        ))}
+                    </div>
+                    <p className="text-white text-lg font-medium mb-2">Listening...</p>
+                    <p className="text-[#00f0c8] text-sm max-w-[80%] text-center min-h-[40px] px-4 leading-relaxed">
                         {recordText || "Start speaking..."}
                     </p>
                     <button
-                        className="mt-6 px-6 py-2 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 text-sm hover:bg-red-500/30 transition-all"
+                        className="mt-5 px-8 py-2.5 bg-red-500/15 border border-red-500/25 rounded-full text-red-400 text-sm font-medium hover:bg-red-500/25 transition-all active:scale-95"
                         onClick={(e) => { e.stopPropagation(); toggleRecording(); }}
                     >
                         ⏹ Stop & Send

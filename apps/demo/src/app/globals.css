@@ -424,6 +424,34 @@ body {
   }
 }
 
+/* ═══ Recording waveform bars ═══ */
+@keyframes waveBar {
+  0% {
+    height: 15%;
+  }
+
+  100% {
+    height: 90%;
+  }
+}
+
+/* ═══ Smooth message entrance ═══ */
+.message-enter {
+  animation: msgSlideIn 0.25s ease-out;
+}
+
+@keyframes msgSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ═══ Shimmer highlight for code blocks ═══ */
 @keyframes shimmer {
   0% {
