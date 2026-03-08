@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@prometheus-avatar/core": "workspace:*",
+    "@supabase/supabase-js": "^2.98.0",
     "next": "14.2.35",
     "pixi-live2d-display": "^0.4.0",
     "pixi.js": "^6.5.10",
