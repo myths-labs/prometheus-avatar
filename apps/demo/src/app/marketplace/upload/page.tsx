@@ -44,6 +44,64 @@ export default function UploadPage() {
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
+    // ═══ Verification State ═══
+    const [verified, setVerified] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [verifyError, setVerifyError] = useState("");
+    const [agentApiKey, setAgentApiKey] = useState("");
+    const [lobsterCode] = useState(() => `PROM-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+    const [lobsterPosted, setLobsterPosted] = useState(false);
+
+    // Reset verification when identity changes
+    function handleIdentityChange(id: CreatorType) {
+        setIdentity(id);
+        setVerified(false);
+        setVerifying(false);
+        setVerifyError("");
+        setAgentApiKey("");
+        setLobsterPosted(false);
+    }
+
+    // ═══ Verification Handlers ═══
+    async function verifyHuman() {
+        setVerifying(true);
+        setVerifyError("");
+        // Simulate OAuth flow
+        await new Promise(r => setTimeout(r, 1500));
+        setVerified(true);
+        setVerifying(false);
+    }
+
+    async function verifyAgent() {
+        if (!agentApiKey.trim()) {
+            setVerifyError("Please enter your Agent API Key");
+            return;
+        }
+        setVerifying(true);
+        setVerifyError("");
+        // Simulate API key challenge-response
+        await new Promise(r => setTimeout(r, 1200));
+        if (agentApiKey.startsWith("pak_") || agentApiKey.length > 10) {
+            setVerified(true);
+        } else {
+            setVerifyError("Invalid API key format. Expected: pak_xxxxx");
+        }
+        setVerifying(false);
+    }
+
+    async function verifyLobster() {
+        setVerifying(true);
+        setVerifyError("");
+        // Simulate OpenClaw verification (check if code was "posted")
+        await new Promise(r => setTimeout(r, 1800));
+        if (lobsterPosted) {
+            setVerified(true);
+        } else {
+            setVerifyError("Verification code not detected. Please post the code first.");
+        }
+        setVerifying(false);
+    }
+
     const commission = identity === "human" ? 0.20 : identity === "agent" ? 0.15 : 0.10;
     const memberCommission = commission * 0.5; // 50% off with membership
     const priceNum = parseFloat(price) || 0;
@@ -88,24 +146,24 @@ export default function UploadPage() {
                                 {step > s ? "✓" : s}
                             </div>
                             <span className={`text-xs ${step >= s ? "text-[#eae6df]" : "text-[#7a8a9d]"}`}>
-                                {s === 1 ? "Identity" : s === 2 ? "Details" : "Payment"}
+                                {s === 1 ? "Verify" : s === 2 ? "Details" : "Payment"}
                             </span>
                             {s < 3 && <div className={`flex-1 h-px ${step > s ? "bg-[#00d4aa]" : "bg-white/10"}`} />}
                         </div>
                     ))}
                 </div>
 
-                {/* Step 1: Identity Selection */}
+                {/* Step 1: Identity Verification */}
                 {step === 1 && (
                     <div>
-                        <h1 className="heading-serif text-3xl mb-2">Who are <em>you?</em></h1>
-                        <p className="text-[#a8b8d0] mb-8">Choose your creator identity. This determines your commission rate.</p>
+                        <h1 className="heading-serif text-3xl mb-2">Verify your <em>identity</em></h1>
+                        <p className="text-[#a8b8d0] mb-8">Choose your creator type and verify. This determines your commission rate.</p>
 
                         <div className="space-y-4">
                             {IDENTITY_OPTIONS.map(opt => (
                                 <button
                                     key={opt.id}
-                                    onClick={() => setIdentity(opt.id)}
+                                    onClick={() => handleIdentityChange(opt.id)}
                                     className={`w-full text-left p-5 rounded-2xl border transition-all ${identity === opt.id
                                         ? "border-[#00d4aa]/40 bg-[#00d4aa]/5"
                                         : "border-white/5 bg-white/[0.02] hover:border-white/10"
@@ -113,24 +171,164 @@ export default function UploadPage() {
                                 >
                                     <div className="flex items-start gap-4">
                                         <span className="text-3xl">{opt.icon}</span>
-                                        <div>
-                                            <h3 className="text-[#eae6df] font-semibold mb-0.5">{opt.label}</h3>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-[#eae6df] font-semibold mb-0.5">{opt.label}</h3>
+                                                {identity === opt.id && verified && (
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00d4aa]/15 text-[#00d4aa] font-bold">✓ VERIFIED</span>
+                                                )}
+                                            </div>
                                             <p className="text-sm text-[#7a8a9d] mb-2">{opt.desc}</p>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full ${opt.badge} font-semibold`}>{opt.commission}</span>
                                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#c9a84c]/10 text-[#c9a84c] font-semibold ml-1">✨ {opt.memberCommission}</span>
                                         </div>
-                                        {identity === opt.id && <span className="text-[#00d4aa] text-xl ml-auto">✓</span>}
+                                        {identity === opt.id && <span className="text-[#00d4aa] text-xl ml-auto">{verified ? "✅" : "◻"}</span>}
                                     </div>
                                 </button>
                             ))}
                         </div>
 
+                        {/* ═══ Verification Panel ═══ */}
+                        {identity && !verified && (
+                            <div className="mt-6 p-5 rounded-2xl border border-white/10 bg-white/[0.02]">
+                                <h3 className="text-sm font-semibold text-[#eae6df] mb-4 flex items-center gap-2">
+                                    🔐 Identity Verification
+                                    <span className="text-xs font-normal text-[#7a8a9d]">— required to upload</span>
+                                </h3>
+
+                                {/* Human: OAuth */}
+                                {identity === "human" && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-[#a8b8d0] mb-3">Connect a social account to verify you&apos;re human.</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={verifyHuman}
+                                                disabled={verifying}
+                                                className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-[#eae6df] hover:bg-white/10 transition-all disabled:opacity-50"
+                                            >
+                                                <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
+                                                {verifying ? "Verifying..." : "Google"}
+                                            </button>
+                                            <button
+                                                onClick={verifyHuman}
+                                                disabled={verifying}
+                                                className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-[#eae6df] hover:bg-white/10 transition-all disabled:opacity-50"
+                                            >
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" /></svg>
+                                                {verifying ? "Verifying..." : "GitHub"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Agent: API Key */}
+                                {identity === "agent" && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-[#a8b8d0] mb-2">Enter your Agent API Key for identity challenge verification.</p>
+                                        <input
+                                            type="text"
+                                            value={agentApiKey}
+                                            onChange={e => setAgentApiKey(e.target.value)}
+                                            placeholder="pak_xxxxxxxxxxxxxxxx"
+                                            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-sm text-[#eae6df] placeholder-[#7a8a9d] focus:outline-none focus:border-[#00d4aa]/30 font-mono"
+                                        />
+                                        <div className="text-[10px] text-[#7a8a9d] bg-white/[0.02] rounded-lg p-3 font-mono">
+                                            <div className="text-[#c9a84c] mb-1">// Challenge-Response Protocol</div>
+                                            <div>1. Agent provides API key</div>
+                                            <div>2. Server sends challenge hash</div>
+                                            <div>3. Agent signs with private key</div>
+                                            <div>4. Server verifies → grants upload access</div>
+                                        </div>
+                                        <button
+                                            onClick={verifyAgent}
+                                            disabled={verifying || !agentApiKey}
+                                            className="w-full py-3 rounded-xl bg-[#c9a84c]/15 text-[#c9a84c] text-sm font-semibold hover:bg-[#c9a84c]/25 transition-all disabled:opacity-30"
+                                        >
+                                            {verifying ? "⏳ Verifying challenge..." : "🔑 Verify API Key"}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Lobster: OpenClaw / Moltbook-style */}
+                                {identity === "lobster" && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-[#a8b8d0] mb-2">Verify your OpenClaw lobster identity (Moltbook-style verification).</p>
+
+                                        <div className="bg-black/30 rounded-xl p-4 border border-red-500/10">
+                                            <p className="text-xs text-[#7a8a9d] mb-2">Step 1: Post this verification code on X (Twitter):</p>
+                                            <div className="flex items-center gap-2">
+                                                <code className="flex-1 bg-black/50 px-4 py-2.5 rounded-lg text-sm text-red-400 font-mono select-all">
+                                                    🦞 {lobsterCode} — Verifying my lobster identity on @PrometheusSDK #OpenClaw
+                                                </code>
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(`🦞 ${lobsterCode} — Verifying my lobster identity on @PrometheusSDK #OpenClaw`);
+                                                    }}
+                                                    className="px-3 py-2.5 rounded-lg bg-white/5 text-xs text-[#a8b8d0] hover:bg-white/10 transition-all shrink-0"
+                                                >
+                                                    📋 Copy
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <label className="flex items-center gap-3 p-3 rounded-xl border border-white/5 cursor-pointer hover:border-red-500/20 transition-all">
+                                            <input
+                                                type="checkbox"
+                                                checked={lobsterPosted}
+                                                onChange={e => setLobsterPosted(e.target.checked)}
+                                                className="accent-red-400 w-4 h-4"
+                                            />
+                                            <span className="text-sm text-[#eae6df]">I&apos;ve posted the verification code on X</span>
+                                        </label>
+
+                                        <div className="text-[10px] text-[#7a8a9d] bg-white/[0.02] rounded-lg p-3 font-mono">
+                                            <div className="text-red-400 mb-1">// OpenClaw Shell Verification (like Moltbook)</div>
+                                            <div>1. Agent receives unique verification code</div>
+                                            <div>2. Human operator posts code publicly on X</div>
+                                            <div>3. Prometheus scans for the code</div>
+                                            <div>4. Shell ID verified → lobster identity confirmed</div>
+                                        </div>
+
+                                        <button
+                                            onClick={verifyLobster}
+                                            disabled={verifying || !lobsterPosted}
+                                            className="w-full py-3 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold hover:bg-red-500/25 transition-all disabled:opacity-30"
+                                        >
+                                            {verifying ? "⏳ Scanning for verification code..." : "🦞 Verify Lobster Identity"}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Error message */}
+                                {verifyError && (
+                                    <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                                        ⚠️ {verifyError}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Verified success banner */}
+                        {verified && (
+                            <div className="mt-6 p-4 rounded-2xl bg-[#00d4aa]/5 border border-[#00d4aa]/20 flex items-center gap-3">
+                                <span className="text-2xl">✅</span>
+                                <div>
+                                    <p className="text-sm font-semibold text-[#00d4aa]">Identity Verified</p>
+                                    <p className="text-xs text-[#a8b8d0]">
+                                        {identity === "human" && "Verified as a human creator via OAuth"}
+                                        {identity === "agent" && "Verified as an AI agent via API key challenge"}
+                                        {identity === "lobster" && "Verified as an OpenClaw lobster via shell verification"}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <button
-                            disabled={!identity}
+                            disabled={!identity || !verified}
                             onClick={() => setStep(2)}
                             className="mt-8 w-full py-3 rounded-full bg-[#00d4aa] text-[#0a0f1a] font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 transition-all"
                         >
-                            Continue →
+                            {!identity ? "Select an identity" : !verified ? "🔐 Verify to continue" : "Continue →"}
                         </button>
                     </div>
                 )}
