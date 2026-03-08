@@ -51,8 +51,8 @@ export default function HomeClient() {
         <AvatarSelector avatars={AVATARS} selected={selectedAvatar} onSelect={setSelectedAvatar} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-          <div className="glass-strong p-2 relative">
-            <div className="avatar-container w-full aspect-[4/3]">
+          <div className="relative">
+            <div className="w-full aspect-[4/3]">
               <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} />
               <div className="absolute top-4 right-4">
                 <div className={`emotion-badge ${currentEmotion === "happy" ? "bg-[#c9a84c]/20 text-[#e8d48b]"

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -9,28 +8,31 @@ function isChinese(text: string): boolean {
     return /[\u4e00-\u9fff\u3400-\u4dbf]/.test(text);
 }
 
-// ElevenLabs voices for English
+// Timeout wrapper — prevents any single TTS call from hanging
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+        ),
+    ]);
+}
+
+// ElevenLabs voices (works for both English and Chinese with multilingual_v2)
 const ELEVENLABS_VOICES: Record<string, string> = {
     haru: "EXAVITQu4vr4xnSDxMaL",    // Sarah — warm
     shizuku: "FGY2WhTYpPnrIDTdsKH5", // Laura — elegant
     koharu: "jBpfAIEiAKNebRVppxo4",  // Gigi — sweet
 };
 
-// Edge TTS voices for Chinese (fallback)
-const EDGE_VOICES: Record<string, string> = {
-    haru: "zh-CN-XiaoxiaoNeural",     // 小晓 — 活泼可爱
-    shizuku: "zh-CN-XiaoyiNeural",    // 小忆 — 温柔优雅
-    koharu: "zh-CN-XiaohanNeural",    // 小涵 — 甜美
+// Google Cloud TTS voices for Chinese (Wavenet — best quality)
+const GOOGLE_CN_VOICES: Record<string, { name: string; ssmlGender: string }> = {
+    haru: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },
+    shizuku: { name: "cmn-CN-Wavenet-D", ssmlGender: "FEMALE" },
+    koharu: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },
 };
 
-// Google Cloud TTS voices for Chinese (primary — best quality)
-const GOOGLE_VOICES: Record<string, { name: string; ssmlGender: string }> = {
-    haru: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },     // 清新女声
-    shizuku: { name: "cmn-CN-Wavenet-D", ssmlGender: "FEMALE" },  // 温柔女声
-    koharu: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },   // 甜美女声
-};
-
-// Generate Chinese TTS with Google Cloud TTS (Wavenet — near-human quality)
+// Google Cloud TTS (fast REST API, 4s timeout)
 async function generateGoogleTTS(text: string, voiceConfig: { name: string; ssmlGender: string }): Promise<Buffer | null> {
     if (!GEMINI_API_KEY) return null;
 
@@ -49,7 +51,8 @@ async function generateGoogleTTS(text: string, voiceConfig: { name: string; ssml
                 audioConfig: {
                     audioEncoding: "MP3",
                     speakingRate: 1.0,
-                    pitch: 0,
+                    pitch: 1.0,
+                    effectsProfileId: ["headphone-class-device"],
                 },
             }),
         }
@@ -57,7 +60,7 @@ async function generateGoogleTTS(text: string, voiceConfig: { name: string; ssml
 
     if (!response.ok) {
         const errText = await response.text();
-        console.error("[Google TTS] Error:", response.status, errText.slice(0, 200));
+        console.error(`[Google TTS] ${response.status}: ${errText.slice(0, 200)}`);
         return null;
     }
 
@@ -66,22 +69,7 @@ async function generateGoogleTTS(text: string, voiceConfig: { name: string; ssml
     return Buffer.from(data.audioContent, "base64");
 }
 
-// Generate Chinese TTS with Microsoft Edge (fallback)
-async function generateEdgeTTS(text: string, voice: string): Promise<Buffer> {
-    const tts = new MsEdgeTTS();
-    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-
-    const { audioStream } = tts.toStream(text);
-    const chunks: Buffer[] = [];
-
-    return new Promise((resolve, reject) => {
-        audioStream.on("data", (chunk: Buffer) => chunks.push(chunk));
-        audioStream.on("end", () => resolve(Buffer.concat(chunks)));
-        audioStream.on("error", reject);
-    });
-}
-
-// Generate English TTS with ElevenLabs
+// ElevenLabs TTS (reliable REST API)
 async function generateElevenLabsTTS(text: string, voiceId: string): Promise<Buffer | null> {
     if (!ELEVENLABS_API_KEY) return null;
 
@@ -98,7 +86,10 @@ async function generateElevenLabsTTS(text: string, voiceId: string): Promise<Buf
         }),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+        console.error(`[ElevenLabs] ${response.status}`);
+        return null;
+    }
     const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(arrayBuffer);
 }
@@ -118,58 +109,51 @@ export async function POST(req: NextRequest) {
         let engine = "none";
 
         if (chinese) {
-            // Chinese: Google Cloud TTS (best) → Edge TTS → ElevenLabs (worst for Chinese)
-            const googleVoice = GOOGLE_VOICES[avatarId] || GOOGLE_VOICES.haru;
-            console.log(`[TTS] Chinese detected → trying Google Cloud TTS: ${googleVoice.name}`);
-
-            // 1. Google Cloud TTS (Wavenet — native Mandarin, best quality)
+            // Chinese: Google Cloud TTS (4s) → ElevenLabs (4s)
+            const googleVoice = GOOGLE_CN_VOICES[avatarId] || GOOGLE_CN_VOICES.haru;
             try {
-                audioBuffer = await generateGoogleTTS(text, googleVoice);
+                audioBuffer = await withTimeout(
+                    generateGoogleTTS(text, googleVoice),
+                    4000, "Google TTS"
+                );
                 if (audioBuffer) engine = "google-cloud-tts";
             } catch (e: any) {
-                console.warn("[TTS] Google Cloud TTS error:", e?.message);
+                console.warn(`[TTS] Google failed: ${e.message}`);
             }
 
-            // 2. Edge TTS fallback
-            if (!audioBuffer) {
-                const edgeVoice = EDGE_VOICES[avatarId] || EDGE_VOICES.haru;
-                console.log(`[TTS] Falling back to Edge TTS: ${edgeVoice}`);
-                try {
-                    audioBuffer = await generateEdgeTTS(text, edgeVoice);
-                    if (audioBuffer) engine = "edge-tts";
-                } catch (e: any) {
-                    console.warn("[TTS] Edge TTS error:", e?.message);
-                }
-            }
-
-            // 3. ElevenLabs last resort (sounds foreign for Chinese)
+            // Fallback: ElevenLabs (sounds accented but works)
             if (!audioBuffer) {
                 const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
-                audioBuffer = await generateElevenLabsTTS(text, voiceId).catch(() => null);
-                if (audioBuffer) engine = "elevenlabs-fallback";
+                try {
+                    audioBuffer = await withTimeout(
+                        generateElevenLabsTTS(text, voiceId),
+                        4000, "ElevenLabs"
+                    );
+                    if (audioBuffer) engine = "elevenlabs-zh-fallback";
+                } catch (e: any) {
+                    console.warn(`[TTS] ElevenLabs fallback failed: ${e.message}`);
+                }
             }
         } else {
-            // English: ElevenLabs (best) → Edge TTS fallback
+            // English: ElevenLabs (4s) → Google (4s)
             const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
             try {
-                audioBuffer = await generateElevenLabsTTS(text, voiceId);
+                audioBuffer = await withTimeout(
+                    generateElevenLabsTTS(text, voiceId),
+                    4000, "ElevenLabs"
+                );
                 if (audioBuffer) engine = "elevenlabs";
-            } catch (e) {
-                console.error("[TTS] ElevenLabs error:", e);
-            }
-
-            if (!audioBuffer) {
-                const voice = EDGE_VOICES[avatarId] || EDGE_VOICES.haru;
-                audioBuffer = await generateEdgeTTS(text, voice).catch(() => null);
-                if (audioBuffer) engine = "edge-tts-fallback";
+            } catch (e: any) {
+                console.warn(`[TTS] ElevenLabs failed: ${e.message}`);
             }
         }
 
         if (!audioBuffer) {
+            console.error(`[TTS] All providers failed for ${chinese ? 'zh' : 'en'}`);
             return NextResponse.json({ error: "TTS generation failed" }, { status: 500 });
         }
 
-        console.log(`[TTS] Result: engine=${engine}, language=${chinese ? 'zh' : 'en'}, bytes=${audioBuffer.length}`);
+        console.log(`[TTS] ✅ engine=${engine}, lang=${chinese ? 'zh' : 'en'}, bytes=${audioBuffer.length}`);
 
         return new NextResponse(new Uint8Array(audioBuffer), {
             headers: {
@@ -180,8 +164,9 @@ export async function POST(req: NextRequest) {
             },
         });
     } catch (error: any) {
-        console.error("TTS error:", error);
+        console.error("[TTS] Fatal:", error);
         return NextResponse.json({ error: error.message || "TTS failed" }, { status: 500 });
     }
 }
+
 
