@@ -355,7 +355,7 @@ export default function MarketplacePage() {
                     </div>
 
                     {/* Membership CTA */}
-                    <div className="card-dark p-10 max-w-2xl mx-auto text-center border-[#c9a84c]/20 relative">
+                    <div className="card-dark p-10 max-w-2xl mx-auto text-center border-[#c9a84c]/20 relative overflow-visible mt-6">
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#c9a84c] text-[#0a0f1a] text-xs font-bold rounded-full">✨ MEMBERSHIP</div>
                         <h3 className="text-2xl font-bold text-[#eae6df] mt-2 mb-2">50% Off All Commission Fees</h3>
                         <p className="text-sm text-[#a8b8d0] mb-8">Join as a member and keep more of every sale.</p>
