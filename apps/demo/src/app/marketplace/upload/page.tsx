@@ -108,12 +108,44 @@ export default function UploadPage() {
     const creatorEarns = priceNum * (1 - commission);
     const memberEarns = priceNum * (1 - memberCommission);
 
+    const [thumbnail, setThumbnail] = useState<File | null>(null);
+    const [uploadError, setUploadError] = useState("");
+    const [uploadedAsset, setUploadedAsset] = useState<{ id: string; fileUrl: string } | null>(null);
+
     async function handleSubmit() {
         setSubmitting(true);
-        // Simulate upload
-        await new Promise(r => setTimeout(r, 2000));
-        setSubmitted(true);
-        setSubmitting(false);
+        setUploadError("");
+
+        try {
+            const formData = new FormData();
+            if (file) formData.append("file", file);
+            if (thumbnail) formData.append("thumbnail", thumbnail);
+            formData.append("name", name);
+            formData.append("description", description);
+            formData.append("category", category);
+            formData.append("price", isFree ? "0" : price);
+            formData.append("license", license);
+            formData.append("creatorType", identity || "human");
+            formData.append("tags", tags);
+
+            const res = await fetch("/api/marketplace/upload", {
+                method: "POST",
+                body: formData,
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || "Upload failed");
+            }
+
+            setUploadedAsset(data.asset);
+            setSubmitted(true);
+        } catch (err: any) {
+            setUploadError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     if (submitted) {
@@ -390,10 +422,39 @@ export default function UploadPage() {
                                 <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/10 rounded-2xl cursor-pointer hover:border-[#00d4aa]/30 transition-all bg-white/[0.01]">
                                     <span className="text-3xl mb-2">{file ? "✅" : "📁"}</span>
                                     <span className="text-sm text-[#a8b8d0]">{file ? file.name : "Click to upload or drag & drop"}</span>
-                                    <span className="text-xs text-[#7a8a9d] mt-1">.model3.json, .zip, .mp3, .png (max 50MB)</span>
+                                    <span className="text-xs text-[#7a8a9d] mt-1">
+                                        {category === "skins" && ".model3.json or .zip (with textures) — max 50MB"}
+                                        {category === "voices" && ".json (voice config), .mp3, .wav — max 20MB"}
+                                        {category === "motions" && ".motion3.json or .zip — max 10MB"}
+                                        {category === "expressions" && ".exp3.json or .json — max 5MB"}
+                                        {category === "effects" && ".json (particle config) or .zip — max 10MB"}
+                                        {category === "scenes" && ".png, .jpg, .mp4, .webm — max 30MB"}
+                                        {category === "personas" && ".json (systemPrompt + traits) — max 1MB"}
+                                        {category === "accessories" && ".model3.json, .png or .zip — max 20MB"}
+                                        {category === "bundles" && ".zip (with manifest.json) — max 100MB"}
+                                        {!category && "Select a category first to see format requirements"}
+                                    </span>
                                     <input type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
                                 </label>
                             </div>
+
+                            {/* Thumbnail Upload */}
+                            <div>
+                                <label className="text-sm text-[#a8b8d0] font-medium block mb-2">Preview Image</label>
+                                <label className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-white/10 rounded-2xl cursor-pointer hover:border-[#00d4aa]/30 transition-all bg-white/[0.01]">
+                                    <span className="text-2xl mb-1">{thumbnail ? "🖼️" : "📷"}</span>
+                                    <span className="text-sm text-[#a8b8d0]">{thumbnail ? thumbnail.name : "Upload preview thumbnail"}</span>
+                                    <span className="text-xs text-[#7a8a9d] mt-1">.png, .jpg, .webp — recommended 400×400px</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={e => setThumbnail(e.target.files?.[0] || null)} />
+                                </label>
+                            </div>
+
+                            {/* Upload Error */}
+                            {uploadError && (
+                                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                                    ⚠️ {uploadError}
+                                </div>
+                            )}
 
                             {/* Tags */}
                             <div>

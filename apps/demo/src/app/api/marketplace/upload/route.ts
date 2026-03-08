@@ -1,83 +1,124 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-const COMMISSION_RATES: Record<string, number> = {
-    official: 0,
-    human: 0.20,
-    agent: 0.15,
-    lobster: 0.10,
-};
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 /**
- * Asset Upload API
- * Handles multipart form data upload from the marketplace upload page
+ * POST /api/marketplace/upload
+ * 
+ * Real file upload: stores in Supabase Storage, creates DB record.
+ * 
+ * Accepts multipart/form-data:
+ * - file: asset file (.zip, .model3.json, .mp3, etc.)
+ * - thumbnail: preview image
+ * - name, description, category, price, license, creatorType, tags
  */
 export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
 
-        const creatorType = formData.get("creatorType") as string;
+        const file = formData.get("file") as File | null;
+        const thumbnail = formData.get("thumbnail") as File | null;
         const name = formData.get("name") as string;
         const description = formData.get("description") as string;
         const category = formData.get("category") as string;
-        const price = parseFloat(formData.get("price") as string) || 0;
-        const isFree = formData.get("isFree") === "true";
+        const price = parseFloat(formData.get("price") as string || "0");
         const license = formData.get("license") as string || "personal";
+        const creatorType = formData.get("creatorType") as string || "human";
         const tags = (formData.get("tags") as string || "").split(",").map(t => t.trim()).filter(Boolean);
-        const file = formData.get("file") as File | null;
 
-        // Validation
-        if (!name || !description || !category || !creatorType) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        if (!name || !category) {
+            return NextResponse.json({ error: "Name and category are required" }, { status: 400 });
         }
 
-        if (!isFree && price <= 0) {
-            return NextResponse.json({ error: "Price must be greater than 0 for paid assets" }, { status: 400 });
+        let fileUrl: string | null = null;
+        let thumbnailUrl: string | null = null;
+        let fileSize = 0;
+
+        const assetId = crypto.randomUUID();
+        const timestamp = Date.now();
+
+        // ═══ Upload asset file to Supabase Storage ═══
+        if (file) {
+            const ext = file.name.split(".").pop() || "zip";
+            const storagePath = `assets/${assetId}/${timestamp}.${ext}`;
+            const buffer = Buffer.from(await file.arrayBuffer());
+            fileSize = buffer.length;
+
+            const { error: uploadError } = await supabase.storage
+                .from("marketplace")
+                .upload(storagePath, buffer, {
+                    contentType: file.type || "application/octet-stream",
+                    upsert: true,
+                });
+
+            if (uploadError) {
+                console.error("[Upload] File error:", uploadError);
+                return NextResponse.json({ error: "File upload failed: " + uploadError.message }, { status: 500 });
+            }
+
+            const { data: urlData } = supabase.storage.from("marketplace").getPublicUrl(storagePath);
+            fileUrl = urlData.publicUrl;
         }
 
-        if (!["human", "agent", "lobster"].includes(creatorType)) {
-            return NextResponse.json({ error: "Invalid creator type" }, { status: 400 });
+        // ═══ Upload thumbnail ═══
+        if (thumbnail) {
+            const ext = thumbnail.name.split(".").pop() || "png";
+            const thumbPath = `thumbnails/${assetId}/${timestamp}.${ext}`;
+            const buffer = Buffer.from(await thumbnail.arrayBuffer());
+
+            const { error: thumbError } = await supabase.storage
+                .from("marketplace")
+                .upload(thumbPath, buffer, {
+                    contentType: thumbnail.type || "image/png",
+                    upsert: true,
+                });
+
+            if (!thumbError) {
+                const { data: thumbUrl } = supabase.storage.from("marketplace").getPublicUrl(thumbPath);
+                thumbnailUrl = thumbUrl.publicUrl;
+            }
         }
 
-        const commission = COMMISSION_RATES[creatorType] || 0.20;
-
-        // In production:
-        // 1. Upload file to Supabase Storage or S3
-        // 2. Generate thumbnail/preview
-        // 3. Insert into assets table
-        // 4. Create/verify creator profile
-
-        const assetId = `asset_${Date.now()}`;
-
-        console.log(`[Upload] New asset from ${creatorType}:`, {
-            id: assetId,
-            name,
-            category,
-            price: isFree ? "Free" : `$${price}`,
-            commission: `${(commission * 100).toFixed(0)}%`,
-            fileSize: file?.size,
-            fileName: file?.name,
-        });
-
-        return NextResponse.json({
-            success: true,
-            asset: {
+        // ═══ Insert asset record ═══
+        const { data: asset, error: dbError } = await supabase
+            .from("assets")
+            .insert({
                 id: assetId,
                 name,
                 description,
                 category,
-                price: isFree ? 0 : price,
-                is_free: isFree,
-                creator_type: creatorType,
-                commission_rate: commission,
-                license,
+                price,
+                is_free: price <= 0,
+                thumbnail: thumbnailUrl || "/previews/skin-haru.png",
+                file_url: fileUrl,
+                file_size: fileSize,
+                downloads: 0,
+                rating: 0,
                 tags,
-                status: "live", // Auto-approved for now
-            },
-            message: `Asset "${name}" published successfully!`,
+                creator_type: creatorType,
+                is_featured: false,
+                license,
+                total_revenue: 0,
+            })
+            .select()
+            .single();
+
+        if (dbError) {
+            console.error("[Upload] DB error:", dbError);
+            return NextResponse.json({ error: "Database error: " + dbError.message }, { status: 500 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            asset: { id: assetId, name, fileUrl, thumbnailUrl, fileSize },
         });
 
     } catch (error: any) {
-        console.error("[Upload] Error:", error);
+        console.error("[Upload] Fatal:", error);
         return NextResponse.json({ error: error.message || "Upload failed" }, { status: 500 });
     }
 }

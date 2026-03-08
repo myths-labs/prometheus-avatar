@@ -10,6 +10,12 @@ export { Live2DRenderer } from './renderer';
 export { WebSpeechTTS } from './tts';
 export { LipSyncEngine } from './lip-sync';
 export { EmotionAnalyzer } from './emotion';
+export { AssetManager } from './asset-manager';
+export type {
+    AssetCategory,
+    AssetManifest,
+    AssetManagerCallbacks,
+} from './asset-manager';
 export type {
     PrometheusConfig,
     AvatarOptions,
