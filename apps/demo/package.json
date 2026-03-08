@@ -9,7 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@prometheus-avatar/core": "workspace:*",
+    "@prometheusavatar/core": "workspace:*",
+    "msedge-tts": "^2.0.4",
     "@supabase/supabase-js": "^2.98.0",
     "next": "14.2.35",
     "pixi-live2d-display": "^0.4.0",

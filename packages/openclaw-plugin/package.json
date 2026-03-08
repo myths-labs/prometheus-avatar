@@ -6,6 +6,6 @@
     "main": "src/index.ts",
     "license": "MIT",
     "dependencies": {
-        "@prometheus-avatar/core": "workspace:*"
+        "@prometheusavatar/core": "workspace:*"
     }
 }
