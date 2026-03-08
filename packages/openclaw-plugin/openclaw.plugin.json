@@ -1,7 +1,7 @@
 {
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
-    "version": "0.1.0",
+    "version": "0.7.2",
     "description": "Give your OpenClaw agent a Live2D avatar with real-time lip-sync, emotion expressions, and TTS",
     "type": "tool",
     "author": "Myths Labs",

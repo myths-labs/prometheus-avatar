@@ -47,7 +47,7 @@ export default function FeatureCards() {
                     <div className="stat-label">Lines to integrate</div>
                 </div>
                 <div className="stat-item">
-                    <div className="stat-number">v0.3</div>
+                    <div className="stat-number">v0.7.2</div>
                     <div className="stat-label">npm published</div>
                 </div>
                 <div className="stat-item">
