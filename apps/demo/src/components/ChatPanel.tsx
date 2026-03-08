@@ -41,6 +41,28 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
     const isProcessingRef = useRef(false);
     const isSpeakingRef = useRef(false);
 
+    // ═══ CONVERSATION MEMORY: Restore from localStorage ═══
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("prometheus-chat-history");
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setMessages(parsed.slice(-20)); // Keep last 20 messages
+                }
+            }
+        } catch { /* ignore parse errors */ }
+    }, []);
+
+    // Save messages to localStorage whenever they change
+    useEffect(() => {
+        if (messages.length > 0 && !messages.some(m => m.content.includes("◆◆◆THINKING◆◆◆"))) {
+            try {
+                localStorage.setItem("prometheus-chat-history", JSON.stringify(messages.slice(-20)));
+            } catch { /* ignore quota errors */ }
+        }
+    }, [messages]);
+
     useEffect(() => {
         const el = messagesEndRef.current;
         if (el?.parentElement) {
@@ -404,10 +426,10 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                             if (isRecording) toggleRecording();
                         }}
                         className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${isRecording
-                                ? "bg-red-500/20 text-red-400 animate-pulse"
-                                : isProcessing
-                                    ? "bg-orange-500/20 text-orange-400"
-                                    : "bg-black/30 text-[#7a8a9d] hover:text-[#00d4aa] hover:bg-black/40 active:scale-90"
+                            ? "bg-red-500/20 text-red-400 animate-pulse"
+                            : isProcessing
+                                ? "bg-orange-500/20 text-orange-400"
+                                : "bg-black/30 text-[#7a8a9d] hover:text-[#00d4aa] hover:bg-black/40 active:scale-90"
                             }`}
                         title={isRecording ? "Release to send" : isProcessing ? "Tap to interrupt" : "Hold to talk / Tap to record"}
                     >

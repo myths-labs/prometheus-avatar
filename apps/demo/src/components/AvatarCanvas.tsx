@@ -108,9 +108,9 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ text: sentenceText, avatar: avatarId, voiceOverride: voiceMapping }),
                         });
-                        if (res.ok) {
+                        if (res.ok && res.status !== 204) {
                             const blob = await res.blob();
-                            return URL.createObjectURL(blob);
+                            if (blob.size > 0) return URL.createObjectURL(blob);
                         }
                     } catch (e) {
                         console.error("[TTS] fetch failed:", e);

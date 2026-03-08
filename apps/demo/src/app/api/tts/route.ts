@@ -174,12 +174,12 @@ export async function POST(req: NextRequest) {
         let engine = "none";
 
         if (chinese) {
-            // Chinese: Gemini native TTS (4s) → ElevenLabs (2.5s)
+            // Chinese: Gemini native TTS (6s) → ElevenLabs (4s)
             const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
             try {
                 audioBuffer = await withTimeout(
                     generateGeminiTTS(text, geminiVoice),
-                    4000, "Gemini TTS"
+                    6000, "Gemini TTS"
                 );
                 if (audioBuffer) engine = "gemini-tts";
             } catch (e: any) {
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
                 try {
                     audioBuffer = await withTimeout(
                         generateElevenLabsTTS(text, voiceId),
-                        2500, "ElevenLabs"
+                        4000, "ElevenLabs"
                     );
                     if (audioBuffer) engine = "elevenlabs-zh-fallback";
                 } catch (e: any) {
@@ -200,12 +200,12 @@ export async function POST(req: NextRequest) {
                 }
             }
         } else {
-            // English: ElevenLabs (2.5s) → Gemini TTS (4s)
+            // English: ElevenLabs (4s) → Gemini TTS (6s)
             const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
             try {
                 audioBuffer = await withTimeout(
                     generateElevenLabsTTS(text, voiceId),
-                    2500, "ElevenLabs"
+                    4000, "ElevenLabs"
                 );
                 if (audioBuffer) engine = "elevenlabs";
             } catch (e: any) {
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
                 try {
                     audioBuffer = await withTimeout(
                         generateGeminiTTS(text, geminiVoice),
-                        4000, "Gemini-TTS-EN"
+                        6000, "Gemini-TTS-EN"
                     );
                     if (audioBuffer) engine = "gemini-tts-en";
                 } catch (e: any) {
@@ -228,8 +228,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (!audioBuffer) {
-            console.error(`[TTS] All providers failed for ${chinese ? 'zh' : 'en'}`);
-            return NextResponse.json({ error: "TTS generation failed" }, { status: 500 });
+            console.warn(`[TTS] All providers failed for ${chinese ? 'zh' : 'en'} — client will use browser TTS`);
+            // Return 204 No Content — client falls back to browser TTS gracefully
+            return new NextResponse(null, { status: 204 });
         }
 
         console.log(`[TTS] ✅ engine=${engine}, lang=${chinese ? 'zh' : 'en'}, bytes=${audioBuffer.length}`);
