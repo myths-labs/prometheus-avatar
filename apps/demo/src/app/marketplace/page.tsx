@@ -388,7 +388,7 @@ export default function MarketplacePage() {
                             <img src="/alipay_logo.svg" alt="Alipay" className="h-5 object-contain" /> Alipay
                         </span>
                         <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2">
-                            <img src="/wechat_pay_icon-logo_brandlogos.net_6qpmj.png" alt="WeChat Pay" className="h-5 object-contain" /> WeChat Pay
+                            <img src="/wechat_pay_logo.png" alt="WeChat Pay" className="h-5 object-contain" /> WeChat Pay
                         </span>
                         <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#0052FF] border border-white/5 font-semibold">x402</span>
                         <span className="px-4 py-2.5 rounded-xl bg-white/5 text-sm text-[#2775CA] border border-white/5 font-semibold">USDC / USDT</span>
