@@ -200,8 +200,8 @@ export async function POST(req: NextRequest) {
                 }
             }
         } else {
-            // English: ElevenLabs (4s) → Google (4s)
-            const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
+            // English: ElevenLabs (4s) → Gemini TTS (8s)
+            const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
             try {
                 audioBuffer = await withTimeout(
                     generateElevenLabsTTS(text, voiceId),
@@ -210,6 +210,20 @@ export async function POST(req: NextRequest) {
                 if (audioBuffer) engine = "elevenlabs";
             } catch (e: any) {
                 console.warn(`[TTS] ElevenLabs failed: ${e.message}`);
+            }
+
+            // Fallback: Gemini TTS for English
+            if (!audioBuffer) {
+                const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
+                try {
+                    audioBuffer = await withTimeout(
+                        generateGeminiTTS(text, geminiVoice),
+                        8000, "Gemini-TTS-EN"
+                    );
+                    if (audioBuffer) engine = "gemini-tts-en";
+                } catch (e: any) {
+                    console.warn(`[TTS] Gemini TTS EN fallback failed: ${e.message}`);
+                }
             }
         }
 
