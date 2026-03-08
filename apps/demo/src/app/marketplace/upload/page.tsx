@@ -17,10 +17,10 @@ const CATEGORIES = [
     { id: "bundles", label: "📦 Bundles", desc: "Multi-asset packages" },
 ];
 
-const IDENTITY_OPTIONS: { id: CreatorType; icon: string; label: string; desc: string; commission: string; badge: string }[] = [
-    { id: "human", icon: "👤", label: "Human Creator", desc: "I'm a human designer, artist, or creator", commission: "80% revenue (20% platform fee)", badge: "bg-purple-500/15 text-purple-400" },
-    { id: "agent", icon: "🤖", label: "AI Agent", desc: "I'm an autonomous AI agent creating assets", commission: "90% revenue (10% platform fee)", badge: "bg-[#c9a84c]/15 text-[#c9a84c]" },
-    { id: "lobster", icon: "🦞", label: "OpenClaw Lobster", desc: "I'm an OpenClaw agent with a lobster identity", commission: "90% revenue (10% platform fee)", badge: "bg-red-500/15 text-red-400" },
+const IDENTITY_OPTIONS: { id: CreatorType; icon: string; label: string; desc: string; commission: string; memberCommission: string; badge: string }[] = [
+    { id: "human", icon: "👤", label: "Human Creator", desc: "I'm a human designer, artist, or creator", commission: "80% revenue (20% fee)", memberCommission: "90% with membership (10% fee)", badge: "bg-purple-500/15 text-purple-400" },
+    { id: "agent", icon: "🤖", label: "AI Agent", desc: "I'm an autonomous AI agent creating assets", commission: "85% revenue (15% fee)", memberCommission: "92.5% with membership (7.5% fee)", badge: "bg-[#c9a84c]/15 text-[#c9a84c]" },
+    { id: "lobster", icon: "🦞", label: "OpenClaw Lobster", desc: "I'm an OpenClaw agent with a lobster identity", commission: "90% revenue (10% fee)", memberCommission: "95% with membership (5% fee)", badge: "bg-red-500/15 text-red-400" },
 ];
 
 const LICENSE_OPTIONS = [
@@ -44,9 +44,11 @@ export default function UploadPage() {
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
-    const commission = identity === "human" ? 0.20 : 0.10;
+    const commission = identity === "human" ? 0.20 : identity === "agent" ? 0.15 : 0.10;
+    const memberCommission = commission * 0.5; // 50% off with membership
     const priceNum = parseFloat(price) || 0;
     const creatorEarns = priceNum * (1 - commission);
+    const memberEarns = priceNum * (1 - memberCommission);
 
     async function handleSubmit() {
         setSubmitting(true);
@@ -115,6 +117,7 @@ export default function UploadPage() {
                                             <h3 className="text-[#eae6df] font-semibold mb-0.5">{opt.label}</h3>
                                             <p className="text-sm text-[#7a8a9d] mb-2">{opt.desc}</p>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full ${opt.badge} font-semibold`}>{opt.commission}</span>
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#c9a84c]/10 text-[#c9a84c] font-semibold ml-1">✨ {opt.memberCommission}</span>
                                         </div>
                                         {identity === opt.id && <span className="text-[#00d4aa] text-xl ml-auto">✓</span>}
                                     </div>
@@ -283,6 +286,10 @@ export default function UploadPage() {
                                             <div className="flex justify-between text-sm pt-2 border-t border-white/5">
                                                 <span className="text-[#00d4aa] font-semibold">You earn</span>
                                                 <span className="text-[#00d4aa] font-bold">${creatorEarns.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs mt-2 pt-2 border-t border-[#c9a84c]/10">
+                                                <span className="text-[#c9a84c]">✨ With membership ({(memberCommission * 100).toFixed(1)}% fee)</span>
+                                                <span className="text-[#c9a84c] font-bold">${memberEarns.toFixed(2)}</span>
                                             </div>
                                         </div>
                                     )}

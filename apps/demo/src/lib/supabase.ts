@@ -77,6 +77,19 @@ export type Subscription = {
 export const COMMISSION_RATES: Record<CreatorType, number> = {
     official: 0,
     human: 0.20,
-    agent: 0.10,
+    agent: 0.15,
     lobster: 0.10,
+};
+
+// 50% off commission for members ($9.9/mo or $99/yr)
+export const MEMBER_COMMISSION_RATES: Record<CreatorType, number> = {
+    official: 0,
+    human: 0.10,
+    agent: 0.075,
+    lobster: 0.05,
+};
+
+export const MEMBERSHIP_PLANS = {
+    monthly: { price: 9.9, label: '$9.9/mo', interval: 'month' as const },
+    yearly: { price: 99, label: '$99/yr', interval: 'year' as const, savings: '17%' },
 };

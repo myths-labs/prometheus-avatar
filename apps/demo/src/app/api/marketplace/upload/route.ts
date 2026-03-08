@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const COMMISSION_RATES: Record<string, number> = {
     official: 0,
     human: 0.20,
-    agent: 0.10,
+    agent: 0.15,
     lobster: 0.10,
 };
 
