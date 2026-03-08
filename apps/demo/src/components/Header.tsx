@@ -7,7 +7,7 @@ export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     return (
-        <header className="fixed top-0 left-0 right-0 z-50 border-b border-[rgba(0,212,170,0.06)] backdrop-blur-md" style={{ background: 'rgba(5,5,8,0.15)' }}>
+        <header className="fixed top-0 left-0 right-0 z-50 border-b border-[rgba(0,212,170,0.04)] backdrop-blur-sm">
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                 {/* Logo */}
                 <a href="/" className="flex items-center gap-1.5 group">
