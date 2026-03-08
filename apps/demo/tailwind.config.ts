@@ -8,6 +8,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["'General Sans'", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        serif: ["var(--font-playfair)", "Georgia", "'Times New Roman'", "serif"],
+      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
