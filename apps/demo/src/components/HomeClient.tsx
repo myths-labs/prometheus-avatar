@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
 import { useMarketplaceAssets } from "@/lib/useMarketplaceAssets";
+import { useLiveVoice } from "@/lib/useLiveVoice";
 import EffectOverlay from "@/components/EffectOverlay";
 import dynamic from "next/dynamic";
 
@@ -31,6 +32,29 @@ export default function HomeClient() {
   const demoRef = useRef<HTMLDivElement>(null);
   const speechQueueRef = useRef<string[]>([]);
   const isProcessingQueueRef = useRef(false);
+
+  // ═══ LIVE VOICE: Gemini Live API real-time voice ═══
+  const handleLiveTranscript = useCallback((text: string, isFinal: boolean) => {
+    // Transcript handling is done inside ChatPanel via the liveVoice state
+  }, []);
+
+  const liveVoice = useLiveVoice(
+    // onAudioChunk — feed live audio to avatar for lip-sync
+    useCallback((pcmData: Float32Array) => {
+      // Compute simple RMS for mouth movement
+      let sum = 0;
+      for (let i = 0; i < pcmData.length; i += 4) {
+        sum += pcmData[i] * pcmData[i];
+      }
+      const rms = Math.sqrt(sum / (pcmData.length / 4));
+      const mouthOpen = Math.min(1, rms * 8);
+      // Drive avatar mouth via the exposed ref
+      if (avatarRef.current && (avatarRef.current as any).setMouthOpen) {
+        (avatarRef.current as any).setMouthOpen(mouthOpen);
+      }
+    }, []),
+    handleLiveTranscript,
+  );
 
   // ═══ SPEECH QUEUE: sentences enqueued safely, played one by one ═══
   const processQueue = useCallback(async () => {
@@ -157,7 +181,7 @@ export default function HomeClient() {
               <p className="text-sm text-[#6b7a8d]">{selectedAvatar.description}</p>
             </div>
           </div>
-          <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} onVoiceChange={(v) => setVoiceOverride(v)} systemPrompt={systemPrompt} />
+          <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} onVoiceChange={(v) => setVoiceOverride(v)} systemPrompt={systemPrompt} liveVoice={liveVoice} />
         </div>
 
         {/* VTuber camera tracker */}

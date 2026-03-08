@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import type { LiveVoiceState } from "@/lib/useLiveVoice";
 
 interface Message {
     id: string;
@@ -16,6 +17,8 @@ interface ChatPanelProps {
     onVoiceChange?: (voice: string) => void;
     /** System prompt from marketplace persona — changes the AI's behavior */
     systemPrompt?: string;
+    /** Live voice state from useLiveVoice hook */
+    liveVoice?: LiveVoiceState;
 }
 
 const QUICK_PROMPTS = [
@@ -26,11 +29,11 @@ const QUICK_PROMPTS = [
     { label: "😢 Something sad", text: "My best friend is moving away..." },
 ];
 
-export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, onVoiceChange, systemPrompt }: ChatPanelProps) {
+export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, onVoiceChange, systemPrompt, liveVoice }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
-    const [mode, setMode] = useState<"direct" | "llm">("llm");
+    const [mode, setMode] = useState<"direct" | "llm" | "live">("llm");
     const [selectedVoice, setSelectedVoice] = useState("Kore");
     const [showSettings, setShowSettings] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
@@ -283,6 +286,12 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                             className={`px-3 py-1 rounded-md transition-all ${mode === "llm" ? "bg-[#00d4aa]/15 text-[#00f0c8]" : "text-[#7a8a9d] hover:text-[#a8b8d0]"}`}
                             onClick={() => setMode("llm")}
                         >LLM Chat</button>
+                        {liveVoice && (
+                            <button
+                                className={`px-3 py-1 rounded-md transition-all ${mode === "live" ? "bg-[#ff6b35]/15 text-[#ff9a6c]" : "text-[#7a8a9d] hover:text-[#a8b8d0]"}`}
+                                onClick={() => setMode("live")}
+                            >⚡ Live</button>
+                        )}
                     </div>
                 </div>
                 {/* Speaking indicator */}
@@ -393,58 +402,118 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                 </div>
             )}
 
-            {/* Input */}
-            <div className="px-5 py-3 border-t border-[rgba(0,212,170,0.06)]">
-                <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={toggleRecording}
-                        onMouseDown={() => {
-                            // Hold-to-talk: start recording after 300ms hold
-                            const timer = setTimeout(() => {
-                                if (!isRecording && !isProcessing) startRecording();
-                            }, 300);
-                            (window as any).__holdTimer = timer;
-                        }}
-                        onMouseUp={() => {
-                            clearTimeout((window as any).__holdTimer);
-                            // If currently recording (from hold), stop and send
-                            if (isRecording) toggleRecording();
-                        }}
-                        onTouchStart={() => {
-                            const timer = setTimeout(() => {
-                                if (!isRecording && !isProcessing) startRecording();
-                            }, 300);
-                            (window as any).__holdTimer = timer;
-                        }}
-                        onTouchEnd={(e) => {
-                            e.preventDefault();
-                            clearTimeout((window as any).__holdTimer);
-                            if (isRecording) toggleRecording();
-                        }}
-                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${isRecording
-                            ? "bg-red-500/20 text-red-400 animate-pulse"
-                            : isProcessing
-                                ? "bg-orange-500/20 text-orange-400"
-                                : "bg-black/30 text-[#7a8a9d] hover:text-[#00d4aa] hover:bg-black/40 active:scale-90"
-                            }`}
-                        title={isRecording ? "Release to send" : isProcessing ? "Tap to interrupt" : "Hold to talk / Tap to record"}
-                    >
-                        {isRecording ? "🔴" : isProcessing ? "⏹️" : "🎤"}
-                    </button>
+            {/* Input — switches based on mode */}
+            {mode === "live" && liveVoice ? (
+                /* ═══ LIVE VOICE MODE ═══ */
+                <div className="px-5 py-4 border-t border-[rgba(0,212,170,0.06)]">
+                    {liveVoice.error && (
+                        <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+                            ⚠️ {liveVoice.error}
+                        </div>
+                    )}
 
-                    <input ref={inputRef} type="text" value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder={isProcessing ? "AI responding..." : isAvatarReady ? "Type a message..." : "Loading..."}
-                        disabled={!isAvatarReady || isProcessing}
-                        className="flex-1 bg-black/30 border border-[rgba(0,212,170,0.08)] rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#7a8a9d] focus:outline-none focus:border-[#00d4aa]/30 transition-colors disabled:opacity-40"
-                    />
+                    {liveVoice.isLive ? (
+                        <div className="flex flex-col items-center gap-3">
+                            {/* Live waveform visualizer */}
+                            <div className="flex items-end gap-1 h-10 w-full justify-center">
+                                {Array.from({ length: 20 }).map((_, i) => {
+                                    const h = Math.max(8, liveVoice.audioLevel * 100 * (0.5 + Math.sin(Date.now() / 200 + i) * 0.5));
+                                    return (
+                                        <div key={i} className="w-1 rounded-full transition-all duration-75"
+                                            style={{
+                                                height: `${h}%`,
+                                                backgroundColor: `rgba(255, 107, 53, ${0.4 + liveVoice.audioLevel * 0.6})`,
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
 
-                    <button type="submit" disabled={!input.trim() || !isAvatarReady || isProcessing}
-                        className="btn-primary !py-2.5 !px-5 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-                    >Send</button>
-                </form>
-            </div>
+                            {/* Live transcript */}
+                            {liveVoice.transcript && (
+                                <p className="text-xs text-[#a8b8d0] text-center max-w-[90%] leading-relaxed animate-pulse">
+                                    {liveVoice.transcript}
+                                </p>
+                            )}
+
+                            <button
+                                onClick={() => liveVoice.endSession()}
+                                className="px-6 py-2.5 bg-red-500/15 border border-red-500/25 rounded-full text-red-400 text-sm font-medium hover:bg-red-500/25 transition-all active:scale-95"
+                            >
+                                ⏹ End Live Session
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-3">
+                            <p className="text-xs text-[#7a8a9d] text-center">
+                                ⚡ Real-time voice — ~200ms latency via Gemini Live API
+                            </p>
+                            <button
+                                onClick={() => liveVoice.startSession(systemPrompt, selectedVoice)}
+                                disabled={liveVoice.isConnecting || !isAvatarReady}
+                                className="px-8 py-3 bg-gradient-to-r from-[#ff6b35]/20 to-[#ff9a6c]/20 border border-[#ff6b35]/30 rounded-full text-[#ff9a6c] font-medium hover:from-[#ff6b35]/30 hover:to-[#ff9a6c]/30 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {liveVoice.isConnecting ? (
+                                    <><span className="w-4 h-4 border-2 border-[#ff9a6c]/30 border-t-[#ff9a6c] rounded-full animate-spin" /> Connecting...</>
+                                ) : (
+                                    <>🎤 Start Live Voice</>
+                                )}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                /* ═══ CLASSIC TEXT INPUT ═══ */
+                <div className="px-5 py-3 border-t border-[rgba(0,212,170,0.06)]">
+                    <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={toggleRecording}
+                            onMouseDown={() => {
+                                const timer = setTimeout(() => {
+                                    if (!isRecording && !isProcessing) startRecording();
+                                }, 300);
+                                (window as any).__holdTimer = timer;
+                            }}
+                            onMouseUp={() => {
+                                clearTimeout((window as any).__holdTimer);
+                                if (isRecording) toggleRecording();
+                            }}
+                            onTouchStart={() => {
+                                const timer = setTimeout(() => {
+                                    if (!isRecording && !isProcessing) startRecording();
+                                }, 300);
+                                (window as any).__holdTimer = timer;
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                clearTimeout((window as any).__holdTimer);
+                                if (isRecording) toggleRecording();
+                            }}
+                            className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${isRecording
+                                ? "bg-red-500/20 text-red-400 animate-pulse"
+                                : isProcessing
+                                    ? "bg-orange-500/20 text-orange-400"
+                                    : "bg-black/30 text-[#7a8a9d] hover:text-[#00d4aa] hover:bg-black/40 active:scale-90"
+                                }`}
+                            title={isRecording ? "Release to send" : isProcessing ? "Tap to interrupt" : "Hold to talk / Tap to record"}
+                        >
+                            {isRecording ? "🔴" : isProcessing ? "⏹️" : "🎤"}
+                        </button>
+
+                        <input ref={inputRef} type="text" value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder={isProcessing ? "AI responding..." : isAvatarReady ? "Type a message..." : "Loading..."}
+                            disabled={!isAvatarReady || isProcessing}
+                            className="flex-1 bg-black/30 border border-[rgba(0,212,170,0.08)] rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#7a8a9d] focus:outline-none focus:border-[#00d4aa]/30 transition-colors disabled:opacity-40"
+                        />
+
+                        <button type="submit" disabled={!input.trim() || !isAvatarReady || isProcessing}
+                            className="btn-primary !py-2.5 !px-5 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                        >Send</button>
+                    </form>
+                </div>
+            )}
         </div>
     );
 }
