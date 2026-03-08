@@ -22,11 +22,26 @@ interface AvatarCanvasProps {
 
 function detectEmotion(text: string): string {
     const lower = text.toLowerCase();
-    if (lower.includes("happy") || lower.includes("great") || lower.includes("love") || text.includes("😊") || text.includes("🎉") || lower.includes("开心") || lower.includes("高兴") || lower.includes("太好了") || lower.includes("哈哈")) return "happy";
-    if (lower.includes("sad") || lower.includes("sorry") || text.includes("😢") || lower.includes("难过") || lower.includes("伤心") || lower.includes("抱歉")) return "sad";
-    if (lower.includes("angry") || lower.includes("hate") || text.includes("😠") || lower.includes("生气") || lower.includes("愤怒")) return "angry";
-    if (lower.includes("what") || lower.includes("wow") || lower.includes("amazing") || text.includes("😲") || lower.includes("什么") || lower.includes("哇") || text.includes("!!")) return "surprised";
-    if (lower.includes("hmm") || lower.includes("think") || text.includes("🤔") || text.includes("?") || text.includes("？") || lower.includes("想") || lower.includes("嗯")) return "thinking";
+    // Happy / positive
+    if (/happy|great|love|awesome|excellent|wonderful|fantastic|glad|excited|fun|hilarious|laugh|haha|lol|yay|nice|cool|perfect/i.test(lower)
+        || /开心|高兴|太好了|哈哈|棒|好的|太棒了|喜欢|可爱|厉害|不错|赞|美|甜|爽|笑|嘻嘻|耶/.test(text)
+        || /😊|🎉|😄|🥰|❤️|😁|🤣|💕|✨|👍|🥳/.test(text)) return "happy";
+    // Sad / empathetic
+    if (/sad|sorry|miss|unfortunate|disappointed|lonely|regret|painful|heartbreak|cry/i.test(lower)
+        || /难过|伤心|抱歉|对不起|遗憾|可惜|痛|哭|失望|孤独|舍不得/.test(text)
+        || /😢|😭|💔|🥺/.test(text)) return "sad";
+    // Angry / frustrated
+    if (/angry|hate|furious|annoying|frustrated|terrible|awful|stupid|ridiculous|outrageous/i.test(lower)
+        || /生气|愤怒|讨厌|烦|气死|恶心|可恶|混蛋|无语|崩溃/.test(text)
+        || /😠|😡|🤬|💢/.test(text)) return "angry";
+    // Surprised / amazed
+    if (/what|wow|amazing|incredible|unbelievable|omg|seriously|no way|oh my|insane/i.test(lower)
+        || /什么|哇|天哪|不可思议|太神了|真的吗|居然|震惊|没想到|厉害/.test(text)
+        || /😲|😱|🤯|!!/.test(text)) return "surprised";
+    // Thinking / curious
+    if (/hmm|think|consider|wonder|maybe|perhaps|interesting|curious|question|let me/i.test(lower)
+        || /想|嗯|可能|也许|有意思|好奇|考虑|不知道|为什么|怎么/.test(text)
+        || /🤔|？|\?/.test(text)) return "thinking";
     return "neutral";
 }
 
