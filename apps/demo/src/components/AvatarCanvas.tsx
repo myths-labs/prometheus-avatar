@@ -68,13 +68,35 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 onEmotionChange?.(emotion);
                 const avatarId = getAvatarId(modelUrl);
 
+                // Map voice names to both TTS engine IDs
+                // Each selectable voice needs both a Gemini name and an ElevenLabs ID
+                const VOICE_MAP: Record<string, { gemini: string; elevenlabs: string }> = {
+                    // Chinese Optimized
+                    "Kore": { gemini: "Kore", elevenlabs: "EXAVITQu4vr4xnSDxMaL" }, // Sarah — warm
+                    "Aoede": { gemini: "Aoede", elevenlabs: "jBpfAIEiAKNebRVppxo4" }, // Gigi — clear
+                    "Leda": { gemini: "Leda", elevenlabs: "FGY2WhTYpPnrIDTdsKH5" }, // Laura — sweet
+                    "Zephyr": { gemini: "Zephyr", elevenlabs: "bIHbv24MWmeRgasZH58o" }, // Will — bright
+                    "Achird": { gemini: "Achird", elevenlabs: "nPczCjzI2devNBz1zQrb" }, // Brian — breathy
+                    // All Female
+                    "Despina": { gemini: "Despina", elevenlabs: "ThT5KcBeYPX3keUQqHPh" }, // Dorothy — warm
+                    "Callirrhoe": { gemini: "Callirrhoe", elevenlabs: "XB0fDUnXU5powFXDhCwa" }, // Charlotte — confident
+                    "Algenib": { gemini: "Algenib", elevenlabs: "Xb7hH8MSUJpSbSDYk0k2" }, // Alice — authoritative
+                    "Laomedeia": { gemini: "Laomedeia", elevenlabs: "pFZP5JQG7iQjIQuC4Bku" }, // Lily — engaging
+                    // Male
+                    "Puck": { gemini: "Puck", elevenlabs: "nPczCjzI2devNBz1zQrb" }, // Brian — upbeat
+                    "Charon": { gemini: "Charon", elevenlabs: "IKne3meq5aSn9XLyUdCD" }, // Charlie — smooth
+                    "Fenrir": { gemini: "Fenrir", elevenlabs: "JBFqnCBsd6RMkjVDRZzb" }, // George — energetic
+                };
+
+                const voiceMapping = voiceOverride ? VOICE_MAP[voiceOverride] : undefined;
+
                 // Try server-side TTS (Google TTS for Chinese, ElevenLabs for English)
                 let audioUrl: string | null = null;
                 try {
                     const res = await fetch("/api/tts", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text, avatar: avatarId, voiceOverride: voiceOverride ? { gemini: voiceOverride } : undefined }),
+                        body: JSON.stringify({ text, avatar: avatarId, voiceOverride: voiceMapping }),
                     });
                     if (res.ok) {
                         const blob = await res.blob();
