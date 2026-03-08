@@ -16,6 +16,12 @@ importers:
       next:
         specifier: 14.2.35
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      pixi-live2d-display:
+        specifier: ^0.4.0
+        version: 0.4.0(76g3zz2nt7dtjnktvdvk76m2oe)
+      pixi.js:
+        specifier: ^6.5.10
+        version: 6.5.10
       react:
         specifier: ^18
         version: 18.3.1

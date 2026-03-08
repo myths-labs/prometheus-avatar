@@ -8,10 +8,12 @@ import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
 
+const CDN_BASE = "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets";
+
 const AVATARS = [
-  { id: "haru", name: "Haru", description: "Friendly and expressive", modelUrl: "/models/haru/haru_greeter_t03.model3.json", thumbnail: "🧑‍🎤", badge: "official" },
-  { id: "shizuku", name: "Shizuku", description: "Calm and elegant", modelUrl: "/models/shizuku/shizuku.model3.json", thumbnail: "👩", badge: "official" },
-  { id: "mark", name: "Mark", description: "Cool and composed", modelUrl: "/models/mark/mark_free_t02.model3.json", thumbnail: "🧑‍💼", badge: "official" },
+  { id: "haru", name: "Haru", description: "Friendly and expressive", modelUrl: `${CDN_BASE}/haru/haru_greeter_t03.model3.json`, thumbnail: "🧑‍🎤", badge: "official" },
+  { id: "shizuku", name: "Shizuku", description: "Calm and elegant", modelUrl: `${CDN_BASE}/shizuku/shizuku.model.json`, thumbnail: "👩", badge: "official" },
+  { id: "mark", name: "Mark", description: "Cool and composed", modelUrl: `${CDN_BASE}/haru/haru_greeter_t03.model3.json`, thumbnail: "🧑‍💼", badge: "official" },
 ];
 
 export default function HomeClient() {
@@ -53,11 +55,11 @@ export default function HomeClient() {
               <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} />
               <div className="absolute top-4 right-4">
                 <div className={`emotion-badge ${currentEmotion === "happy" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
-                    : currentEmotion === "sad" ? "bg-[#4a7ab5]/20 text-[#7ab5e0]"
-                      : currentEmotion === "angry" ? "bg-[#c94c4c]/20 text-[#e88b8b]"
-                        : currentEmotion === "surprised" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
-                          : currentEmotion === "thinking" ? "bg-[#00d4aa]/20 text-[#4aecd0]"
-                            : "bg-[#4a5568]/20 text-[#8a9ab5]"
+                  : currentEmotion === "sad" ? "bg-[#4a7ab5]/20 text-[#7ab5e0]"
+                    : currentEmotion === "angry" ? "bg-[#c94c4c]/20 text-[#e88b8b]"
+                      : currentEmotion === "surprised" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
+                        : currentEmotion === "thinking" ? "bg-[#00d4aa]/20 text-[#4aecd0]"
+                          : "bg-[#4a5568]/20 text-[#8a9ab5]"
                   }`}>
                   {currentEmotion === "happy" && "😊"}
                   {currentEmotion === "sad" && "😢"}
