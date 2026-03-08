@@ -84,14 +84,54 @@ async function generateGeminiTTS(text: string, voiceName: string): Promise<Buffe
                 continue;
             }
 
-            console.log(`[Gemini TTS] ✅ Success with ${model}`);
-            return Buffer.from(audioPart.inlineData.data, "base64");
+            const mimeType = audioPart.inlineData.mimeType || "audio/pcm";
+            console.log(`[Gemini TTS] ✅ Success with ${model}, mimeType=${mimeType}`);
+
+            const rawBuffer = Buffer.from(audioPart.inlineData.data, "base64");
+
+            // If it's raw PCM, wrap in WAV headers so browsers can play it
+            if (mimeType.includes("pcm") || mimeType === "audio/L16") {
+                return pcmToWav(rawBuffer, 24000, 1, 16); // Gemini default: 24kHz mono 16-bit
+            }
+
+            return rawBuffer;
         } catch (e: any) {
             console.warn(`[Gemini TTS] ${model} error: ${e.message}`);
         }
     }
 
     return null;
+}
+
+// Convert raw PCM to WAV format (adds RIFF/WAVE headers)
+function pcmToWav(pcmData: Buffer, sampleRate: number, channels: number, bitDepth: number): Buffer {
+    const byteRate = sampleRate * channels * (bitDepth / 8);
+    const blockAlign = channels * (bitDepth / 8);
+    const dataSize = pcmData.length;
+    const headerSize = 44;
+    const buffer = Buffer.alloc(headerSize + dataSize);
+
+    // RIFF header
+    buffer.write("RIFF", 0);
+    buffer.writeUInt32LE(36 + dataSize, 4);
+    buffer.write("WAVE", 8);
+
+    // fmt chunk
+    buffer.write("fmt ", 12);
+    buffer.writeUInt32LE(16, 16);           // chunk size
+    buffer.writeUInt16LE(1, 20);            // PCM format
+    buffer.writeUInt16LE(channels, 22);
+    buffer.writeUInt32LE(sampleRate, 24);
+    buffer.writeUInt32LE(byteRate, 28);
+    buffer.writeUInt16LE(blockAlign, 32);
+    buffer.writeUInt16LE(bitDepth, 34);
+
+    // data chunk
+    buffer.write("data", 36);
+    buffer.writeUInt32LE(dataSize, 40);
+    pcmData.copy(buffer, headerSize);
+
+    return buffer;
 }
 
 // ElevenLabs TTS (reliable REST API)
