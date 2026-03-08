@@ -206,65 +206,16 @@ export async function POST(req: NextRequest) {
         let audioBuffer: Buffer | null = null;
         let engine = "none";
 
-        if (chinese) {
-            // Chinese priority: Edge TTS (fast+good) → Gemini (slower+good) → ElevenLabs (bad Chinese)
-            const edgeVoice = EDGE_VOICES_ZH[avatarId] || EDGE_VOICES_ZH.haru;
-            try {
-                audioBuffer = await withTimeout(generateEdgeTTS(text, edgeVoice), 3000, "EdgeTTS-ZH");
-                if (audioBuffer) engine = "edge-tts-zh";
-            } catch (e: any) {
-                console.warn(`[TTS] Edge TTS ZH failed: ${e.message}`);
-            }
-
-            if (!audioBuffer) {
-                const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
-                try {
-                    audioBuffer = await withTimeout(generateGeminiTTS(text, geminiVoice), 6000, "Gemini TTS");
-                    if (audioBuffer) engine = "gemini-tts";
-                } catch (e: any) {
-                    console.warn(`[TTS] Gemini TTS failed: ${e.message}`);
-                }
-            }
-
-            // ElevenLabs Chinese is terrible — last resort only
-            if (!audioBuffer) {
-                const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
-                try {
-                    audioBuffer = await withTimeout(generateElevenLabsTTS(text, voiceId), 4000, "ElevenLabs-ZH");
-                    if (audioBuffer) engine = "elevenlabs-zh-lastresort";
-                } catch (e: any) {
-                    console.warn(`[TTS] ElevenLabs ZH fallback failed: ${e.message}`);
-                }
-            }
-        } else {
-            // English priority: Edge TTS (fast) → ElevenLabs (best quality) → Gemini
-            const edgeVoice = EDGE_VOICES_EN[avatarId] || EDGE_VOICES_EN.haru;
-            try {
-                audioBuffer = await withTimeout(generateEdgeTTS(text, edgeVoice), 3000, "EdgeTTS-EN");
-                if (audioBuffer) engine = "edge-tts-en";
-            } catch (e: any) {
-                console.warn(`[TTS] Edge TTS EN failed: ${e.message}`);
-            }
-
-            if (!audioBuffer) {
-                const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
-                try {
-                    audioBuffer = await withTimeout(generateElevenLabsTTS(text, voiceId), 4000, "ElevenLabs");
-                    if (audioBuffer) engine = "elevenlabs";
-                } catch (e: any) {
-                    console.warn(`[TTS] ElevenLabs failed: ${e.message}`);
-                }
-            }
-
-            if (!audioBuffer) {
-                const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
-                try {
-                    audioBuffer = await withTimeout(generateGeminiTTS(text, geminiVoice), 6000, "Gemini-TTS-EN");
-                    if (audioBuffer) engine = "gemini-tts-en";
-                } catch (e: any) {
-                    console.warn(`[TTS] Gemini EN fallback failed: ${e.message}`);
-                }
-            }
+        // ═══ GEMINI ONLY — consistent voice, no engine switching ═══
+        const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
+        try {
+            audioBuffer = await withTimeout(
+                generateGeminiTTS(text, geminiVoice),
+                10000, "Gemini TTS"
+            );
+            if (audioBuffer) engine = "gemini-tts";
+        } catch (e: any) {
+            console.warn(`[TTS] Gemini TTS failed: ${e.message}`);
         }
 
         if (!audioBuffer) {
