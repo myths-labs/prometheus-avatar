@@ -41,8 +41,12 @@ export async function POST(req: NextRequest) {
                 "line_items[0][price_data][product_data][name]": assetName || "Marketplace Asset",
                 "line_items[0][price_data][unit_amount]": totalAmount.toString(),
                 "line_items[0][quantity]": "1",
-                // Alipay and WeChat Pay support
-                "payment_method_types[]": "card",
+                // Multi-payment: Card, Alipay, WeChat Pay
+                "payment_method_types[0]": "card",
+                "payment_method_types[1]": "alipay",
+                "payment_method_types[2]": "wechat_pay",
+                // WeChat Pay requires payment_method_options
+                "payment_method_options[wechat_pay][client]": "web",
                 // Store metadata for webhook
                 "metadata[asset_id]": assetId,
                 "metadata[creator_type]": creatorType,
