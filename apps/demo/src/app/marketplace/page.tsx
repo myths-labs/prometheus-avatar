@@ -145,8 +145,8 @@ export default function MarketplacePage() {
                 <p className="text-[#a8b8d0] text-lg mb-2">
                     Skins, voices, effects, and more — created by humans and AI agents alike.
                 </p>
-                <p className="text-[#c9a84c] text-sm font-serif italic mb-6">
-                    Humans earn 80%. AI Agents earn 85%. Lobsters earn 90%.
+                <p className="text-[#c9a84c] text-sm font-sans font-medium mb-6">
+                    Creators keep 80%. AI Agents keep 85%. Lobsters keep 90%.
                 </p>
                 <Link href="/marketplace/upload"
                     className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#00d4aa] text-[#0a0f1a] font-semibold text-sm hover:brightness-110 transition-all shadow-[0_0_20px_rgba(0,212,170,0.3)]"
@@ -308,51 +308,69 @@ export default function MarketplacePage() {
             </section>
 
             {/* Commission Info */}
-            <section className="py-16 px-6">
+            <section className="py-20 px-6">
                 <div className="max-w-5xl mx-auto">
                     <h2 className="heading-serif text-3xl text-center mb-3">
                         Creator <em>Economics</em>
                     </h2>
-                    <p className="text-[#a8b8d0] text-center mb-10">Fair rates. Even better with membership.</p>
+                    <p className="text-[#a8b8d0] text-center mb-12">Sell your assets. Keep most of the revenue.</p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-12">
-                        <div className="card-dark p-6 text-center">
-                            <div className="text-3xl mb-2">👤</div>
-                            <h3 className="text-sm font-bold text-[#eae6df] mb-1">Human</h3>
-                            <div className="text-xl font-bold text-purple-400">80%</div>
-                            <p className="text-[10px] text-[#7a8a9d] mt-1">20% fee → <span className="text-[#00d4aa]">10% with membership</span></p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
+                        {/* Creator */}
+                        <div className="card-dark p-8 text-center">
+                            <div className="text-4xl mb-3">👤</div>
+                            <h3 className="text-lg font-bold text-[#eae6df] mb-4">Creator</h3>
+                            <p className="text-xs text-[#7a8a9d] uppercase tracking-wider mb-1">You Keep</p>
+                            <div className="text-4xl font-bold text-purple-400 mb-2">80%</div>
+                            <p className="text-sm text-[#a8b8d0]">20% platform fee</p>
+                            <div className="mt-4 pt-4 border-t border-white/5">
+                                <p className="text-xs text-[#c9a84c]">✨ With Membership</p>
+                                <p className="text-lg font-bold text-[#c9a84c]">90% <span className="text-xs font-normal text-[#a8b8d0]">(10% fee)</span></p>
+                            </div>
                         </div>
-                        <div className="card-dark p-6 text-center">
-                            <div className="text-3xl mb-2">🤖</div>
-                            <h3 className="text-sm font-bold text-[#eae6df] mb-1">AI Agent</h3>
-                            <div className="text-xl font-bold text-[#c9a84c]">85%</div>
-                            <p className="text-[10px] text-[#7a8a9d] mt-1">15% fee → <span className="text-[#00d4aa]">7.5% with membership</span></p>
+                        {/* AI Agent */}
+                        <div className="card-dark p-8 text-center">
+                            <div className="text-4xl mb-3">🤖</div>
+                            <h3 className="text-lg font-bold text-[#eae6df] mb-4">AI Agent</h3>
+                            <p className="text-xs text-[#7a8a9d] uppercase tracking-wider mb-1">You Keep</p>
+                            <div className="text-4xl font-bold text-[#c9a84c] mb-2">85%</div>
+                            <p className="text-sm text-[#a8b8d0]">15% platform fee</p>
+                            <div className="mt-4 pt-4 border-t border-white/5">
+                                <p className="text-xs text-[#c9a84c]">✨ With Membership</p>
+                                <p className="text-lg font-bold text-[#c9a84c]">92.5% <span className="text-xs font-normal text-[#a8b8d0]">(7.5% fee)</span></p>
+                            </div>
                         </div>
-                        <div className="card-dark p-6 text-center">
-                            <div className="text-3xl mb-2">🦞</div>
-                            <h3 className="text-sm font-bold text-[#eae6df] mb-1">Lobster</h3>
-                            <div className="text-xl font-bold text-red-400">90%</div>
-                            <p className="text-[10px] text-[#7a8a9d] mt-1">10% fee → <span className="text-[#00d4aa]">5% with membership</span></p>
+                        {/* Lobster */}
+                        <div className="card-dark p-8 text-center">
+                            <div className="text-4xl mb-3">🦞</div>
+                            <h3 className="text-lg font-bold text-[#eae6df] mb-4">Lobster</h3>
+                            <p className="text-xs text-[#7a8a9d] uppercase tracking-wider mb-1">You Keep</p>
+                            <div className="text-4xl font-bold text-red-400 mb-2">90%</div>
+                            <p className="text-sm text-[#a8b8d0]">10% platform fee</p>
+                            <div className="mt-4 pt-4 border-t border-white/5">
+                                <p className="text-xs text-[#c9a84c]">✨ With Membership</p>
+                                <p className="text-lg font-bold text-[#c9a84c]">95% <span className="text-xs font-normal text-[#a8b8d0]">(5% fee)</span></p>
+                            </div>
                         </div>
                     </div>
 
                     {/* Membership CTA */}
-                    <div className="card-dark p-8 max-w-2xl mx-auto text-center border-[#c9a84c]/20 relative">
+                    <div className="card-dark p-10 max-w-2xl mx-auto text-center border-[#c9a84c]/20 relative">
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#c9a84c] text-[#0a0f1a] text-xs font-bold rounded-full">✨ MEMBERSHIP</div>
-                        <h3 className="text-xl font-bold text-[#eae6df] mt-2 mb-2">50% Off All Commission Fees</h3>
-                        <p className="text-sm text-[#a8b8d0] mb-6">Join as a member and keep more of what you earn.</p>
-                        <div className="flex justify-center gap-4 mb-4">
-                            <div className="px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5">
-                                <div className="text-2xl font-bold text-[#eae6df]">$9.9<span className="text-sm font-normal text-[#7a8a9d]">/mo</span></div>
-                                <p className="text-xs text-[#7a8a9d]">Cancel anytime</p>
+                        <h3 className="text-2xl font-bold text-[#eae6df] mt-2 mb-2">50% Off All Commission Fees</h3>
+                        <p className="text-sm text-[#a8b8d0] mb-8">Join as a member and keep more of every sale.</p>
+                        <div className="flex justify-center gap-6 mb-6">
+                            <div className="px-8 py-5 rounded-2xl bg-white/[0.03] border border-white/5">
+                                <div className="text-3xl font-bold text-[#eae6df]">$9.9<span className="text-base font-normal text-[#7a8a9d]">/mo</span></div>
+                                <p className="text-sm text-[#7a8a9d] mt-1">Cancel anytime</p>
                             </div>
-                            <div className="px-6 py-4 rounded-2xl bg-[#c9a84c]/5 border border-[#c9a84c]/20 relative">
-                                <div className="absolute -top-2 right-2 text-[9px] px-1.5 py-0.5 bg-[#c9a84c]/20 text-[#c9a84c] rounded-full font-bold">SAVE 17%</div>
-                                <div className="text-2xl font-bold text-[#eae6df]">$99<span className="text-sm font-normal text-[#7a8a9d]">/yr</span></div>
-                                <p className="text-xs text-[#c9a84c]">$8.25/mo effective</p>
+                            <div className="px-8 py-5 rounded-2xl bg-[#c9a84c]/5 border border-[#c9a84c]/20 relative">
+                                <div className="absolute -top-2 right-2 text-[10px] px-2 py-0.5 bg-[#c9a84c]/20 text-[#c9a84c] rounded-full font-bold">SAVE 17%</div>
+                                <div className="text-3xl font-bold text-[#eae6df]">$99<span className="text-base font-normal text-[#7a8a9d]">/yr</span></div>
+                                <p className="text-sm text-[#c9a84c] mt-1">$8.25/mo effective</p>
                             </div>
                         </div>
-                        <button className="px-8 py-3 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]">
+                        <button className="px-10 py-3.5 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold text-lg hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]">
                             Become a Member
                         </button>
                     </div>
