@@ -11,9 +11,9 @@ export default function Header() {
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                 {/* Logo */}
                 <a href="/" className="flex items-center gap-3 group">
-                    <Image src="/logo-small.png" alt="Prometheus" width={28} height={28} className="group-hover:scale-110 transition-transform drop-shadow-[0_0_8px_rgba(0,212,170,0.4)]" />
+                    <Image src="/logo-small.png" alt="Prometheus" width={36} height={36} className="group-hover:scale-110 transition-transform drop-shadow-[0_0_8px_rgba(0,212,170,0.4)]" />
                     <span
-                        className="heading-serif text-base tracking-[0.18em] uppercase"
+                        className="heading-serif text-lg tracking-[0.18em] uppercase"
                         style={{ fontWeight: 400 }}
                     >
                         <span className="bg-gradient-to-r from-[#00d4aa] via-[#4aecd0] to-[#c9a84c] bg-clip-text text-transparent">

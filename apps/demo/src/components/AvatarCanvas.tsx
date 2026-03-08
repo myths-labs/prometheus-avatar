@@ -61,7 +61,7 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 onEmotionChange?.(emotion);
                 const avatarId = getAvatarId(modelUrl);
 
-                // Try server-side TTS (Edge TTS for Chinese, ElevenLabs for English)
+                // Try server-side TTS (Google TTS for Chinese, ElevenLabs for English)
                 let audioUrl: string | null = null;
                 try {
                     const res = await fetch("/api/tts", {
@@ -72,10 +72,13 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     if (res.ok) {
                         const blob = await res.blob();
                         audioUrl = URL.createObjectURL(blob);
-                        console.log(`[TTS] engine=${res.headers.get('X-TTS-Engine')}, lang=${res.headers.get('X-TTS-Language')}`);
+                        console.log(`[TTS] ✅ engine=${res.headers.get('X-TTS-Engine')}, lang=${res.headers.get('X-TTS-Language')}`);
+                    } else {
+                        const errBody = await res.text().catch(() => "");
+                        console.error(`[TTS] ❌ API returned ${res.status}: ${errBody.slice(0, 200)}`);
                     }
                 } catch (e) {
-                    console.warn("Server TTS failed, using browser fallback:", e);
+                    console.error("[TTS] ❌ Fetch failed (using browser fallback):", e);
                 }
 
                 if (iframeRef.current?.contentWindow) {
