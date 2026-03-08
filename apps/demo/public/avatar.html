@@ -63,7 +63,8 @@
       }
     }
 
-    // Audio-driven lip sync — reads amplitude from audio in real-time
+    // Phoneme-level lip sync — maps FFT frequency bands to vowel mouth shapes (a/i/u/e/o)
+    // Inspired by CRI LipSync technology used in Live2D Cubism 5.0
     function startAudioLipSync(model, audioElement) {
       const { audioContext: ctx, analyser: anal } = getAudioContext();
       const source = ctx.createMediaElementSource(audioElement);
@@ -72,56 +73,83 @@
 
       const dataArray = new Uint8Array(anal.frequencyBinCount);
       let animFrame;
-      let smoothedValue = 0; // Smoothing for natural movement
-      let prevValue = 0;
+      let smoothOpen = 0, smoothForm = 0;
+      let prevOpen = 0;
+
+      // Vowel frequency formant ranges (F1 = openness, F2 = frontness)
+      // a: F1=800-1200Hz (open), F2=1000-1400Hz (central)
+      // i: F1=250-400Hz (closed), F2=2000-3000Hz (front)
+      // u: F1=250-400Hz (closed), F2=600-1000Hz (back)
+      // e: F1=400-600Hz (mid), F2=1800-2500Hz (front)
+      // o: F1=400-600Hz (mid), F2=600-1000Hz (back)
+
+      function getFreqBand(startHz, endHz) {
+        const binSize = ctx.sampleRate / anal.fftSize;
+        const s = Math.floor(startHz / binSize);
+        const e = Math.min(Math.floor(endHz / binSize), dataArray.length - 1);
+        let sum = 0, count = 0;
+        for (let i = s; i <= e; i++) { sum += dataArray[i]; count++; }
+        return count > 0 ? sum / count / 255 : 0;
+      }
 
       function animate() {
         anal.getByteFrequencyData(dataArray);
 
-        // Separate vowel frequencies (300-1000Hz) and consonant frequencies (1500-4000Hz)
-        const vowelStart = Math.floor(300 / (ctx.sampleRate / anal.fftSize));
-        const vowelEnd = Math.floor(1000 / (ctx.sampleRate / anal.fftSize));
-        const consStart = Math.floor(1500 / (ctx.sampleRate / anal.fftSize));
-        const consEnd = Math.floor(4000 / (ctx.sampleRate / anal.fftSize));
+        // Extract formant energy bands
+        const lowF1 = getFreqBand(250, 500);    // Closed vowels (i, u)
+        const midF1 = getFreqBand(500, 800);    // Mid vowels (e, o)
+        const highF1 = getFreqBand(800, 1200);  // Open vowels (a)
+        const backF2 = getFreqBand(600, 1200);  // Back vowels (u, o)
+        const frontF2 = getFreqBand(1800, 3000); // Front vowels (i, e)
+        const totalEnergy = getFreqBand(100, 4000);
 
-        let vowelSum = 0, consSum = 0;
-        for (let i = vowelStart; i < vowelEnd && i < dataArray.length; i++) vowelSum += dataArray[i];
-        for (let i = consStart; i < consEnd && i < dataArray.length; i++) consSum += dataArray[i];
+        // Determine mouth openness (ParamMouthOpenY): 0=closed, 1=wide open
+        let mouthOpen = 0;
+        if (totalEnergy > 0.05) {
+          // a = most open, e/o = medium, i/u = least open
+          mouthOpen = Math.min(1, highF1 * 2.5 + midF1 * 1.5 + lowF1 * 0.8);
+        }
 
-        const vowelAvg = vowelSum / Math.max(1, vowelEnd - vowelStart) / 255;
-        const consAvg = consSum / Math.max(1, consEnd - consStart) / 255;
+        // Determine mouth shape (ParamMouthForm): -1=round(o/u), 0=neutral, 1=wide(i/e)
+        let mouthForm = 0;
+        if (totalEnergy > 0.05) {
+          const frontness = frontF2 - backF2;
+          mouthForm = Math.max(-1, Math.min(1, frontness * 3));
+        }
 
-        // Vowels = mouth open wide, consonants = mouth narrower
-        const rawValue = Math.min(1, vowelAvg * 2.0 + consAvg * 0.8);
+        // Smooth with different speeds for natural movement
+        const openSpeed = mouthOpen > smoothOpen ? 0.45 : 0.15;
+        smoothOpen += (mouthOpen - smoothOpen) * openSpeed;
+        smoothForm += (mouthForm - smoothForm) * 0.2;
 
-        // Smooth with exponential easing (fast open, slow close — more natural)
-        const openSpeed = 0.4;  // Mouth opens quickly
-        const closeSpeed = 0.15; // Mouth closes slowly (more natural)
-        const speed = rawValue > smoothedValue ? openSpeed : closeSpeed;
-        smoothedValue += (rawValue - smoothedValue) * speed;
+        // Add micro-variation
+        const microVar = (Math.random() - 0.5) * 0.02;
+        const finalOpen = Math.max(0, Math.min(1, smoothOpen + microVar));
+        const finalForm = Math.max(-1, Math.min(1, smoothForm));
 
-        // Add micro-variation to prevent robotic feel
-        const microVar = (Math.random() - 0.5) * 0.03;
-        const finalValue = Math.max(0, Math.min(1, smoothedValue + microVar));
+        // Apply to model parameters
+        setMouth(model, finalOpen);
+        // Set mouth form (wide vs round) if the model supports it
+        setParam(model, 'ParamMouthForm', finalForm);
 
-        setMouth(model, finalValue);
-        prevValue = finalValue;
+        prevOpen = finalOpen;
         animFrame = requestAnimationFrame(animate);
       }
       animate();
 
       return () => {
         cancelAnimationFrame(animFrame);
-        // Smooth close instead of abrupt snap
         let closeFrame;
-        let closeVal = prevValue;
+        let closeVal = prevOpen;
         function smoothClose() {
           closeVal *= 0.7;
           if (closeVal > 0.01) {
             setMouth(model, closeVal);
+            setParam(model, 'ParamMouthForm', 0);
             closeFrame = requestAnimationFrame(smoothClose);
           } else {
             setMouth(model, 0);
+            setParam(model, 'ParamMouthForm', 0);
           }
         }
         smoothClose();
@@ -505,6 +533,21 @@
             } catch (err) {
               console.warn("[Avatar] Expression load failed:", err);
               window.parent.postMessage({ type: "expression-error", error: err.message }, "*");
+            }
+          }
+
+          // VTuber mode: camera head tracking → set head angles
+          if (e.data.type === "set-head-angles") {
+            try {
+              const { x, y, z } = e.data;
+              setParam(model, 'ParamAngleX', x || 0);
+              setParam(model, 'ParamAngleY', y || 0);
+              setParam(model, 'ParamAngleZ', z || 0);
+              // Also slightly move body for naturalness
+              setParam(model, 'ParamBodyAngleX', (x || 0) * 0.3);
+              setParam(model, 'ParamBodyAngleY', (y || 0) * 0.2);
+            } catch (err) {
+              // Silently ignore — not all models have these params
             }
           }
 

@@ -21,11 +21,12 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/npm/v/@prometheusavatar/core?color=00d4aa&label=npm&style=flat-square" alt="npm" /></a>
-  <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=flat-square" alt="GitHub Stars" /></a>
-  <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License" />
-  <img src="https://img.shields.io/badge/Live2D-Cubism_2_%26_4-ff69b4.svg?style=flat-square" alt="Live2D" />
-  <img src="https://img.shields.io/badge/TTS-Multi--language-green.svg?style=flat-square" alt="TTS" />
+  <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/badge/npm-v0.7.2-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm v0.7.2" /></a>
+  <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge" alt="License" />
+  <img src="https://img.shields.io/badge/Live2D-Cubism_2_&_4-ff69b4.svg?style=for-the-badge" alt="Live2D" />
+  <img src="https://img.shields.io/badge/TTS-Voice_Clone-9c27b0.svg?style=for-the-badge" alt="Voice Clone" />
+  <img src="https://img.shields.io/badge/VTuber-Camera_Tracking-00bcd4.svg?style=for-the-badge" alt="VTuber" />
 </p>
 
 ---

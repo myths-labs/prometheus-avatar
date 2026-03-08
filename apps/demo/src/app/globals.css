@@ -51,9 +51,9 @@ body {
   font-family: var(--font-playfair), Georgia, 'Times New Roman', serif;
   font-weight: 400;
   letter-spacing: -0.02em;
-  line-height: 1.2;
+  line-height: 1.35;
   overflow: visible;
-  padding-bottom: 0.05em;
+  padding-bottom: 0.2em;
 }
 
 .heading-serif em {
@@ -405,6 +405,8 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: gradientShift 6s ease-in-out infinite;
+  padding-bottom: 0.15em;
+  display: inline-block;
 }
 
 /* ═══ Shimmer highlight for code blocks ═══ */
