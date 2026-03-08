@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
 
             // Fallback: ElevenLabs (sounds accented but works)
             if (!audioBuffer) {
-                const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
+                const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
                 try {
                     audioBuffer = await withTimeout(
                         generateElevenLabsTTS(text, voiceId),
