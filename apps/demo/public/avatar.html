@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { background: transparent; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Cubism 2 + 4 runtimes -->
+  <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <!-- PIXI.js -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+  <!-- pixi-live2d-display -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js"></script>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const modelUrl = params.get("model") || "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json";
+
+    const app = new PIXI.Application({
+      backgroundAlpha: 0,
+      autoStart: true,
+      resizeTo: window,
+    });
+    document.body.appendChild(app.view);
+
+    async function loadModel() {
+      try {
+        const model = await PIXI.live2d.Live2DModel.from(modelUrl, { autoInteract: true });
+        window._live2dModel = model;
+
+        const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.85;
+        model.scale.set(scale);
+        model.x = (window.innerWidth - model.width * scale) / 2;
+        model.y = (window.innerHeight - model.height * scale) / 2;
+
+        app.stage.addChild(model);
+
+        // Notify parent
+        window.parent.postMessage({ type: "live2d-ready" }, "*");
+
+        // Listen for commands from parent
+        window.addEventListener("message", (e) => {
+          if (e.data.type === "speak") {
+            const text = e.data.text;
+            const emotion = e.data.emotion || "neutral";
+
+            // Set expression
+            const expressionMap = {
+              happy: ["happy", "smile", "f01"],
+              sad: ["sad", "cry", "f04"],
+              angry: ["angry", "f03"],
+              surprised: ["surprised", "shock", "f02"],
+              thinking: ["thinking", "doubt"],
+              neutral: ["neutral", "idle", "f00"],
+            };
+            const candidates = expressionMap[emotion] || ["neutral"];
+            for (const expr of candidates) {
+              try { model.expression(expr); break; } catch {}
+            }
+
+            // Mouth animation
+            const duration = Math.min(text.length * 60, 5000);
+            const start = Date.now();
+            function animMouth() {
+              const elapsed = Date.now() - start;
+              if (elapsed < duration) {
+                try {
+                  const v = Math.abs(Math.sin(elapsed / 100)) * 0.8 + 0.2;
+                  model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", v);
+                } catch {
+                  try {
+                    model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", v);
+                  } catch {}
+                }
+                requestAnimationFrame(animMouth);
+              } else {
+                try { model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", 0); } catch {}
+                try { model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", 0); } catch {}
+                window.parent.postMessage({ type: "speak-done" }, "*");
+              }
+            }
+            animMouth();
+          }
+
+          if (e.data.type === "set-model") {
+            window.location.search = "?model=" + encodeURIComponent(e.data.url);
+          }
+        });
+
+      } catch (err) {
+        console.error("Failed to load Live2D model:", err);
+        window.parent.postMessage({ type: "live2d-error", error: err.message }, "*");
+      }
+    }
+
+    loadModel();
+
+    window.addEventListener("resize", () => {
+      const model = window._live2dModel;
+      if (model) {
+        const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.85;
+        model.scale.set(scale);
+        model.x = (window.innerWidth - model.width * scale) / 2;
+        model.y = (window.innerHeight - model.height * scale) / 2;
+      }
+    });
+  </script>
+</body>
+</html>

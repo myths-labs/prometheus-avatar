@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useImperativeHandle, forwardRef, useState } from "react";
+import { useRef, useImperativeHandle, forwardRef, useState, useEffect, useCallback } from "react";
 
 export interface AvatarCanvasHandle {
     speak: (text: string) => Promise<void>;
@@ -22,80 +22,88 @@ function detectEmotion(text: string): string {
     return "neutral";
 }
 
-const EMOTION_EMOJI: Record<string, string> = {
-    neutral: "😐",
-    happy: "😊",
-    sad: "😢",
-    angry: "😠",
-    surprised: "😲",
-    thinking: "🤔",
-};
-
 const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
-    ({ onReady, onEmotionChange }, ref) => {
-        const containerRef = useRef<HTMLDivElement>(null);
-        const [currentEmotion, setCurrentEmotion] = useState("neutral");
-        const [isSpeaking, setIsSpeaking] = useState(false);
-        const [lastText, setLastText] = useState("");
-        const [hasSpoken, setHasSpoken] = useState(false);
+    ({ modelUrl, onReady, onEmotionChange }, ref) => {
+        const iframeRef = useRef<HTMLIFrameElement>(null);
+        const [ready, setReady] = useState(false);
+        const [error, setError] = useState<string | null>(null);
+        const speakResolveRef = useRef<(() => void) | null>(null);
 
-        useState(() => { setTimeout(() => onReady?.(), 500); });
+        // Listen for messages from iframe
+        useEffect(() => {
+            function handleMessage(e: MessageEvent) {
+                if (e.data.type === "live2d-ready") {
+                    setReady(true);
+                    onReady?.();
+                }
+                if (e.data.type === "live2d-error") {
+                    setError(e.data.error);
+                    onReady?.();
+                }
+                if (e.data.type === "speak-done") {
+                    speakResolveRef.current?.();
+                    speakResolveRef.current = null;
+                }
+            }
+            window.addEventListener("message", handleMessage);
+            return () => window.removeEventListener("message", handleMessage);
+        }, [onReady]);
 
+        // Speak via postMessage to iframe
         useImperativeHandle(ref, () => ({
             speak: async (text: string) => {
-                setLastText(text);
-                setHasSpoken(true);
-                setIsSpeaking(true);
-
                 const emotion = detectEmotion(text);
-                setCurrentEmotion(emotion);
                 onEmotionChange?.(emotion);
 
-                // TTS with Web Speech API
-                if (typeof window !== "undefined" && window.speechSynthesis) {
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.rate = 1.0;
-                    await new Promise<void>((resolve) => {
-                        utterance.onend = () => resolve();
-                        utterance.onerror = () => resolve();
+                if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage(
+                        { type: "speak", text, emotion },
+                        "*"
+                    );
+
+                    // TTS in parent window
+                    if (typeof window !== "undefined" && window.speechSynthesis) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.rate = 1.0;
                         window.speechSynthesis.speak(utterance);
+                    }
+
+                    // Wait for mouth animation to finish
+                    await new Promise<void>((resolve) => {
+                        speakResolveRef.current = resolve;
+                        // Timeout fallback
+                        setTimeout(resolve, Math.min(text.length * 60, 6000));
                     });
                 } else {
-                    await new Promise((r) => setTimeout(r, Math.min(text.length * 60, 4000)));
+                    await new Promise((r) => setTimeout(r, 1500));
                 }
 
-                setIsSpeaking(false);
                 setTimeout(() => {
-                    setCurrentEmotion("neutral");
                     onEmotionChange?.("neutral");
                 }, 2000);
             },
         }), [onEmotionChange]);
 
+        const iframeSrc = `/avatar.html?model=${encodeURIComponent(modelUrl)}`;
+
         return (
-            <div ref={containerRef} className="w-full h-full relative min-h-[300px] flex flex-col items-center justify-center gap-4 p-6">
-                {/* Animated avatar face */}
-                <div className={`text-8xl transition-all duration-300 ${isSpeaking ? "animate-bounce" : ""}`} style={{ animationDuration: "0.6s" }}>
-                    {EMOTION_EMOJI[currentEmotion] || "😐"}
-                </div>
-
-                <p className="text-sm text-[#00d4aa] text-center font-semibold">
-                    {isSpeaking ? "Speaking..." : "Avatar Preview"}
-                </p>
-
-                {hasSpoken ? (
-                    <div className="card-dark px-4 py-3 max-w-xs text-center">
-                        <p className="text-sm text-[#8a9ab5] italic">&ldquo;{lastText}&rdquo;</p>
-                        <p className="text-xs text-[#4a5568] mt-2">
-                            🎭 Emotion: {currentEmotion} • 🔊 TTS enabled
-                        </p>
+            <div className="w-full h-full relative min-h-[300px]">
+                <iframe
+                    ref={iframeRef}
+                    src={iframeSrc}
+                    className="w-full h-full min-h-[300px] border-0"
+                    style={{ background: "transparent" }}
+                    allow="autoplay"
+                />
+                {!ready && !error && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-4xl animate-pulse">⏳</div>
                     </div>
-                ) : (
-                    <div className="text-center max-w-xs">
-                        <p className="text-xs text-[#4a5568]">
-                            Live2D rendering coming soon. Chat works with TTS and emotion detection now!
-                        </p>
-                        <p className="text-xs text-[#00d4aa] mt-2">💬 Try sending a message in the chat panel →</p>
+                )}
+                {error && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                        <div className="text-5xl">🤖</div>
+                        <p className="text-xs text-[#4a5568] text-center max-w-[200px]">{error}</p>
                     </div>
                 )}
             </div>
