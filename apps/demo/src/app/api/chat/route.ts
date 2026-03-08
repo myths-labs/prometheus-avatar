@@ -61,14 +61,17 @@ async function callLLM(provider: LLMProvider, messages: any[]): Promise<string> 
 
 export async function POST(req: NextRequest) {
     try {
-        const { message, history } = await req.json();
+        const { message, history, systemPrompt } = await req.json();
 
         if (!message) {
             return NextResponse.json({ error: "No message" }, { status: 400 });
         }
 
-        // Build messages
-        const messages: any[] = [{ role: "system", content: SYSTEM_PROMPT }];
+        // Build messages — use marketplace persona prompt if provided, otherwise default
+        const activeSystemPrompt = systemPrompt
+            ? `${systemPrompt}\n\n${SYSTEM_PROMPT}`
+            : SYSTEM_PROMPT;
+        const messages: any[] = [{ role: "system", content: activeSystemPrompt }];
         if (history && Array.isArray(history)) {
             for (const msg of history.slice(-8)) {
                 messages.push({ role: msg.role, content: msg.content });

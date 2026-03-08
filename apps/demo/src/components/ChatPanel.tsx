@@ -73,6 +73,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                     body: JSON.stringify({
                         message: text,
                         history: messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+                        ...(systemPrompt ? { systemPrompt } : {}),
                     }),
                 });
                 if (!response.ok) {

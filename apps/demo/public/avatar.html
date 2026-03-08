@@ -228,6 +228,29 @@
       }
     }
 
+    // Set a single Live2D model parameter by ID (used by marketplace expressions)
+    function setParam(model, paramId, value) {
+      if (!model || !model.internalModel) return;
+      const coreModel = model.internalModel.coreModel;
+      if (!coreModel) return;
+      // Try direct parameter setting
+      try {
+        const paramIndex = coreModel._model?.parameters?.ids?.indexOf(paramId);
+        if (paramIndex !== undefined && paramIndex >= 0) {
+          coreModel.setParameterValueById(paramId, value);
+        } else {
+          // Fallback: try all known parameter access methods
+          if (typeof coreModel.setParameterValueById === 'function') {
+            coreModel.setParameterValueById(paramId, value);
+          } else if (typeof coreModel.setParamFloat === 'function') {
+            coreModel.setParamFloat(paramId, value);
+          }
+        }
+      } catch (e) {
+        console.warn("[Avatar] setParam failed for", paramId, e);
+      }
+    }
+
     // Voice selection for browser TTS fallback
     function getBestVoice(text) {
       const voices = speechSynthesis.getVoices();
@@ -401,21 +424,53 @@
             try {
               const url = e.data.url;
               console.log("[Avatar] Loading motion:", url);
-              // Live2D models have a motion manager — try to use it
-              if (model.internalModel && model.internalModel.motionManager) {
-                // Load motion from URL
-                const res = await fetch(url);
-                const motionData = await res.json();
-                // Create a temporary motion and play it
-                const motionManager = model.internalModel.motionManager;
-                // Try using the model's built-in motion loading
-                if (typeof motionManager.startMotion === 'function') {
-                  motionManager.startMotion(url, 0);
-                } else if (typeof model.motion === 'function') {
-                  model.motion(url);
-                }
+
+              // Fetch the motion data
+              const res = await fetch(url);
+              const motionData = await res.json();
+
+              // Case 1: motion config JSON with { group, index } — plays built-in motion
+              if (motionData.group) {
+                try { model.motion(motionData.group, motionData.index || 0, 3); } catch { }
+                window.parent.postMessage({ type: "motion-loaded", url }, "*");
+                return;
               }
-              window.parent.postMessage({ type: "motion-loaded", url: e.data.url }, "*");
+
+              // Case 2: motion3.json with Curves — animate parameters directly
+              if (motionData.Curves && Array.isArray(motionData.Curves)) {
+                const duration = motionData.Meta?.Duration || 3;
+                const startTime = performance.now();
+
+                function animateMotion() {
+                  const elapsed = (performance.now() - startTime) / 1000;
+                  if (elapsed > duration) {
+                    window.parent.postMessage({ type: "motion-loaded", url }, "*");
+                    return;
+                  }
+
+                  for (const curve of motionData.Curves) {
+                    if (curve.Target === "Parameter" && curve.Segments) {
+                      // Linear interpolation through segments
+                      const segments = curve.Segments;
+                      const t = elapsed / duration;
+                      const idx = Math.min(Math.floor(t * (segments.length / 2)), segments.length / 2 - 1) * 2;
+                      const value = segments[idx + 1] !== undefined ? segments[idx + 1] : 0;
+                      setParam(model, curve.Id, value);
+                    }
+                  }
+                  requestAnimationFrame(animateMotion);
+                }
+                requestAnimationFrame(animateMotion);
+                return;
+              }
+
+              // Case 3: try as built-in motion group name
+              if (typeof motionData === 'string' || motionData.name) {
+                const name = motionData.name || motionData;
+                try { model.motion(name, 0, 3); } catch { }
+              }
+
+              window.parent.postMessage({ type: "motion-loaded", url }, "*");
             } catch (err) {
               console.warn("[Avatar] Motion load failed:", err);
               window.parent.postMessage({ type: "motion-error", error: err.message }, "*");
