@@ -35,7 +35,8 @@ const PROVIDERS: LLMProvider[] = [
     },
 ];
 
-async function callLLM(provider: LLMProvider, messages: any[]): Promise<string> {
+// ═══ STREAMING: Returns a ReadableStream of SSE events ═══
+async function streamLLM(provider: LLMProvider, messages: any[]): Promise<Response> {
     const response = await fetch(provider.url, {
         method: "POST",
         headers: {
@@ -47,6 +48,7 @@ async function callLLM(provider: LLMProvider, messages: any[]): Promise<string> 
             messages,
             max_tokens: 250,
             temperature: 0.9,
+            stream: true,
         }),
     });
 
@@ -55,8 +57,7 @@ async function callLLM(provider: LLMProvider, messages: any[]): Promise<string> 
         throw new Error(`${provider.name} ${response.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "Hmm, let me think...";
+    return response;
 }
 
 export async function POST(req: NextRequest) {
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "No message" }, { status: 400 });
         }
 
-        // Build system prompt: memory context + persona prompt + default
+        // Build system prompt
         let activeSystemPrompt = SYSTEM_PROMPT;
         if (systemPrompt) {
             activeSystemPrompt = `${systemPrompt}\n\n${SYSTEM_PROMPT}`;
@@ -83,19 +84,64 @@ export async function POST(req: NextRequest) {
         }
         messages.push({ role: "user", content: message });
 
-        // Try providers in order: Gemini → Groq
+        // Try providers in order
         const available = PROVIDERS.filter(p => p.available());
         if (available.length === 0) {
-            return NextResponse.json({ error: "No LLM API key configured (set GEMINI_API_KEY or GROQ_API_KEY)" }, { status: 500 });
+            return NextResponse.json({ error: "No LLM API key configured" }, { status: 500 });
         }
 
         let lastError = "";
         for (const provider of available) {
             try {
-                console.log(`[Chat] Trying ${provider.name} (${provider.model})`);
-                const reply = await callLLM(provider, messages);
-                console.log(`[Chat] Success via ${provider.name}`);
-                return NextResponse.json({ reply, provider: provider.name });
+                console.log(`[Chat] Streaming via ${provider.name}`);
+                const upstreamRes = await streamLLM(provider, messages);
+
+                // ═══ STREAM SSE to client — each token arrives immediately ═══
+                const encoder = new TextEncoder();
+                const stream = new ReadableStream({
+                    async start(controller) {
+                        const reader = upstreamRes.body!.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = "";
+
+                        try {
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+
+                                buffer += decoder.decode(value, { stream: true });
+                                const lines = buffer.split("\n");
+                                buffer = lines.pop() || "";
+
+                                for (const line of lines) {
+                                    if (!line.startsWith("data: ")) continue;
+                                    const data = line.slice(6).trim();
+                                    if (data === "[DONE]") continue;
+
+                                    try {
+                                        const json = JSON.parse(data);
+                                        const token = json.choices?.[0]?.delta?.content;
+                                        if (token) {
+                                            // Forward each token to client as SSE
+                                            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`));
+                                        }
+                                    } catch { /* skip parse errors */ }
+                                }
+                            }
+                        } finally {
+                            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                            controller.close();
+                        }
+                    }
+                });
+
+                return new Response(stream, {
+                    headers: {
+                        "Content-Type": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                    },
+                });
             } catch (err: any) {
                 console.warn(`[Chat] ${provider.name} failed:`, err.message);
                 lastError = err.message;
@@ -108,4 +154,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: error.message || "Server error" }, { status: 500 });
     }
 }
-

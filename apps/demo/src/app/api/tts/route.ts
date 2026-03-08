@@ -174,12 +174,12 @@ export async function POST(req: NextRequest) {
         let engine = "none";
 
         if (chinese) {
-            // Chinese: Gemini native TTS (8s) → ElevenLabs (4s)
+            // Chinese: Gemini native TTS (4s) → ElevenLabs (2.5s)
             const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
             try {
                 audioBuffer = await withTimeout(
                     generateGeminiTTS(text, geminiVoice),
-                    8000, "Gemini TTS"
+                    4000, "Gemini TTS"
                 );
                 if (audioBuffer) engine = "gemini-tts";
             } catch (e: any) {
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
                 try {
                     audioBuffer = await withTimeout(
                         generateElevenLabsTTS(text, voiceId),
-                        4000, "ElevenLabs"
+                        2500, "ElevenLabs"
                     );
                     if (audioBuffer) engine = "elevenlabs-zh-fallback";
                 } catch (e: any) {
@@ -200,12 +200,12 @@ export async function POST(req: NextRequest) {
                 }
             }
         } else {
-            // English: ElevenLabs (4s) → Gemini TTS (8s)
+            // English: ElevenLabs (2.5s) → Gemini TTS (4s)
             const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
             try {
                 audioBuffer = await withTimeout(
                     generateElevenLabsTTS(text, voiceId),
-                    4000, "ElevenLabs"
+                    2500, "ElevenLabs"
                 );
                 if (audioBuffer) engine = "elevenlabs";
             } catch (e: any) {
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
                 try {
                     audioBuffer = await withTimeout(
                         generateGeminiTTS(text, geminiVoice),
-                        8000, "Gemini-TTS-EN"
+                        4000, "Gemini-TTS-EN"
                     );
                     if (audioBuffer) engine = "gemini-tts-en";
                 } catch (e: any) {
