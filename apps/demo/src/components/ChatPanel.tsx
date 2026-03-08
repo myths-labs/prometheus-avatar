@@ -96,7 +96,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                 isSpeakingRef.current = true;
                 await onSendMessage(text);
             } else {
-                // ═══ STREAMING LLM: Start speaking as soon as first sentence arrives ═══
+                // ═══ STREAMING LLM: Show text in real-time, speak once when done ═══
                 const thinkingId = `thinking-${Date.now()}`;
                 setMessages(prev => [...prev, { id: thinkingId, role: "assistant", content: "◆◆◆THINKING◆◆◆", timestamp: Date.now() }]);
 
@@ -115,16 +115,11 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                     throw new Error(err.error || "API error");
                 }
 
-                // ═══ CONSUME SSE STREAM ═══
+                // ═══ CONSUME SSE STREAM — text display only ═══
                 const reader = response.body!.getReader();
                 const decoder = new TextDecoder();
                 let fullReply = "";
-                let spokenUpTo = 0;
                 let buffer = "";
-                isSpeakingRef.current = true;
-
-                // Sentence boundary regex
-                const sentenceEnd = /[.!?。！？\n]/;
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -143,38 +138,23 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                             const json = JSON.parse(data);
                             if (json.token) {
                                 fullReply += json.token;
-
-                                // Update the message in real-time (typing effect)
+                                // Real-time typing effect in chat bubble
                                 setMessages(prev => prev.map(m =>
                                     m.id === thinkingId ? { ...m, content: fullReply } : m
                                 ));
-
-                                // Check if we have a complete sentence to speak
-                                const unspoken = fullReply.slice(spokenUpTo);
-                                const match = unspoken.search(sentenceEnd);
-                                if (match !== -1) {
-                                    const sentence = unspoken.slice(0, match + 1).trim();
-                                    if (sentence.length > 0) {
-                                        spokenUpTo += match + 1;
-                                        // Fire and forget — speak this sentence while we continue streaming
-                                        onSendMessage(sentence);
-                                    }
-                                }
                             }
                         } catch { /* skip parse errors */ }
                     }
                 }
 
-                // Speak any remaining unspoken text
-                const remaining = fullReply.slice(spokenUpTo).trim();
-                if (remaining.length > 0) {
-                    await onSendMessage(remaining);
+                // ═══ SPEAK complete reply ONCE — consistent voice, no overlaps ═══
+                if (fullReply.trim().length > 0) {
+                    setMessages(prev => prev.map(m =>
+                        m.id === thinkingId ? { ...m, content: fullReply } : m
+                    ));
+                    isSpeakingRef.current = true;
+                    await onSendMessage(fullReply.trim());
                 }
-
-                // Ensure final message shows complete reply
-                setMessages(prev => prev.map(m =>
-                    m.id === thinkingId ? { ...m, content: fullReply } : m
-                ));
             }
         } catch (err: any) {
             console.error("Chat error:", err);

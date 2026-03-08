@@ -284,8 +284,9 @@ export async function POST(req: NextRequest) {
             },
         });
     } catch (error: any) {
-        console.error("[TTS] Fatal:", error);
-        return NextResponse.json({ error: error.message || "TTS failed" }, { status: 500 });
+        console.warn("[TTS] Error:", error.message);
+        // Return 204 so client uses browser TTS instead of showing error
+        return new NextResponse(null, { status: 204 });
     }
 }
 
