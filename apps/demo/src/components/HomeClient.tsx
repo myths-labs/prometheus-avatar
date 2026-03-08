@@ -53,7 +53,7 @@ export default function HomeClient() {
       <FeatureCards />
 
       {/* Demo Section */}
-      <section ref={demoRef} id="demo" className="max-w-7xl mx-auto px-6 py-24">
+      <section ref={demoRef} id="demo" className="max-w-7xl mx-auto px-6 pt-10 pb-24">
         <div className="text-center mb-14">
           <div className="ornamental-divider max-w-xs mx-auto mb-8">✦</div>
           <h2 className="heading-serif text-4xl md:text-5xl mb-4">
