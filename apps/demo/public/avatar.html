@@ -243,6 +243,27 @@
       try {
         const model = await PIXI.live2d.Live2DModel.from(modelUrl, { autoInteract: true });
         window._live2dModel = model;
+        window._muteModelSounds = false; // Only mute during our TTS playback
+
+        // Intercept model sounds — only block when our TTS is playing
+        try {
+          if (model.internalModel?.motionManager) {
+            const origStartMotion = model.internalModel.motionManager.startMotion;
+            model.internalModel.motionManager.startMotion = function (group, index, priority) {
+              if (window._muteModelSounds) {
+                // Our TTS is playing — skip model's built-in sounds to avoid overlap
+                const settings = this.settings;
+                const origGetSoundFile = settings.getMotionSoundFile;
+                settings.getMotionSoundFile = () => undefined;
+                const result = origStartMotion.call(this, group, index, priority);
+                settings.getMotionSoundFile = origGetSoundFile;
+                return result;
+              }
+              // Normal — let model sounds play (Shizuku's voice, etc.)
+              return origStartMotion.call(this, group, index, priority);
+            };
+          }
+        } catch (e) { console.warn("Could not setup sound control:", e); }
 
         const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.8;
         model.scale.set(scale);
@@ -316,7 +337,7 @@
 
             } else {
               // Browser TTS fallback
-              if (speechSynthesis) {
+              if (speechSynthesis && speechSynthesis.getVoices().length > 0) {
                 const utterance = new SpeechSynthesisUtterance(text);
                 const voice = getBestVoice(text);
                 if (voice) utterance.voice = voice;
@@ -337,7 +358,15 @@
                 };
                 speechSynthesis.speak(utterance);
               } else {
-                window.parent.postMessage({ type: "speak-done" }, "*");
+                // No TTS available at all — still animate mouth so avatar looks alive
+                console.warn("[Avatar] No TTS available, using silent mouth animation");
+                const stopMouth = animateMouthSimulated(model, Math.max(text.length * 80, 1500));
+                setTimeout(() => {
+                  if (stopMouth) stopMouth();
+                  setMouth(model, 0);
+                  window.parent.postMessage({ type: "speak-done" }, "*");
+                  setTimeout(() => applyEmotion(model, "neutral"), 2000);
+                }, Math.max(text.length * 80, 1500));
               }
             }
           }
