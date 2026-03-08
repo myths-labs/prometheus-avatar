@@ -514,35 +514,57 @@
               const url = e.data.url;
               console.log("[Avatar] Adding accessory:", url);
 
-              // Check if it's an image — add as sprite overlay
               if (url.match(/\.(png|jpg|webp|gif)$/i)) {
                 const img = new Image();
                 img.crossOrigin = "anonymous";
                 img.src = url;
                 img.onload = () => {
-                  // Create a canvas overlay for the accessory
                   const canvas = document.createElement("canvas");
                   canvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;";
                   canvas.width = window.innerWidth;
                   canvas.height = window.innerHeight;
                   const ctx = canvas.getContext("2d");
-                  if (ctx) {
-                    // Draw accessory centered on the model's head area
-                    const scale = Math.min(window.innerWidth, window.innerHeight) * 0.25;
-                    const x = (canvas.width - scale) / 2;
-                    const y = canvas.height * 0.1; // top of head
-                    ctx.drawImage(img, x, y, scale, scale);
-                  }
                   document.body.appendChild(canvas);
                   window._accessoryCanvases = window._accessoryCanvases || [];
                   window._accessoryCanvases.push(canvas);
+
+                  // Track model head position each frame
+                  function updateAccessory() {
+                    if (!ctx || !model || !model.internalModel) {
+                      requestAnimationFrame(updateAccessory);
+                      return;
+                    }
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // Read head angle parameters for offset
+                    const coreModel = model.internalModel.coreModel;
+                    let headX = 0, headY = 0;
+                    try {
+                      headX = (coreModel.getParameterValueById?.("ParamAngleX") || 0) / 30;
+                      headY = (coreModel.getParameterValueById?.("ParamAngleY") || 0) / 30;
+                    } catch {
+                      try {
+                        headX = (coreModel.getParamFloat?.("PARAM_ANGLE_X") || 0) / 30;
+                        headY = (coreModel.getParamFloat?.("PARAM_ANGLE_Y") || 0) / 30;
+                      } catch { }
+                    }
+
+                    // Position accessory relative to model center + head angle
+                    const scale = Math.min(canvas.width, canvas.height) * 0.2;
+                    const centerX = model.x || canvas.width / 2;
+                    const headTopY = (model.y || canvas.height / 2) - (model.height * (model.scale?.y || 1) * 0.45);
+                    const offsetX = headX * scale * 0.3;
+                    const offsetY = headY * scale * 0.2;
+
+                    ctx.drawImage(img, centerX - scale / 2 + offsetX, headTopY + offsetY, scale, scale);
+                    requestAnimationFrame(updateAccessory);
+                  }
+                  requestAnimationFrame(updateAccessory);
                 };
               }
-              // If it's a model3.json, load as additional Live2D overlay
               else if (url.includes("model3.json") || url.includes("model.json")) {
-                const PIXI = window.PIXI;
                 const { Live2DModel: L2D } = window;
-                if (L2D && PIXI) {
+                if (L2D) {
                   const accessory = await L2D.from(url);
                   const scale = Math.min(window.innerWidth / accessory.width, window.innerHeight / accessory.height) * 0.3;
                   accessory.scale.set(scale);

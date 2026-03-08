@@ -436,6 +436,61 @@ export default function UploadPage() {
                                     </span>
                                     <input type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
                                 </label>
+
+                                {/* Compatibility Notice — critical for avoiding refund disputes */}
+                                {category && (
+                                    <div className="mt-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/15 text-xs text-amber-300/80 space-y-1">
+                                        <div className="font-semibold text-amber-300 flex items-center gap-1">⚠️ Compatibility Requirements</div>
+                                        {category === "skins" && <>
+                                            <p>• Upload a <strong>.zip</strong> containing: model3.json + all texture files (PNGs) in the same folder structure</p>
+                                            <p>• Single .model3.json only works if texture paths point to public CDN URLs</p>
+                                            <p>• Must be Live2D Cubism 3 or 4 format. Cubism 2 (.moc) files also supported</p>
+                                            <p>• <strong>Test your asset before listing!</strong> Broken textures = refund requests</p>
+                                        </>}
+                                        {category === "voices" && <>
+                                            <p>• <strong>Voice Config (recommended):</strong> Upload a .json file with <code className="bg-white/5 px-1 rounded">{"{ \"voiceId\": \"...\", \"lang\": \"en\", \"rate\": 1.0 }"}</code></p>
+                                            <p>• Supported TTS engines: Google Cloud TTS, ElevenLabs, Edge TTS, Browser Speech API</p>
+                                            <p>• <strong>Audio Samples:</strong> .mp3/.wav files can be used as pre-recorded response libraries, not real-time TTS</p>
+                                            <p>• Voice cloning (custom voice from audio) requires ElevenLabs voice ID</p>
+                                        </>}
+                                        {category === "motions" && <>
+                                            <p>• Upload standard Live2D <strong>.motion3.json</strong> files with Curves and Meta.Duration</p>
+                                            <p>• Or a simple config: <code className="bg-white/5 px-1 rounded">{"{ \"group\": \"idle\", \"index\": 0 }"}</code> to trigger built-in model motions</p>
+                                            <p>• <strong>⚠️ Motions are model-specific!</strong> Clearly state which models are compatible</p>
+                                            <p>• Include model compatibility list in your description to avoid disputes</p>
+                                        </>}
+                                        {category === "expressions" && <>
+                                            <p>• Standard Live2D <strong>.exp3.json</strong> format: <code className="bg-white/5 px-1 rounded">{"{ \"Parameters\": [{\"Id\":\"ParamEyeLOpen\",\"Value\":0.5}] }"}</code></p>
+                                            <p>• Or simple key-value JSON: <code className="bg-white/5 px-1 rounded">{"{ \"ParamEyeLOpen\": 0.5, \"ParamMouthOpenY\": 0.3 }"}</code></p>
+                                            <p>• Parameters must match the target model's parameter IDs</p>
+                                        </>}
+                                        {category === "effects" && <>
+                                            <p>• JSON config: <code className="bg-white/5 px-1 rounded">{"{ \"type\": \"particles|sparkle|rain|aura\", \"color\": \"#hex\", \"density\": 30 }"}</code></p>
+                                            <p>• Effects are model-independent and work with all avatars ✅</p>
+                                        </>}
+                                        {category === "scenes" && <>
+                                            <p>• Images: .png, .jpg, .webp (will be displayed behind the avatar)</p>
+                                            <p>• Videos: .mp4, .webm (will auto-loop behind the avatar)</p>
+                                            <p>• Scenes are model-independent and work with all avatars ✅</p>
+                                        </>}
+                                        {category === "personas" && <>
+                                            <p>• JSON file with system prompt: <code className="bg-white/5 px-1 rounded">{"{ \"systemPrompt\": \"You are a pirate...\", \"traits\": [...] }"}</code></p>
+                                            <p>• The systemPrompt changes how the AI avatar responds in conversation</p>
+                                            <p>• This is a <strong>text prompt, not a LoRA/fine-tuned model</strong> — it uses prompt engineering</p>
+                                            <p>• Personas are model-independent and work with all avatars ✅</p>
+                                        </>}
+                                        {category === "accessories" && <>
+                                            <p>• <strong>Images:</strong> .png with transparency — will track the avatar's head movement</p>
+                                            <p>• <strong>Live2D models:</strong> .model3.json — rendered as separate overlay</p>
+                                            <p>• Image accessories auto-track avatar head angle for natural positioning</p>
+                                        </>}
+                                        {category === "bundles" && <>
+                                            <p>• .zip file containing a <strong>manifest.json</strong> listing all sub-assets</p>
+                                            <p>• Each sub-asset needs: <code className="bg-white/5 px-1 rounded">{"{ \"category\": \"skins\", \"fileUrl\": \"...\", \"name\": \"...\" }"}</code></p>
+                                            <p>• All included assets must individually meet their category requirements</p>
+                                        </>}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Thumbnail Upload */}
