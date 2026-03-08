@@ -11,6 +11,7 @@ interface AvatarCanvasProps {
     modelUrl: string;
     onReady?: () => void;
     onEmotionChange?: (emotion: string) => void;
+    voiceOverride?: string | null;
 }
 
 function detectEmotion(text: string): string {
@@ -30,7 +31,7 @@ function getAvatarId(modelUrl: string): string {
 }
 
 const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
-    ({ modelUrl, onReady, onEmotionChange }, ref) => {
+    ({ modelUrl, onReady, onEmotionChange, voiceOverride }, ref) => {
         const iframeRef = useRef<HTMLIFrameElement>(null);
         const [ready, setReady] = useState(false);
         const [error, setError] = useState<string | null>(null);
@@ -67,7 +68,7 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     const res = await fetch("/api/tts", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text, avatar: avatarId }),
+                        body: JSON.stringify({ text, avatar: avatarId, voiceOverride: voiceOverride ? { gemini: voiceOverride } : undefined }),
                     });
                     if (res.ok) {
                         const blob = await res.blob();

@@ -13,8 +13,8 @@ export const metadata: Metadata = {
   title: "Prometheus — Give Your AI an Embodied Avatar",
   description: "Open-source SDK to give any LLM agent a Live2D avatar with real-time lip-sync, emotion expressions, and TTS.",
   icons: {
-    icon: "/logo-small.png",
-    apple: "/logo-small.png",
+    icon: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 

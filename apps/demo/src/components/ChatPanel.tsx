@@ -13,6 +13,7 @@ interface ChatPanelProps {
     onSendMessage: (text: string) => Promise<void>;
     onInterrupt?: () => void;
     isAvatarReady: boolean;
+    onVoiceChange?: (voice: string) => void;
 }
 
 const QUICK_PROMPTS = [
@@ -23,11 +24,12 @@ const QUICK_PROMPTS = [
     { label: "😢 Something sad", text: "My best friend is moving away..." },
 ];
 
-export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }: ChatPanelProps) {
+export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, onVoiceChange }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [mode, setMode] = useState<"direct" | "llm">("llm");
+    const [selectedVoice, setSelectedVoice] = useState("Kore");
     const [showSettings, setShowSettings] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordText, setRecordText] = useState("");
@@ -197,9 +199,38 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
             </div>
 
             {showSettings && (
-                <div className="px-5 py-3 border-b border-[rgba(0,212,170,0.06)] bg-black/20">
-                    <p className="text-xs text-[#a8b8d0]"><strong>LLM Chat:</strong> Groq Llama 3.3 — smart AI responses</p>
-                    <p className="text-xs text-[#7a8a9d] mt-1"><strong>Direct:</strong> Avatar speaks your text exactly</p>
+                <div className="px-5 py-3 border-b border-[rgba(0,212,170,0.06)] bg-black/20 space-y-3">
+                    <div>
+                        <p className="text-xs text-[#a8b8d0]"><strong>LLM Chat:</strong> Gemini 2.0 Flash — smart AI responses</p>
+                        <p className="text-xs text-[#7a8a9d] mt-1"><strong>Direct:</strong> Avatar speaks your text exactly</p>
+                    </div>
+                    <div>
+                        <label className="text-xs text-[#a8b8d0] font-semibold block mb-1">🎤 Voice</label>
+                        <select
+                            value={selectedVoice}
+                            onChange={(e) => { setSelectedVoice(e.target.value); onVoiceChange?.(e.target.value); }}
+                            className="w-full bg-black/40 border border-[rgba(0,212,170,0.15)] rounded-md px-3 py-1.5 text-xs text-[#eae6df] focus:border-[#00d4aa] focus:outline-none transition-colors"
+                        >
+                            <optgroup label="🇨🇳 Chinese Optimized">
+                                <option value="Kore">Kore — Energetic, Youthful</option>
+                                <option value="Aoede">Aoede — Clear, Conversational</option>
+                                <option value="Leda">Leda — Youthful, Higher Pitch</option>
+                                <option value="Zephyr">Zephyr — Bright, Perky</option>
+                                <option value="Achird">Achird — Breathy, Friendly</option>
+                            </optgroup>
+                            <optgroup label="🌏 All Female">
+                                <option value="Despina">Despina — Warm, Smooth</option>
+                                <option value="Callirrhoe">Callirrhoe — Confident, Clear</option>
+                                <option value="Algenib">Algenib — Warm, Authoritative</option>
+                                <option value="Laomedeia">Laomedeia — Upbeat, Engaging</option>
+                            </optgroup>
+                            <optgroup label="🗣️ Male">
+                                <option value="Puck">Puck — Upbeat, Friendly</option>
+                                <option value="Charon">Charon — Smooth, Assured</option>
+                                <option value="Fenrir">Fenrir — Excitable, Energetic</option>
+                            </optgroup>
+                        </select>
+                    </div>
                 </div>
             )}
 

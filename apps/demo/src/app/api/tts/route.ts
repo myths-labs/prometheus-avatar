@@ -161,7 +161,7 @@ async function generateElevenLabsTTS(text: string, voiceId: string): Promise<Buf
 
 export async function POST(req: NextRequest) {
     try {
-        const { text, avatar } = await req.json();
+        const { text, avatar, voiceOverride } = await req.json();
 
         if (!text) {
             return NextResponse.json({ error: "No text" }, { status: 400 });
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
 
         if (chinese) {
             // Chinese: Gemini native TTS (8s) → ElevenLabs (4s)
-            const geminiVoice = GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
+            const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
             try {
                 audioBuffer = await withTimeout(
                     generateGeminiTTS(text, geminiVoice),

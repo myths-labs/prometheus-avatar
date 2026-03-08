@@ -18,6 +18,7 @@ export default function HomeClient() {
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
   const [currentEmotion, setCurrentEmotion] = useState("neutral");
   const [isAvatarReady, setIsAvatarReady] = useState(false);
+  const [voiceOverride, setVoiceOverride] = useState<string | null>(null);
   const avatarRef = useRef<AvatarCanvasHandle>(null);
   const demoRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +54,7 @@ export default function HomeClient() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
           <div className="relative">
             <div className="w-full aspect-[4/3]">
-              <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} />
+              <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} voiceOverride={voiceOverride} />
               <div className="absolute top-4 right-4">
                 <div className={`emotion-badge ${currentEmotion === "happy" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
                   : currentEmotion === "sad" ? "bg-[#4a7ab5]/20 text-[#7ab5e0]"
@@ -77,7 +78,7 @@ export default function HomeClient() {
               <p className="text-sm text-[#6b7a8d]">{selectedAvatar.description}</p>
             </div>
           </div>
-          <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} />
+          <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} onVoiceChange={(v) => setVoiceOverride(v)} />
         </div>
       </section>
 
