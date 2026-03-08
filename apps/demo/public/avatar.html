@@ -293,6 +293,7 @@
             const { text, emotion, audioUrl, useBrowserTTS } = e.data;
 
             applyEmotion(model, emotion || "neutral");
+            window._muteModelSounds = true; // Mute model sounds while our TTS plays
 
             if (audioUrl && !useBrowserTTS) {
               // Server TTS audio — real lip sync
@@ -317,6 +318,7 @@
                 if (stopLipSync) stopLipSync();
                 window._currentAudio = null;
                 window._stopLipSync = null;
+                window._muteModelSounds = false;
                 setMouth(model, 0);
                 window.parent.postMessage({ type: "speak-done" }, "*");
                 setTimeout(() => applyEmotion(model, "neutral"), 2000);
@@ -326,12 +328,14 @@
                 if (stopLipSync) stopLipSync();
                 window._currentAudio = null;
                 window._stopLipSync = null;
+                window._muteModelSounds = false;
                 window.parent.postMessage({ type: "speak-done" }, "*");
               };
 
               try { await audio.play(); } catch (err) {
                 console.warn("Audio play failed:", err);
                 window._currentAudio = null;
+                window._muteModelSounds = false;
                 window.parent.postMessage({ type: "speak-done" }, "*");
               }
 
@@ -349,11 +353,13 @@
                 utterance.onend = () => {
                   if (stopMouth) stopMouth();
                   setMouth(model, 0);
+                  window._muteModelSounds = false;
                   window.parent.postMessage({ type: "speak-done" }, "*");
                   setTimeout(() => applyEmotion(model, "neutral"), 2000);
                 };
                 utterance.onerror = () => {
                   if (stopMouth) stopMouth();
+                  window._muteModelSounds = false;
                   window.parent.postMessage({ type: "speak-done" }, "*");
                 };
                 speechSynthesis.speak(utterance);
@@ -387,6 +393,7 @@
               window._stopLipSync = null;
             }
             setMouth(model, 0);
+            window._muteModelSounds = false;
             window.parent.postMessage({ type: "speak-done" }, "*");
           }
         });
