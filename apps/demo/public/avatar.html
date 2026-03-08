@@ -144,6 +144,20 @@
               try { model.expression(expr); break; } catch { }
             }
 
+            // Trigger motion based on emotion
+            const motionMap = {
+              happy: ["tap_body", "flick_head", "shake"],
+              sad: ["idle"],
+              angry: ["shake", "tap_body"],
+              surprised: ["flick_head", "pinch_in", "tap_body"],
+              thinking: ["idle"],
+              neutral: ["idle"],
+            };
+            const motionCandidates = motionMap[emotion] || ["idle"];
+            for (const motionGroup of motionCandidates) {
+              try { model.motion(motionGroup, undefined, 3); break; } catch { }
+            }
+
             // Start TTS from INSIDE the iframe for direct mouth sync
             if (speechSynthesis) {
               const utterance = new SpeechSynthesisUtterance(text);
