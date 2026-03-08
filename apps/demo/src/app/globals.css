@@ -405,8 +405,10 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: gradientShift 6s ease-in-out infinite;
-  padding-bottom: 0.15em;
+  padding-bottom: 0.35em;
+  margin-bottom: -0.2em;
   display: inline-block;
+  overflow: visible;
 }
 
 /* ═══ Shimmer highlight for code blocks ═══ */

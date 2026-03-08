@@ -68,69 +68,87 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 onEmotionChange?.(emotion);
                 const avatarId = getAvatarId(modelUrl);
 
-                // Map voice names to both TTS engine IDs
-                // Each selectable voice needs both a Gemini name and an ElevenLabs ID
+                // Voice mapping
                 const VOICE_MAP: Record<string, { gemini: string; elevenlabs: string }> = {
-                    // Chinese Optimized
-                    "Kore": { gemini: "Kore", elevenlabs: "EXAVITQu4vr4xnSDxMaL" }, // Sarah — warm
-                    "Aoede": { gemini: "Aoede", elevenlabs: "jBpfAIEiAKNebRVppxo4" }, // Gigi — clear
-                    "Leda": { gemini: "Leda", elevenlabs: "FGY2WhTYpPnrIDTdsKH5" }, // Laura — sweet
-                    "Zephyr": { gemini: "Zephyr", elevenlabs: "bIHbv24MWmeRgasZH58o" }, // Will — bright
-                    "Achird": { gemini: "Achird", elevenlabs: "nPczCjzI2devNBz1zQrb" }, // Brian — breathy
-                    // All Female
-                    "Despina": { gemini: "Despina", elevenlabs: "ThT5KcBeYPX3keUQqHPh" }, // Dorothy — warm
-                    "Callirrhoe": { gemini: "Callirrhoe", elevenlabs: "XB0fDUnXU5powFXDhCwa" }, // Charlotte — confident
-                    "Algenib": { gemini: "Algenib", elevenlabs: "Xb7hH8MSUJpSbSDYk0k2" }, // Alice — authoritative
-                    "Laomedeia": { gemini: "Laomedeia", elevenlabs: "pFZP5JQG7iQjIQuC4Bku" }, // Lily — engaging
-                    // Male
-                    "Puck": { gemini: "Puck", elevenlabs: "nPczCjzI2devNBz1zQrb" }, // Brian — upbeat
-                    "Charon": { gemini: "Charon", elevenlabs: "IKne3meq5aSn9XLyUdCD" }, // Charlie — smooth
-                    "Fenrir": { gemini: "Fenrir", elevenlabs: "JBFqnCBsd6RMkjVDRZzb" }, // George — energetic
+                    "Kore": { gemini: "Kore", elevenlabs: "EXAVITQu4vr4xnSDxMaL" },
+                    "Aoede": { gemini: "Aoede", elevenlabs: "jBpfAIEiAKNebRVppxo4" },
+                    "Leda": { gemini: "Leda", elevenlabs: "FGY2WhTYpPnrIDTdsKH5" },
+                    "Zephyr": { gemini: "Zephyr", elevenlabs: "bIHbv24MWmeRgasZH58o" },
+                    "Achird": { gemini: "Achird", elevenlabs: "nPczCjzI2devNBz1zQrb" },
+                    "Despina": { gemini: "Despina", elevenlabs: "ThT5KcBeYPX3keUQqHPh" },
+                    "Callirrhoe": { gemini: "Callirrhoe", elevenlabs: "XB0fDUnXU5powFXDhCwa" },
+                    "Algenib": { gemini: "Algenib", elevenlabs: "Xb7hH8MSUJpSbSDYk0k2" },
+                    "Laomedeia": { gemini: "Laomedeia", elevenlabs: "pFZP5JQG7iQjIQuC4Bku" },
+                    "Puck": { gemini: "Puck", elevenlabs: "nPczCjzI2devNBz1zQrb" },
+                    "Charon": { gemini: "Charon", elevenlabs: "IKne3meq5aSn9XLyUdCD" },
+                    "Fenrir": { gemini: "Fenrir", elevenlabs: "JBFqnCBsd6RMkjVDRZzb" },
                 };
-
                 const voiceMapping = voiceOverride ? VOICE_MAP[voiceOverride] : undefined;
 
-                // Try server-side TTS (Google TTS for Chinese, ElevenLabs for English)
-                let audioUrl: string | null = null;
-                try {
-                    const res = await fetch("/api/tts", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text, avatar: avatarId, voiceOverride: voiceMapping }),
-                    });
-                    if (res.ok) {
-                        const blob = await res.blob();
-                        audioUrl = URL.createObjectURL(blob);
-                        console.log(`[TTS] ✅ engine=${res.headers.get('X-TTS-Engine')}, lang=${res.headers.get('X-TTS-Language')}`);
-                    } else {
-                        const errBody = await res.text().catch(() => "");
-                        console.error(`[TTS] ❌ API returned ${res.status}: ${errBody.slice(0, 200)}`);
+                // Local helper: play a single sentence with TTS + lip sync
+                const playSentence = async (sentenceText: string, sentenceEmotion: string) => {
+                    let audioUrl: string | null = null;
+                    try {
+                        const res = await fetch("/api/tts", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ text: sentenceText, avatar: avatarId, voiceOverride: voiceMapping }),
+                        });
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            audioUrl = URL.createObjectURL(blob);
+                        }
+                    } catch (e) {
+                        console.error("[TTS] Sentence fetch failed:", e);
                     }
-                } catch (e) {
-                    console.error("[TTS] ❌ Fetch failed (using browser fallback):", e);
-                }
 
-                if (iframeRef.current?.contentWindow) {
-                    iframeRef.current.contentWindow.postMessage(
-                        {
-                            type: "speak",
-                            text,
-                            emotion,
-                            audioUrl,
-                            useBrowserTTS: !audioUrl,
-                        },
-                        "*"
-                    );
+                    if (iframeRef.current?.contentWindow) {
+                        iframeRef.current.contentWindow.postMessage(
+                            { type: "speak", text: sentenceText, emotion: sentenceEmotion, audioUrl, useBrowserTTS: !audioUrl },
+                            "*"
+                        );
+                        await new Promise<void>((resolve) => {
+                            const prev = speakResolveRef.current;
+                            speakResolveRef.current = () => { prev?.(); resolve(); };
+                            setTimeout(resolve, Math.min(sentenceText.length * 100, 12000));
+                        });
+                    } else {
+                        await new Promise(r => setTimeout(r, 800));
+                    }
+                };
 
-                    await new Promise<void>((resolve) => {
-                        speakResolveRef.current = resolve;
-                        setTimeout(resolve, Math.min(text.length * 120, 15000));
-                    });
+                // ═══ STREAMING TTS: Split into sentences, play each as soon as ready ═══
+                const sentences = text
+                    .split(/(?<=[.!?。！？\n])\s*/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0);
+
+                if (sentences.length <= 1) {
+                    await playSentence(text, emotion);
                 } else {
-                    await new Promise((r) => setTimeout(r, 1500));
+                    let interrupted = false;
+                    for (let i = 0; i < sentences.length; i++) {
+                        if (interrupted) break;
+
+                        // Detect emotion for THIS sentence — expression changes mid-speech!
+                        const sentenceEmotion = detectEmotion(sentences[i]);
+                        if (sentenceEmotion !== "neutral") {
+                            onEmotionChange?.(sentenceEmotion);
+                        }
+
+                        const wasInterrupted = await new Promise<boolean>((resolve) => {
+                            speakResolveRef.current = () => {
+                                interrupted = true;
+                                resolve(true);
+                            };
+                            playSentence(sentences[i], sentenceEmotion).then(() => resolve(false));
+                        });
+
+                        if (wasInterrupted) break;
+                    }
                 }
 
-                setTimeout(() => onEmotionChange?.("neutral"), 2000);
+                setTimeout(() => onEmotionChange?.("neutral"), 1500);
             },
 
             interrupt: () => {
