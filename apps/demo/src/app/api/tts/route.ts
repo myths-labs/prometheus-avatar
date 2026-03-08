@@ -25,34 +25,35 @@ const ELEVENLABS_VOICES: Record<string, string> = {
     koharu: "jBpfAIEiAKNebRVppxo4",  // Gigi — sweet
 };
 
-// Google Cloud TTS voices for Chinese (Wavenet — best quality)
-const GOOGLE_CN_VOICES: Record<string, { name: string; ssmlGender: string }> = {
-    haru: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },
-    shizuku: { name: "cmn-CN-Wavenet-D", ssmlGender: "FEMALE" },
-    koharu: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },
+// Gemini native TTS voices (supports Chinese natively)
+const GEMINI_VOICES: Record<string, string> = {
+    haru: "Kore",      // Warm female
+    shizuku: "Aoede",   // Elegant female
+    koharu: "Leda",     // Sweet female
 };
 
-// Google Cloud TTS (fast REST API, 4s timeout)
-async function generateGoogleTTS(text: string, voiceConfig: { name: string; ssmlGender: string }): Promise<Buffer | null> {
+// Generate TTS with Gemini native audio (same API key as chat)
+async function generateGeminiTTS(text: string, voiceName: string): Promise<Buffer | null> {
     if (!GEMINI_API_KEY) return null;
 
     const response = await fetch(
-        `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`,
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                input: { text },
-                voice: {
-                    languageCode: "cmn-CN",
-                    name: voiceConfig.name,
-                    ssmlGender: voiceConfig.ssmlGender,
-                },
-                audioConfig: {
-                    audioEncoding: "MP3",
-                    speakingRate: 1.0,
-                    pitch: 1.0,
-                    effectsProfileId: ["headphone-class-device"],
+                contents: [{
+                    parts: [{ text }]
+                }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: voiceName,
+                            }
+                        }
+                    }
                 },
             }),
         }
@@ -60,13 +61,23 @@ async function generateGoogleTTS(text: string, voiceConfig: { name: string; ssml
 
     if (!response.ok) {
         const errText = await response.text();
-        console.error(`[Google TTS] ${response.status}: ${errText.slice(0, 200)}`);
+        console.error(`[Gemini TTS] ${response.status}: ${errText.slice(0, 200)}`);
         return null;
     }
 
     const data = await response.json();
-    if (!data.audioContent) return null;
-    return Buffer.from(data.audioContent, "base64");
+
+    // Extract audio from Gemini response
+    const audioPart = data.candidates?.[0]?.content?.parts?.find(
+        (p: any) => p.inlineData?.mimeType?.startsWith("audio/")
+    );
+
+    if (!audioPart?.inlineData?.data) {
+        console.error("[Gemini TTS] No audio data in response");
+        return null;
+    }
+
+    return Buffer.from(audioPart.inlineData.data, "base64");
 }
 
 // ElevenLabs TTS (reliable REST API)
@@ -109,16 +120,16 @@ export async function POST(req: NextRequest) {
         let engine = "none";
 
         if (chinese) {
-            // Chinese: Google Cloud TTS (4s) → ElevenLabs (4s)
-            const googleVoice = GOOGLE_CN_VOICES[avatarId] || GOOGLE_CN_VOICES.haru;
+            // Chinese: Gemini native TTS (8s) → ElevenLabs (4s)
+            const geminiVoice = GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
             try {
                 audioBuffer = await withTimeout(
-                    generateGoogleTTS(text, googleVoice),
-                    4000, "Google TTS"
+                    generateGeminiTTS(text, geminiVoice),
+                    8000, "Gemini TTS"
                 );
-                if (audioBuffer) engine = "google-cloud-tts";
+                if (audioBuffer) engine = "gemini-tts";
             } catch (e: any) {
-                console.warn(`[TTS] Google failed: ${e.message}`);
+                console.warn(`[TTS] Gemini TTS failed: ${e.message}`);
             }
 
             // Fallback: ElevenLabs (sounds accented but works)
@@ -157,7 +168,7 @@ export async function POST(req: NextRequest) {
 
         return new NextResponse(new Uint8Array(audioBuffer), {
             headers: {
-                "Content-Type": "audio/mpeg",
+                "Content-Type": engine.startsWith("gemini") ? "audio/wav" : "audio/mpeg",
                 "Cache-Control": "public, max-age=3600",
                 "X-TTS-Engine": engine,
                 "X-TTS-Language": chinese ? "zh" : "en",
