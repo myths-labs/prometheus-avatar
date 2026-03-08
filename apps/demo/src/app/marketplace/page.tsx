@@ -364,11 +364,26 @@ export default function MarketplacePage() {
                 <div className="max-w-3xl mx-auto">
                     <h3 className="text-lg font-semibold text-[#eae6df] mb-6">Accepted Payments</h3>
                     <div className="flex flex-wrap justify-center gap-4">
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5">💳 Stripe</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5">🔵 Alipay</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5">🟢 WeChat Pay</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5">🔗 x402 Protocol</span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5">💲 USDC / USDT</span>
+                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><path d="M13.976 3.631c-3.552 0-5.834 1.856-6.266 5.07h3.938c.27-1.344 1.134-2.073 2.328-2.073 1.302 0 2.058.729 2.058 1.776 0 2.773-8.378 1.641-8.378 7.17 0 2.664 1.908 4.394 4.83 4.394 2.058 0 3.516-.864 4.326-2.394h.054v2.124h3.696V10.341c0-4.233-2.664-6.71-6.586-6.71z" fill="#635BFF" /><path d="M14.03 16.971c-1.194 0-1.908-.567-1.908-1.452 0-1.668 2.826-2.124 4.722-3.654v2.61c0 1.452-1.248 2.496-2.814 2.496z" fill="#635BFF" /></svg>
+                            Stripe
+                        </span>
+                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#1677FF" /><path d="M14 7l-1.5 3.5H8l3.5 2.5-1.5 4L14 14.5 17.5 17l-1.5-4L19.5 10.5H15L14 7z" fill="white" /></svg>
+                            Alipay
+                        </span>
+                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#07C160" /><path d="M18.5 16.5c-1.2.6-2.8-.2-3.5-1.2-.5-.7-.3-1.5.4-2s1.6-.4 2.1.3c.3.4.3 1-.1 1.3" fill="white" /><path d="M10 12.5c.5-1 1.8-1.5 2.8-1 1 .4 1.3 1.5.8 2.5s-1.8 1.5-2.8 1c-1-.4-1.3-1.5-.8-2.5z" fill="white" /></svg>
+                            WeChat Pay
+                        </span>
+                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#0052FF" /><path d="M14 8a6 6 0 100 12 6 6 0 000-12zm0 9.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z" fill="white" /></svg>
+                            x402
+                        </span>
+                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#2775CA" /><text x="14" y="18" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">$</text></svg>
+                            USDC / USDT
+                        </span>
                     </div>
                 </div>
             </section>
@@ -384,9 +399,9 @@ export default function MarketplacePage() {
                     </p>
                     <div className="flex flex-wrap justify-center gap-4">
                         <Link href="/marketplace/upload" className="btn-primary">📤 Start Selling</Link>
-                        <button className="px-6 py-3 rounded-full border border-[rgba(0,212,170,0.2)] text-[#a8b8d0] hover:text-white hover:border-[#00d4aa]/40 transition-all">
-                            🤖 Agent Creator SDK
-                        </button>
+                        <Link href="https://github.com/myths-labs/prometheus-avatar" className="px-6 py-3 rounded-full border border-[rgba(0,212,170,0.2)] text-[#a8b8d0] hover:text-white hover:border-[#00d4aa]/40 transition-all">
+                            📚 View API Docs
+                        </Link>
                     </div>
                 </div>
             </section>
