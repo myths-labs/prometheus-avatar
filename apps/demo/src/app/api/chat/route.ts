@@ -1,98 +1,74 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-/**
- * Chat API route — proxies messages to Claude or OpenAI
- * Keeps API key server-side for security
- */
-export async function POST(req: Request) {
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+const SYSTEM_PROMPT = `You are a friendly, expressive AI avatar assistant called Prometheus. 
+You respond naturally with emotion and personality. Keep responses concise (1-3 sentences).
+You can speak any language — respond in the same language the user uses.
+Add emotional nuance to your responses — be happy, curious, surprised, thoughtful, etc.
+Never mention that you're an AI or language model.`;
+
+export async function POST(req: NextRequest) {
     try {
-        const { message, apiKey, history } = await req.json();
+        const { message, history } = await req.json();
 
         if (!message) {
-            return NextResponse.json({ error: "No message provided" }, { status: 400 });
+            return NextResponse.json({ error: "No message" }, { status: 400 });
         }
 
-        if (!apiKey) {
-            return NextResponse.json({ error: "No API key provided" }, { status: 400 });
+        if (!GEMINI_API_KEY) {
+            return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
         }
 
-        // Detect API type from key format
-        const isAnthropic = apiKey.startsWith("sk-ant-");
-        const isOpenAI = apiKey.startsWith("sk-");
+        // Build conversation for Gemini
+        const contents = [];
 
-        let reply: string;
-
-        if (isAnthropic) {
-            // Claude API
-            const response = await fetch("https://api.anthropic.com/v1/messages", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                    "anthropic-version": "2023-06-01",
-                },
-                body: JSON.stringify({
-                    model: "claude-sonnet-4-20250514",
-                    max_tokens: 300,
-                    system:
-                        "You are speaking through a Live2D avatar. Keep responses short, expressive, and conversational. Use emojis and punctuation to convey emotion (the avatar will react to these). Stay under 2-3 sentences.",
-                    messages: [
-                        ...history.map((m: any) => ({ role: m.role, content: m.content })),
-                        { role: "user", content: message },
-                    ],
-                }),
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`Anthropic API error: ${response.status} ${errText}`);
+        // Add history
+        if (history && Array.isArray(history)) {
+            for (const msg of history.slice(-8)) {
+                contents.push({
+                    role: msg.role === "assistant" ? "model" : "user",
+                    parts: [{ text: msg.content }],
+                });
             }
-
-            const data = await response.json();
-            reply = data.content?.[0]?.text || "I couldn't generate a response.";
-        } else if (isOpenAI) {
-            // OpenAI API
-            const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                    model: "gpt-4o-mini",
-                    max_tokens: 300,
-                    messages: [
-                        {
-                            role: "system",
-                            content:
-                                "You are speaking through a Live2D avatar. Keep responses short, expressive, and conversational. Use emojis and punctuation to convey emotion (the avatar will react to these). Stay under 2-3 sentences.",
-                        },
-                        ...history.map((m: any) => ({ role: m.role, content: m.content })),
-                        { role: "user", content: message },
-                    ],
-                }),
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`OpenAI API error: ${response.status} ${errText}`);
-            }
-
-            const data = await response.json();
-            reply = data.choices?.[0]?.message?.content || "I couldn't generate a response.";
-        } else {
-            return NextResponse.json(
-                { error: "Unsupported API key format. Use a Claude or OpenAI key." },
-                { status: 400 }
-            );
         }
+
+        // Add current message
+        contents.push({
+            role: "user",
+            parts: [{ text: message }],
+        });
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents,
+                    systemInstruction: {
+                        parts: [{ text: SYSTEM_PROMPT }],
+                    },
+                    generationConfig: {
+                        maxOutputTokens: 150,
+                        temperature: 0.9,
+                    },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error("Gemini error:", error);
+            return NextResponse.json({ error: "AI response failed" }, { status: 500 });
+        }
+
+        const data = await response.json();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Hmm, let me think about that...";
 
         return NextResponse.json({ reply });
     } catch (error) {
-        console.error("[/api/chat] Error:", error);
-        return NextResponse.json(
-            { error: (error as Error).message || "Internal server error" },
-            { status: 500 }
-        );
+        console.error("Chat error:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

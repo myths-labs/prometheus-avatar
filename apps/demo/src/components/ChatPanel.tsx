@@ -26,7 +26,7 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
-    const [mode, setMode] = useState<"direct" | "llm">("direct");
+    const [mode, setMode] = useState<"direct" | "llm">("llm");
     const [apiKey, setApiKey] = useState("");
     const [showSettings, setShowSettings] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,6 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         message: text,
-                        apiKey,
                         history: messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
                     }),
                 });
