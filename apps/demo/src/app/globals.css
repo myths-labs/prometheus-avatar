@@ -406,6 +406,9 @@ body {
   background-clip: text;
   animation: gradientShift 6s ease-in-out infinite;
   display: inline-block;
+  /* Generous padding so gradient covers full italic glyph extents */
+  padding: 0.3em 0.4em 0.4em 0.1em;
+  margin: -0.3em -0.4em -0.4em -0.1em;
 }
 
 /* ═══ Avatar speaking glow pulse ═══ */
