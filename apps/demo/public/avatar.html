@@ -40,11 +40,74 @@
     });
     document.body.appendChild(app.view);
 
+    // Detect if model is Cubism 2 or 4
+    const isCubism2 = modelUrl.includes(".model.json") && !modelUrl.includes(".model3.json");
+
+    // Set mouth parameter
+    function setMouth(model, value) {
+      if (!model || !model.internalModel) return;
+      try {
+        if (isCubism2) {
+          model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", value);
+        } else {
+          model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", value);
+        }
+      } catch (e) {
+        // Try alternative param names
+        try { model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", value); } catch { }
+        try { model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", value); } catch { }
+      }
+    }
+
+    // Mouth animation synced with TTS
+    function animateMouthDuring(model, durationMs) {
+      const start = Date.now();
+      let frame;
+      function animate() {
+        const elapsed = Date.now() - start;
+        if (elapsed < durationMs) {
+          // Simulate natural mouth movement with varying speed
+          const fast = Math.sin(elapsed / 80) * 0.5 + 0.5;
+          const slow = Math.sin(elapsed / 200) * 0.3 + 0.3;
+          const value = Math.min(1, fast * 0.7 + slow * 0.3);
+          setMouth(model, value);
+          frame = requestAnimationFrame(animate);
+        } else {
+          setMouth(model, 0);
+        }
+      }
+      animate();
+      return () => { cancelAnimationFrame(frame); setMouth(model, 0); };
+    }
+
+    // Get best voice for text language
+    function getBestVoice(text, pitch) {
+      const voices = speechSynthesis.getVoices();
+      // Detect if text contains Chinese
+      const hasChinese = /[\u4e00-\u9fff]/.test(text);
+      const hasJapanese = /[\u3040-\u309f\u30a0-\u30ff]/.test(text);
+
+      let voice = null;
+      if (hasChinese) {
+        voice = voices.find(v => v.lang.startsWith("zh")) || voices.find(v => v.lang.includes("CN"));
+      } else if (hasJapanese) {
+        voice = voices.find(v => v.lang.startsWith("ja"));
+      } else {
+        // English — try to get a natural-sounding voice
+        voice = voices.find(v => v.name.includes("Samantha"))
+          || voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
+          || voices.find(v => v.lang.startsWith("en") && v.name.includes("Female"))
+          || voices.find(v => v.lang.startsWith("en"));
+      }
+      return voice;
+    }
+
     async function loadModel() {
       try {
         const model = await PIXI.live2d.Live2DModel.from(modelUrl, { autoInteract: true });
         window._live2dModel = model;
 
+        // Center model
         const scale = Math.min(window.innerWidth / model.width, window.innerHeight / model.height) * 0.8;
         model.scale.set(scale);
         model.anchor.set(0.5, 0.5);
@@ -52,6 +115,9 @@
         model.y = window.innerHeight / 2;
 
         app.stage.addChild(model);
+
+        // Pre-load voices 
+        speechSynthesis.getVoices();
 
         // Notify parent
         window.parent.postMessage({ type: "live2d-ready" }, "*");
@@ -61,8 +127,10 @@
           if (e.data.type === "speak") {
             const text = e.data.text;
             const emotion = e.data.emotion || "neutral";
+            const voicePitch = e.data.pitch || 1.0;
+            const voiceRate = e.data.rate || 1.0;
 
-            // Set expression
+            // Set expression based on emotion
             const expressionMap = {
               happy: ["happy", "smile", "f01"],
               sad: ["sad", "cry", "f04"],
@@ -76,32 +144,58 @@
               try { model.expression(expr); break; } catch { }
             }
 
-            // Mouth animation
-            const duration = Math.min(text.length * 60, 5000);
-            const start = Date.now();
-            function animMouth() {
-              const elapsed = Date.now() - start;
-              if (elapsed < duration) {
-                try {
-                  const v = Math.abs(Math.sin(elapsed / 100)) * 0.8 + 0.2;
-                  model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", v);
-                } catch {
-                  try {
-                    model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", v);
-                  } catch { }
-                }
-                requestAnimationFrame(animMouth);
-              } else {
-                try { model.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", 0); } catch { }
-                try { model.internalModel.coreModel.setParamFloat("PARAM_MOUTH_OPEN_Y", 0); } catch { }
+            // Start TTS from INSIDE the iframe for direct mouth sync
+            if (speechSynthesis) {
+              const utterance = new SpeechSynthesisUtterance(text);
+              utterance.pitch = voicePitch;
+              utterance.rate = voiceRate;
+
+              // Pick voice matching text language
+              const voice = getBestVoice(text, voicePitch);
+              if (voice) utterance.voice = voice;
+
+              let stopMouth;
+
+              utterance.onstart = () => {
+                // Start mouth animation synced to speech duration estimate
+                const estimatedDuration = Math.max(text.length * 80, 1500);
+                stopMouth = animateMouthDuring(model, estimatedDuration);
+              };
+
+              utterance.onend = () => {
+                if (stopMouth) stopMouth();
+                setMouth(model, 0);
                 window.parent.postMessage({ type: "speak-done" }, "*");
-              }
+                // Reset expression after 2s
+                setTimeout(() => {
+                  for (const expr of ["neutral", "idle", "f00"]) {
+                    try { model.expression(expr); break; } catch { }
+                  }
+                }, 2000);
+              };
+
+              utterance.onerror = () => {
+                if (stopMouth) stopMouth();
+                setMouth(model, 0);
+                window.parent.postMessage({ type: "speak-done" }, "*");
+              };
+
+              // Boundary events for better lip sync
+              utterance.onboundary = (event) => {
+                // Quick mouth pulse on each word boundary
+                setMouth(model, 0.9);
+                setTimeout(() => setMouth(model, 0.2), 80);
+              };
+
+              speechSynthesis.speak(utterance);
+            } else {
+              window.parent.postMessage({ type: "speak-done" }, "*");
             }
-            animMouth();
           }
 
-          if (e.data.type === "set-model") {
-            window.location.search = "?model=" + encodeURIComponent(e.data.url);
+          if (e.data.type === "stop-speaking") {
+            speechSynthesis.cancel();
+            setMouth(window._live2dModel, 0);
           }
         });
 
@@ -111,6 +205,8 @@
       }
     }
 
+    // Ensure voices are loaded
+    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
     loadModel();
 
     window.addEventListener("resize", () => {

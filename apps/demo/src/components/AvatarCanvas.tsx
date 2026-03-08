@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useImperativeHandle, forwardRef, useState, useEffect, useCallback } from "react";
+import { useRef, useImperativeHandle, forwardRef, useState, useEffect } from "react";
 
 export interface AvatarCanvasHandle {
     speak: (text: string) => Promise<void>;
@@ -14,12 +14,19 @@ interface AvatarCanvasProps {
 
 function detectEmotion(text: string): string {
     const lower = text.toLowerCase();
-    if (lower.includes("happy") || lower.includes("great") || lower.includes("love") || text.includes("😊") || text.includes("🎉")) return "happy";
-    if (lower.includes("sad") || lower.includes("sorry") || text.includes("😢")) return "sad";
-    if (lower.includes("angry") || lower.includes("hate") || text.includes("😠")) return "angry";
-    if (lower.includes("what") || lower.includes("wow") || lower.includes("amazing") || text.includes("😲")) return "surprised";
-    if (lower.includes("hmm") || lower.includes("think") || text.includes("🤔") || text.includes("?")) return "thinking";
+    if (lower.includes("happy") || lower.includes("great") || lower.includes("love") || text.includes("😊") || text.includes("🎉") || lower.includes("开心") || lower.includes("高兴") || lower.includes("好")) return "happy";
+    if (lower.includes("sad") || lower.includes("sorry") || text.includes("😢") || lower.includes("难过") || lower.includes("伤心")) return "sad";
+    if (lower.includes("angry") || lower.includes("hate") || text.includes("😠") || lower.includes("生气") || lower.includes("愤怒")) return "angry";
+    if (lower.includes("what") || lower.includes("wow") || lower.includes("amazing") || text.includes("😲") || lower.includes("什么") || lower.includes("哇")) return "surprised";
+    if (lower.includes("hmm") || lower.includes("think") || text.includes("🤔") || text.includes("?") || text.includes("？") || lower.includes("想")) return "thinking";
     return "neutral";
+}
+
+// Voice params per avatar for personality
+function getVoiceParams(modelUrl: string): { pitch: number; rate: number } {
+    if (modelUrl.includes("shizuku")) return { pitch: 1.2, rate: 0.9 };
+    if (modelUrl.includes("koharu")) return { pitch: 1.5, rate: 1.05 };
+    return { pitch: 1.0, rate: 1.0 }; // Haru — standard
 }
 
 const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
@@ -29,7 +36,6 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
         const [error, setError] = useState<string | null>(null);
         const speakResolveRef = useRef<(() => void) | null>(null);
 
-        // Listen for messages from iframe
         useEffect(() => {
             function handleMessage(e: MessageEvent) {
                 if (e.data.type === "live2d-ready") {
@@ -49,44 +55,22 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
             return () => window.removeEventListener("message", handleMessage);
         }, [onReady]);
 
-        // Speak via postMessage to iframe
         useImperativeHandle(ref, () => ({
             speak: async (text: string) => {
                 const emotion = detectEmotion(text);
                 onEmotionChange?.(emotion);
+                const { pitch, rate } = getVoiceParams(modelUrl);
 
                 if (iframeRef.current?.contentWindow) {
+                    // Send speak command — TTS + mouth sync happen INSIDE iframe
                     iframeRef.current.contentWindow.postMessage(
-                        { type: "speak", text, emotion },
+                        { type: "speak", text, emotion, pitch, rate },
                         "*"
                     );
 
-                    // TTS in parent window — vary voice by avatar
-                    if (typeof window !== "undefined" && window.speechSynthesis) {
-                        const utterance = new SpeechSynthesisUtterance(text);
-                        // Different pitch/rate per avatar
-                        if (modelUrl.includes("shizuku")) {
-                            utterance.pitch = 1.3;
-                            utterance.rate = 0.9;
-                        } else if (modelUrl.includes("koharu")) {
-                            utterance.pitch = 1.6;
-                            utterance.rate = 1.05;
-                        } else {
-                            utterance.pitch = 1.0;
-                            utterance.rate = 1.0;
-                        }
-                        // Try to pick a female voice
-                        const voices = window.speechSynthesis.getVoices();
-                        const preferred = voices.find(v => v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Google") && v.lang.startsWith("en"));
-                        if (preferred) utterance.voice = preferred;
-                        window.speechSynthesis.speak(utterance);
-                    }
-
-                    // Wait for mouth animation to finish
                     await new Promise<void>((resolve) => {
                         speakResolveRef.current = resolve;
-                        // Timeout fallback
-                        setTimeout(resolve, Math.min(text.length * 60, 6000));
+                        setTimeout(resolve, Math.min(text.length * 100, 8000));
                     });
                 } else {
                     await new Promise((r) => setTimeout(r, 1500));
@@ -96,7 +80,7 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     onEmotionChange?.("neutral");
                 }, 2000);
             },
-        }), [onEmotionChange]);
+        }), [onEmotionChange, modelUrl]);
 
         const iframeSrc = `/avatar.html?model=${encodeURIComponent(modelUrl)}`;
 
@@ -110,8 +94,9 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     allow="autoplay"
                 />
                 {!ready && !error && (
-                    <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                         <div className="text-4xl animate-pulse">⏳</div>
+                        <p className="text-xs text-[#8a9ab5]">Loading avatar...</p>
                     </div>
                 )}
                 {error && (
