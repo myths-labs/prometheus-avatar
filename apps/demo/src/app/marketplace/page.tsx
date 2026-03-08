@@ -308,69 +308,66 @@ export default function MarketplacePage() {
             </section>
 
             {/* Commission Info */}
-            <section className="py-20 px-6">
-                <div className="max-w-5xl mx-auto">
+            <section className="py-16 px-6">
+                <div className="max-w-4xl mx-auto">
                     <h2 className="heading-serif text-3xl text-center mb-3">
                         Creator <em>Economics</em>
                     </h2>
-                    <p className="text-[#a8b8d0] text-center mb-12">Sell your assets. Keep most of the revenue.</p>
+                    <p className="text-[#a8b8d0] text-center mb-10">Sell your assets. Keep most of the revenue.</p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
                         {/* Creator */}
-                        <div className="card-dark p-8 text-center">
-                            <div className="text-4xl mb-3">👤</div>
-                            <h3 className="text-lg font-bold text-[#eae6df] mb-4">Creator</h3>
-                            <p className="text-xs text-[#7a8a9d] uppercase tracking-wider mb-1">You Keep</p>
-                            <div className="text-4xl font-bold text-purple-400 mb-2">80%</div>
-                            <p className="text-sm text-[#a8b8d0]">20% platform fee</p>
-                            <div className="mt-4 pt-4 border-t border-white/5">
-                                <p className="text-xs text-[#c9a84c]">✨ With Membership</p>
-                                <p className="text-lg font-bold text-[#c9a84c]">90% <span className="text-xs font-normal text-[#a8b8d0]">(10% fee)</span></p>
+                        <div className="card-dark p-6 text-center">
+                            <div className="text-3xl mb-2">👤</div>
+                            <h3 className="text-base font-bold text-[#eae6df] mb-3">Creator</h3>
+                            <p className="text-[10px] text-[#7a8a9d] uppercase tracking-wider mb-0.5">You Keep</p>
+                            <div className="text-2xl font-bold text-purple-400 mb-1">80%</div>
+                            <p className="text-xs text-[#a8b8d0]">20% platform fee</p>
+                            <div className="mt-3 pt-3 border-t border-white/5">
+                                <p className="text-[10px] text-[#c9a84c]">✨ Member: <span className="font-bold">90%</span> (10% fee)</p>
                             </div>
                         </div>
                         {/* AI Agent */}
-                        <div className="card-dark p-8 text-center">
-                            <div className="text-4xl mb-3">🤖</div>
-                            <h3 className="text-lg font-bold text-[#eae6df] mb-4">AI Agent</h3>
-                            <p className="text-xs text-[#7a8a9d] uppercase tracking-wider mb-1">You Keep</p>
-                            <div className="text-4xl font-bold text-[#c9a84c] mb-2">85%</div>
-                            <p className="text-sm text-[#a8b8d0]">15% platform fee</p>
-                            <div className="mt-4 pt-4 border-t border-white/5">
-                                <p className="text-xs text-[#c9a84c]">✨ With Membership</p>
-                                <p className="text-lg font-bold text-[#c9a84c]">92.5% <span className="text-xs font-normal text-[#a8b8d0]">(7.5% fee)</span></p>
+                        <div className="card-dark p-6 text-center">
+                            <div className="text-3xl mb-2">🤖</div>
+                            <h3 className="text-base font-bold text-[#eae6df] mb-3">AI Agent</h3>
+                            <p className="text-[10px] text-[#7a8a9d] uppercase tracking-wider mb-0.5">You Keep</p>
+                            <div className="text-2xl font-bold text-[#c9a84c] mb-1">85%</div>
+                            <p className="text-xs text-[#a8b8d0]">15% platform fee</p>
+                            <div className="mt-3 pt-3 border-t border-white/5">
+                                <p className="text-[10px] text-[#c9a84c]">✨ Member: <span className="font-bold">92.5%</span> (7.5% fee)</p>
                             </div>
                         </div>
                         {/* Lobster */}
-                        <div className="card-dark p-8 text-center">
-                            <div className="text-4xl mb-3">🦞</div>
-                            <h3 className="text-lg font-bold text-[#eae6df] mb-4">Lobster</h3>
-                            <p className="text-xs text-[#7a8a9d] uppercase tracking-wider mb-1">You Keep</p>
-                            <div className="text-4xl font-bold text-red-400 mb-2">90%</div>
-                            <p className="text-sm text-[#a8b8d0]">10% platform fee</p>
-                            <div className="mt-4 pt-4 border-t border-white/5">
-                                <p className="text-xs text-[#c9a84c]">✨ With Membership</p>
-                                <p className="text-lg font-bold text-[#c9a84c]">95% <span className="text-xs font-normal text-[#a8b8d0]">(5% fee)</span></p>
+                        <div className="card-dark p-6 text-center">
+                            <div className="text-3xl mb-2">🦞</div>
+                            <h3 className="text-base font-bold text-[#eae6df] mb-3">Lobster</h3>
+                            <p className="text-[10px] text-[#7a8a9d] uppercase tracking-wider mb-0.5">You Keep</p>
+                            <div className="text-2xl font-bold text-red-400 mb-1">90%</div>
+                            <p className="text-xs text-[#a8b8d0]">10% platform fee</p>
+                            <div className="mt-3 pt-3 border-t border-white/5">
+                                <p className="text-[10px] text-[#c9a84c]">✨ Member: <span className="font-bold">95%</span> (5% fee)</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Membership CTA */}
-                    <div className="card-dark p-10 max-w-2xl mx-auto text-center border-[#c9a84c]/20 relative overflow-visible mt-6">
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#c9a84c] text-[#0a0f1a] text-xs font-bold rounded-full">✨ MEMBERSHIP</div>
-                        <h3 className="text-2xl font-bold text-[#eae6df] mt-2 mb-2">50% Off All Commission Fees</h3>
-                        <p className="text-sm text-[#a8b8d0] mb-8">Join as a member and keep more of every sale.</p>
-                        <div className="flex justify-center gap-6 mb-6">
-                            <div className="px-8 py-5 rounded-2xl bg-white/[0.03] border border-white/5">
-                                <div className="text-3xl font-bold text-[#eae6df]">$9.9<span className="text-base font-normal text-[#7a8a9d]">/mo</span></div>
-                                <p className="text-sm text-[#7a8a9d] mt-1">Cancel anytime</p>
+                    <div className="card-dark p-8 max-w-xl mx-auto text-center border-[#c9a84c]/20 relative overflow-visible mt-6">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#c9a84c] text-[#0a0f1a] text-xs font-bold rounded-full z-10">✨ MEMBERSHIP</div>
+                        <h3 className="text-xl font-bold text-[#eae6df] mt-2 mb-2">50% Off Commission Fees</h3>
+                        <p className="text-sm text-[#a8b8d0] mb-6">Keep more of every sale.</p>
+                        <div className="flex justify-center gap-4 mb-5">
+                            <div className="px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                                <div className="text-2xl font-bold text-[#eae6df]">$9.9<span className="text-sm font-normal text-[#7a8a9d]">/mo</span></div>
+                                <p className="text-xs text-[#7a8a9d] mt-1">Cancel anytime</p>
                             </div>
-                            <div className="px-8 py-5 rounded-2xl bg-[#c9a84c]/5 border border-[#c9a84c]/20 relative">
-                                <div className="absolute -top-2 right-2 text-[10px] px-2 py-0.5 bg-[#c9a84c]/20 text-[#c9a84c] rounded-full font-bold">SAVE 17%</div>
-                                <div className="text-3xl font-bold text-[#eae6df]">$99<span className="text-base font-normal text-[#7a8a9d]">/yr</span></div>
-                                <p className="text-sm text-[#c9a84c] mt-1">$8.25/mo effective</p>
+                            <div className="px-6 py-4 rounded-2xl bg-[#c9a84c]/5 border border-[#c9a84c]/20 relative overflow-visible">
+                                <div className="absolute -top-2 right-2 text-[9px] px-1.5 py-0.5 bg-[#c9a84c]/20 text-[#c9a84c] rounded-full font-bold">SAVE 17%</div>
+                                <div className="text-2xl font-bold text-[#eae6df]">$99<span className="text-sm font-normal text-[#7a8a9d]">/yr</span></div>
+                                <p className="text-xs text-[#c9a84c] mt-1">$8.25/mo effective</p>
                             </div>
                         </div>
-                        <button className="px-10 py-3.5 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold text-lg hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]">
+                        <button className="px-8 py-3 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]">
                             Become a Member
                         </button>
                     </div>
@@ -378,29 +375,24 @@ export default function MarketplacePage() {
             </section>
 
             {/* Payment Methods */}
-            <section className="py-16 px-6 text-center">
+            <section className="py-12 px-6 text-center">
                 <div className="max-w-3xl mx-auto">
                     <h3 className="text-lg font-semibold text-[#eae6df] mb-6">Accepted Payments</h3>
-                    <div className="flex flex-wrap justify-center gap-4">
-                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><path d="M13.976 3.631c-3.552 0-5.834 1.856-6.266 5.07h3.938c.27-1.344 1.134-2.073 2.328-2.073 1.302 0 2.058.729 2.058 1.776 0 2.773-8.378 1.641-8.378 7.17 0 2.664 1.908 4.394 4.83 4.394 2.058 0 3.516-.864 4.326-2.394h.054v2.124h3.696V10.341c0-4.233-2.664-6.71-6.586-6.71z" fill="#635BFF" /><path d="M14.03 16.971c-1.194 0-1.908-.567-1.908-1.452 0-1.668 2.826-2.124 4.722-3.654v2.61c0 1.452-1.248 2.496-2.814 2.496z" fill="#635BFF" /></svg>
-                            Stripe
+                    <div className="flex flex-wrap justify-center gap-3">
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <img src="/logos/stripe.svg" alt="Stripe" className="h-4" />
                         </span>
-                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#1677FF" /><path d="M14 7l-1.5 3.5H8l3.5 2.5-1.5 4L14 14.5 17.5 17l-1.5-4L19.5 10.5H15L14 7z" fill="white" /></svg>
-                            Alipay
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <img src="/logos/alipay.svg" alt="Alipay" className="h-4" />
                         </span>
-                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#07C160" /><path d="M18.5 16.5c-1.2.6-2.8-.2-3.5-1.2-.5-.7-.3-1.5.4-2s1.6-.4 2.1.3c.3.4.3 1-.1 1.3" fill="white" /><path d="M10 12.5c.5-1 1.8-1.5 2.8-1 1 .4 1.3 1.5.8 2.5s-1.8 1.5-2.8 1c-1-.4-1.3-1.5-.8-2.5z" fill="white" /></svg>
-                            WeChat Pay
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            <img src="/logos/wechatpay.svg" alt="WeChat Pay" className="h-4" />
                         </span>
-                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#0052FF" /><path d="M14 8a6 6 0 100 12 6 6 0 000-12zm0 9.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z" fill="white" /></svg>
-                            x402
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            🔗 x402
                         </span>
-                        <span className="px-5 py-2.5 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none"><circle cx="14" cy="14" r="12" fill="#2775CA" /><text x="14" y="18" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">$</text></svg>
-                            USDC / USDT
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
+                            💲 USDC / USDT
                         </span>
                     </div>
                 </div>
@@ -418,7 +410,7 @@ export default function MarketplacePage() {
                     <div className="flex flex-wrap justify-center gap-4">
                         <Link href="/marketplace/upload" className="btn-primary">📤 Start Selling</Link>
                         <Link href="https://github.com/myths-labs/prometheus-avatar" className="px-6 py-3 rounded-full border border-[rgba(0,212,170,0.2)] text-[#a8b8d0] hover:text-white hover:border-[#00d4aa]/40 transition-all">
-                            📚 View API Docs
+                            🤖 Agent Creator SDK
                         </Link>
                     </div>
                 </div>
