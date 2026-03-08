@@ -96,14 +96,14 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
         </div>
 
         {/* 🦞 OpenClaw callout — cold start target audience */}
-        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff6b35]/10 to-[#00d4aa]/10 border border-[#ff6b35]/20 text-sm mb-8 hover:border-[#ff6b35]/40 transition-colors cursor-default">
+        <div className="inline-flex flex-wrap items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff6b35]/10 to-[#00d4aa]/10 border border-[#ff6b35]/20 text-xs sm:text-sm mb-8 hover:border-[#ff6b35]/40 transition-colors cursor-default max-w-full">
           <span className="text-lg">🦞</span>
           <span className="text-[#e8d48b] font-medium">First-class OpenClaw plugin</span>
-          <span className="text-[#a8b8d0]">— millions of lobsters, meet your new body.</span>
+          <span className="text-[#a8b8d0] hidden sm:inline">— millions of lobsters, meet your new body.</span>
         </div>
 
         {/* npm + GitHub badges */}
-        <div className="flex items-center justify-center gap-3 mb-8">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8">
           <img src="https://img.shields.io/badge/npm-v0.7.2-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm v0.7.2" className="h-5" />
           <img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="stars" className="h-5" />
           <img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="MIT" className="h-5" />
@@ -115,7 +115,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
         </p>
 
         {/* Code snippet */}
-        <div className="card-dark code-shimmer inline-block px-8 py-5 text-left font-mono text-sm">
+        <div className="card-dark code-shimmer inline-block px-5 sm:px-8 py-4 sm:py-5 text-left font-mono text-xs sm:text-sm max-w-full overflow-x-auto">
           <div className="relative z-10">
             <div className="text-[#6b7a8d] mb-2">{"// 5 lines to bring your AI to life"}</div>
             <div>

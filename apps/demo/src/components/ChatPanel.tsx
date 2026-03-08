@@ -272,7 +272,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
     }, [sendMessage]);
 
     return (
-        <div className="glass-strong flex flex-col h-[500px] relative">
+        <div className="glass-strong flex flex-col h-[400px] sm:h-[500px] relative">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-[rgba(0,212,170,0.06)]">
                 <div className="flex items-center gap-3">

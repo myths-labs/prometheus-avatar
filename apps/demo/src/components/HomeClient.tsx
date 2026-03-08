@@ -115,10 +115,10 @@ export default function HomeClient() {
       <FeatureCards />
 
       {/* Demo Section */}
-      <section ref={demoRef} id="demo" className="max-w-7xl mx-auto px-6 pt-10 pb-24">
+      <section ref={demoRef} id="demo" className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-16 sm:pb-24">
         <div className="text-center mb-14">
-          <div className="ornamental-divider max-w-xs mx-auto mb-8">✦</div>
-          <h2 className="heading-serif text-4xl md:text-5xl mb-4">
+          <div className="ornamental-divider max-w-xs mx-auto mb-6 sm:mb-8">✦</div>
+          <h2 className="heading-serif text-3xl sm:text-4xl md:text-5xl mb-4">
             <em>Try It Live</em>
           </h2>
           <p className="prophecy-quote max-w-md mx-auto">
@@ -189,18 +189,18 @@ export default function HomeClient() {
       </section>
 
       {/* CTA — Aithena-style clean card */}
-      <section className="max-w-4xl mx-auto px-6 py-20 text-center">
-        <div className="card-dark p-14 relative">
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-20 text-center">
+        <div className="card-dark p-8 sm:p-14 relative">
           <div className="ambient-glow -top-40 -right-40" />
           <div className="relative z-10">
-            <h2 className="heading-serif text-3xl md:text-4xl mb-4">
+            <h2 className="heading-serif text-2xl sm:text-3xl md:text-4xl mb-4">
               Ready to give your AI <em>a body</em>?
             </h2>
-            <p className="text-[#a8b8d0] text-lg mb-10 font-light">
+            <p className="text-[#a8b8d0] text-base sm:text-lg mb-8 sm:mb-10 font-light">
               One command. Five minutes. Infinite possibilities.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-              <code className="bg-black/50 border border-white/5 rounded-full px-6 py-3 font-mono text-sm text-[#00d4aa]">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-8">
+              <code className="bg-black/50 border border-white/5 rounded-full px-4 sm:px-6 py-2.5 sm:py-3 font-mono text-xs sm:text-sm text-[#00d4aa] max-w-full overflow-x-auto">
                 npm install @prometheusavatar/core
               </code>
               <a href="https://github.com/myths-labs/prometheus-avatar" className="btn-primary" target="_blank" rel="noopener">
@@ -215,7 +215,7 @@ export default function HomeClient() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-10 text-center">
+      <footer className="border-t border-white/5 py-8 sm:py-10 text-center px-4">
         <p className="text-[#6b7a8d] text-sm font-light">
           Built with 🔥 by{" "}
           <a href="https://github.com/myths-labs" className="text-[#00d4aa] hover:text-[#4aecd0] transition-colors">Myths Labs</a>

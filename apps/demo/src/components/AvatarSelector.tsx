@@ -17,12 +17,12 @@ interface AvatarSelectorProps {
 
 export default function AvatarSelector({ avatars, selected, onSelect }: AvatarSelectorProps) {
     return (
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
             {avatars.map((avatar) => (
                 <button
                     key={avatar.id}
                     onClick={() => onSelect(avatar)}
-                    className={`relative glass p-4 text-center transition-all duration-200 min-w-[120px] hover:bg-[rgba(0,212,170,0.05)] ${selected.id === avatar.id ? "!border-[#00d4aa]/40 glow-teal scale-105" : ""
+                    className={`relative glass p-3 sm:p-4 text-center transition-all duration-200 min-w-[100px] sm:min-w-[120px] hover:bg-[rgba(0,212,170,0.05)] ${selected.id === avatar.id ? "!border-[#00d4aa]/40 glow-teal scale-105" : ""
                         }`}
                 >
                     {avatar.badge === "official" && (

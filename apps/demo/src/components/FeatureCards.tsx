@@ -11,13 +11,13 @@ const FEATURES = [
 
 export default function FeatureCards() {
     return (
-        <section id="features" className="max-w-6xl mx-auto px-6 py-24">
+        <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
             {/* Section title — serif like Aithena */}
-            <div className="text-center mb-20">
-                <h2 className="heading-serif text-4xl md:text-5xl mb-6">
+            <div className="text-center mb-12 sm:mb-20">
+                <h2 className="heading-serif text-3xl sm:text-4xl md:text-5xl mb-4 sm:mb-6">
                     Everything you need to <em>embody your AI</em>
                 </h2>
-                <p className="text-[#a8b8d0] text-lg max-w-xl mx-auto font-light">
+                <p className="text-[#a8b8d0] text-base sm:text-lg max-w-xl mx-auto font-light">
                     A complete SDK with rendering, speech, emotion, and a thriving marketplace.
                 </p>
             </div>

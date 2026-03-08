@@ -533,3 +533,73 @@ body {
   animation: shimmer 3s ease-in-out infinite;
   pointer-events: none;
 }
+
+/* ═══ Mobile Responsive ═══ */
+@media (max-width: 768px) {
+
+  /* Stats row — stack vertically on small screens */
+  .stats-row {
+    flex-wrap: wrap;
+    gap: 24px 40px;
+    padding: 24px 0 8px;
+    justify-content: center;
+  }
+
+  .stat-number {
+    font-size: 2.5rem;
+  }
+
+  .stat-label {
+    font-size: 0.875rem;
+  }
+
+  /* Buttons — smaller padding */
+  .btn-primary {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+
+  .btn-secondary {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+
+  /* Ambient glow — smaller on mobile */
+  .ambient-glow {
+    width: 250px;
+    height: 250px;
+  }
+
+  /* Prophecy quote */
+  .prophecy-quote {
+    font-size: 0.95rem;
+  }
+
+  /* Code snippet — allow horizontal scroll */
+  .code-shimmer {
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 16px 20px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row {
+    gap: 16px 32px;
+  }
+
+  .stat-number {
+    font-size: 2rem;
+  }
+
+  .btn-primary {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+
+  .btn-secondary {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+}
