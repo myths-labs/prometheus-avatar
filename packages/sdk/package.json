@@ -1,6 +1,6 @@
 {
     "name": "@prometheusavatar/core",
-    "version": "0.7.2",
+    "version": "0.8.0",
     "description": "Give your AI agent an embodied avatar — Live2D rendering, TTS, lip-sync, and emotion analysis in one SDK",
     "type": "module",
     "main": "./dist/index.js",
@@ -19,16 +19,20 @@
     "scripts": {
         "build": "tsup src/index.ts --format esm --dts --clean",
         "dev": "tsup src/index.ts --format esm --dts --watch",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "clean": "rm -rf dist",
         "lint": "tsc --noEmit"
     },
     "dependencies": {
-        "pixi.js": "^6.5.10",
-        "pixi-live2d-display": "^0.4.0"
+        "pixi-live2d-display": "^0.4.0",
+        "pixi.js": "^6.5.10"
     },
     "devDependencies": {
         "tsup": "^8.0.0",
-        "typescript": "^5.4.0"
+        "typedoc": "^0.28.17",
+        "typescript": "^5.4.0",
+        "vitest": "^4.0.18"
     },
     "keywords": [
         "live2d",
@@ -45,6 +49,6 @@
     "author": "Myths Labs (JC)",
     "repository": {
         "type": "git",
-        "url": "https://github.com/myths-labs/prometheus"
+        "url": "https://github.com/myths-labs/prometheus-avatar"
     }
 }

@@ -23,10 +23,10 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/badge/npm-v0.8.0-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="Stars" /></a>
+  <a href="https://github.com/myths-labs/prometheus-avatar/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/myths-labs/prometheus-avatar/ci.yml?style=for-the-badge&logo=github-actions&logoColor=white&label=CI" alt="CI" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge" alt="License" />
   <img src="https://img.shields.io/badge/Live2D-Cubism_2_&_4-ff69b4.svg?style=for-the-badge" alt="Live2D" />
-  <img src="https://img.shields.io/badge/Voice-Gemini_Live-9c27b0.svg?style=for-the-badge" alt="Gemini Live" />
-  <img src="https://img.shields.io/badge/VTuber-Camera_Tracking-00bcd4.svg?style=for-the-badge" alt="VTuber" />
+  <img src="https://img.shields.io/badge/LLMs-9_Providers-9c27b0.svg?style=for-the-badge" alt="9 LLMs" />
 </p>
 
 ---
@@ -42,7 +42,7 @@
 | 😊 **Emotion Engine** | Auto-detect emotions from text → avatar expressions + motions |
 | 🎨 **Marketplace** | Browse, buy, and sell avatar skins, voices, effects, and personas |
 | 📷 **VTuber Mode** | Camera face tracking → real-time avatar head movement |
-| 🔌 **Multi-LLM** | Gemini 2.0 Flash (primary) + Groq Llama 3.3 70B (fallback) |
+| 🔌 **Multi-LLM** | 9 providers: Gemini, OpenAI, Anthropic, Groq, Grok, DeepSeek, Qwen, Kimi, MiniMax |
 | 📦 **SDK** | Drop-in `@prometheusavatar/core` for your own apps |
 
 ## 🎬 Demo
@@ -161,6 +161,34 @@ The [Avatar Marketplace](https://prometheus.mythslabs.ai/marketplace) lets creat
 
 Creators earn **80–90%** of every sale. AI agents can also create and sell assets.
 
+## 📚 API Documentation
+
+Full TypeScript API reference generated with TypeDoc:
+
+**[→ docs/api/](docs/api/)**
+
+Key exports:
+- `createAvatar()` — Factory function to create and initialize an avatar
+- `PrometheusAvatar` — Main orchestrator class
+- `ILLMProvider` — Interface for pluggable LLM providers
+- `ITTSEngine` — Interface for pluggable TTS engines
+- `EmotionAnalyzer` — Text → emotion detection
+
+## 📂 Examples
+
+| Example | Description |
+|---------|-------------|
+| [`examples/basic/`](examples/basic/) | Minimal HTML — zero build tools, loads from CDN |
+| [`examples/react/`](examples/react/) | React component with hooks and emotion tracking |
+| [`examples/multi-llm/`](examples/multi-llm/) | 9-provider configuration with auto-fallback |
+| [`examples/live-voice/`](examples/live-voice/) | Gemini Live API real-time voice via WebSocket |
+
+## 💬 Community
+
+- 🐛 **Issues**: [GitHub Issues](https://github.com/myths-labs/prometheus-avatar/issues)
+- 💡 **Discussions**: [GitHub Discussions](https://github.com/myths-labs/prometheus-avatar/discussions)
+- 🐦 **Twitter**: [@MythsLabs](https://twitter.com/MythsLabs)
+
 ## 🤝 Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -175,6 +203,10 @@ pnpm install
 cd apps/demo
 cp .env.example .env.local  # Add your API keys
 pnpm dev
+
+# Run SDK tests
+cd packages/sdk
+pnpm test
 ```
 
 ## 📄 License

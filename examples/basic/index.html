@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prometheus Avatar — Basic Example</title>
+    <style>
+        body {
+            margin: 0;
+            background: #050508;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #avatar {
+            width: 800px;
+            height: 600px;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        button {
+            position: fixed;
+            bottom: 20px;
+            background: #00d4aa;
+            color: #050508;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 999px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="avatar"></div>
+    <button onclick="speak()">Say Hello!</button>
+
+    <script type="module">
+        import { createAvatar } from 'https://esm.sh/@prometheusavatar/core@0.8.0';
+
+        const avatar = await createAvatar({
+            container: document.getElementById('avatar'),
+            modelUrl: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json',
+        });
+
+        // React to emotions
+        avatar.on('emotion:change', ({ result }) => {
+            console.log(`Emotion: ${result.emotion} (${result.confidence})`);
+        });
+
+        // Make globally accessible for the button
+        window.speak = () => avatar.speak('Hello! I am your AI avatar. Nice to meet you! 😊');
+    </script>
+</body>
+
+</html>

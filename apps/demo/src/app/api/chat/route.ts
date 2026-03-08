@@ -5,6 +5,10 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;  // Alibaba Qwen
 const MOONSHOT_API_KEY = process.env.MOONSHOT_API_KEY;    // Kimi
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const XAI_API_KEY = process.env.XAI_API_KEY;              // Grok
+const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 
 const SYSTEM_PROMPT = `You are Prometheus — a warm, witty AI companion with genuine personality.
 
@@ -66,6 +70,37 @@ const PROVIDERS: LLMProvider[] = [
         model: "moonshot-v1-8k",
         authHeader: () => ({ "Authorization": `Bearer ${MOONSHOT_API_KEY}` }),
         available: () => !!MOONSHOT_API_KEY,
+    },
+    {
+        name: "openai",
+        url: "https://api.openai.com/v1/chat/completions",
+        model: "gpt-4o-mini",
+        authHeader: () => ({ "Authorization": `Bearer ${OPENAI_API_KEY}` }),
+        available: () => !!OPENAI_API_KEY,
+    },
+    {
+        name: "anthropic",
+        url: "https://api.anthropic.com/v1/messages",
+        model: "claude-sonnet-4-20250514",
+        authHeader: () => ({
+            "x-api-key": ANTHROPIC_API_KEY!,
+            "anthropic-version": "2023-06-01",
+        }),
+        available: () => !!ANTHROPIC_API_KEY,
+    },
+    {
+        name: "grok",
+        url: "https://api.x.ai/v1/chat/completions",
+        model: "grok-3-mini-fast",
+        authHeader: () => ({ "Authorization": `Bearer ${XAI_API_KEY}` }),
+        available: () => !!XAI_API_KEY,
+    },
+    {
+        name: "minimax",
+        url: "https://api.minimax.chat/v1/text/chatcompletion_v2",
+        model: "MiniMax-Text-01",
+        authHeader: () => ({ "Authorization": `Bearer ${MINIMAX_API_KEY}` }),
+        available: () => !!MINIMAX_API_KEY,
     },
 ];
 
