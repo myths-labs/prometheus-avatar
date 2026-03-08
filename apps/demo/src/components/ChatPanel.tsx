@@ -57,6 +57,13 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
 
     const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || isProcessingRef.current) return;
+
+        // ═══ AUTO-INTERRUPT: Stop current speech immediately when user sends new message ═══
+        if (isSpeakingRef.current) {
+            onInterrupt?.();
+            isSpeakingRef.current = false;
+        }
+
         isProcessingRef.current = true;
         setIsProcessing(true);
         addMessage("user", text);
@@ -67,6 +74,10 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                 isSpeakingRef.current = true;
                 await onSendMessage(text);
             } else {
+                // ═══ THINKING PHASE: Show typing indicator ═══
+                const thinkingId = `thinking-${Date.now()}`;
+                setMessages(prev => [...prev, { id: thinkingId, role: "assistant", content: "◆◆◆THINKING◆◆◆", timestamp: Date.now() }]);
+
                 const response = await fetch("/api/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -81,12 +92,16 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                     throw new Error(err.error || "API error");
                 }
                 const data = await response.json();
-                addMessage("assistant", data.reply);
+
+                // ═══ SPEAKING PHASE: Replace thinking indicator with real reply ═══
+                setMessages(prev => prev.map(m => m.id === thinkingId ? { ...m, content: data.reply } : m));
                 isSpeakingRef.current = true;
                 await onSendMessage(data.reply);
             }
         } catch (err: any) {
             console.error("Chat error:", err);
+            // Remove thinking indicator and show error
+            setMessages(prev => prev.filter(m => !m.content.includes("◆◆◆THINKING◆◆◆")));
             addMessage("assistant", `⚠️ ${err.message || "Error"}`);
             await onSendMessage(text);
         } finally {
@@ -94,7 +109,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
             isSpeakingRef.current = false;
             setIsProcessing(false);
         }
-    }, [mode, messages, onSendMessage, addMessage]);
+    }, [mode, messages, onSendMessage, onInterrupt, addMessage]);
 
 
     // Start speech recognition helper
@@ -258,17 +273,18 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                 ) : (
                     messages.map((msg) => (
                         <div key={msg.id} className={`message-enter flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                            <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === "user" ? "bg-[#00d4aa]/15 text-[#c5f5e8] rounded-br-md" : "bg-white/5 text-[#c5cfe0] rounded-bl-md"
-                                }`}>{msg.content}</div>
+                            {msg.content === "◆◆◆THINKING◆◆◆" ? (
+                                <div className="bg-white/5 px-4 py-3 rounded-2xl rounded-bl-md flex gap-1.5 items-center">
+                                    <span className="w-2 h-2 rounded-full bg-[#00d4aa] animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <span className="w-2 h-2 rounded-full bg-[#00d4aa] animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <span className="w-2 h-2 rounded-full bg-[#00d4aa] animate-bounce" style={{ animationDelay: '300ms' }} />
+                                </div>
+                            ) : (
+                                <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === "user" ? "bg-[#00d4aa]/15 text-[#c5f5e8] rounded-br-md" : "bg-white/5 text-[#c5cfe0] rounded-bl-md"
+                                    }`}>{msg.content}</div>
+                            )}
                         </div>
                     ))
-                )}
-                {isProcessing && (
-                    <div className="flex justify-start message-enter">
-                        <div className="bg-white/5 px-4 py-3 rounded-2xl rounded-bl-md flex gap-1.5">
-                            <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
-                        </div>
-                    </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>
