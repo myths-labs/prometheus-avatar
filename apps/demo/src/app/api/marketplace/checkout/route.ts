@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
             },
             body: new URLSearchParams({
                 "mode": "payment",
-                "success_url": `${process.env.NEXT_PUBLIC_APP_URL || "https://prometheus-avatar.vercel.app"}/marketplace?purchased=${assetId}`,
-                "cancel_url": `${process.env.NEXT_PUBLIC_APP_URL || "https://prometheus-avatar.vercel.app"}/marketplace`,
+                "success_url": `${process.env.NEXT_PUBLIC_APP_URL || "https://prometheus-avatar.vercel.app"}/marketplace/success?asset=${assetId}&session_id={CHECKOUT_SESSION_ID}`,
+                "cancel_url": `${process.env.NEXT_PUBLIC_APP_URL || "https://prometheus-avatar.vercel.app"}/marketplace/cancel`,
                 "line_items[0][price_data][currency]": "usd",
                 "line_items[0][price_data][product_data][name]": assetName || "Marketplace Asset",
                 "line_items[0][price_data][unit_amount]": totalAmount.toString(),

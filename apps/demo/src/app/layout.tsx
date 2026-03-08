@@ -17,13 +17,18 @@ export const metadata: Metadata = {
   },
 };
 
+import StarfieldBackground from "@/components/StarfieldBackground";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`dark ${playfair.variable}`} suppressHydrationWarning>
       <head>
         <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet" />
       </head>
-      <body className="antialiased" suppressHydrationWarning>{children}</body>
+      <body className="antialiased" suppressHydrationWarning>
+        <StarfieldBackground />
+        {children}
+      </body>
     </html>
   );
 }
