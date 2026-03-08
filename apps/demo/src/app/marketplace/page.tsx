@@ -422,8 +422,59 @@ export default function MarketplacePage() {
 }
 
 function AssetCard({ asset, featured }: { asset: Asset & { creator?: Creator }; featured?: boolean }) {
+    const [buying, setBuying] = useState<string | null>(null); // 'stripe' | 'x402' | null
+    const [showPayOptions, setShowPayOptions] = useState(false);
     const creatorType = asset.creator_type || asset.creator?.creator_type || 'human';
     const commission = COMMISSION_RATES[creatorType as CreatorType] || 0.20;
+
+    async function handleStripeCheckout() {
+        setBuying('stripe');
+        try {
+            const res = await fetch('/api/marketplace/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    assetId: asset.id,
+                    assetName: asset.name,
+                    price: asset.price,
+                    creatorType,
+                }),
+            });
+            const data = await res.json();
+            if (data.checkoutUrl) {
+                window.location.href = data.checkoutUrl;
+            } else {
+                alert(data.error || 'Checkout failed');
+            }
+        } catch (e) {
+            alert('Checkout error');
+        } finally {
+            setBuying(null);
+        }
+    }
+
+    async function handleX402Checkout() {
+        setBuying('x402');
+        try {
+            const { x402Checkout } = await import('@/lib/x402-client');
+            const result = await x402Checkout(
+                asset.id,
+                asset.name,
+                asset.price,
+                creatorType
+            );
+            if (result.success) {
+                alert(`✅ Payment confirmed! Tx: ${result.txHash?.slice(0, 10)}...`);
+            } else {
+                alert(result.error || 'Payment failed');
+            }
+        } catch (e) {
+            alert('MetaMask not found or transaction cancelled');
+        } finally {
+            setBuying(null);
+            setShowPayOptions(false);
+        }
+    }
 
     return (
         <div className={`card-dark p-5 group cursor-pointer transition-all duration-300 ${featured ? "border-[#00d4aa]/15 hover:border-[#00d4aa]/30" : "hover:border-white/10"}`}>
@@ -457,12 +508,47 @@ function AssetCard({ asset, featured }: { asset: Asset & { creator?: Creator }; 
                 </span>
             </div>
 
-            {/* Commission info on hover */}
-            {!asset.is_free && (
-                <div className="mt-2 pt-2 border-t border-white/5 text-[9px] text-[#7a8a9d] opacity-0 group-hover:opacity-100 transition-opacity">
-                    Creator earns ${(asset.price * (1 - commission)).toFixed(2)} · Platform {(commission * 100).toFixed(0)}%
-                </div>
-            )}
+            {/* ═══ Buy / Download Button ═══ */}
+            <div className="mt-3 pt-3 border-t border-white/5 relative">
+                {asset.is_free ? (
+                    <button className="w-full py-2.5 rounded-xl bg-[#00d4aa]/10 text-[#00d4aa] text-xs font-semibold hover:bg-[#00d4aa]/20 transition-all">
+                        ⬇ Download Free
+                    </button>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => setShowPayOptions(!showPayOptions)}
+                            disabled={!!buying}
+                            className="w-full py-2.5 rounded-xl bg-[#00d4aa] text-[#0a0f1a] text-xs font-bold hover:brightness-110 transition-all disabled:opacity-50"
+                        >
+                            {buying === 'stripe' ? '⏳ Redirecting...' : buying === 'x402' ? '⏳ Confirming...' : `💰 Buy $${Number(asset.price).toFixed(2)}`}
+                        </button>
+
+                        {/* Payment method dropdown */}
+                        {showPayOptions && !buying && (
+                            <div className="absolute left-0 right-0 bottom-full mb-2 bg-[#0f1019] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-20">
+                                <button
+                                    onClick={handleStripeCheckout}
+                                    className="w-full px-4 py-3 text-left text-xs text-[#eae6df] hover:bg-white/5 transition-all flex items-center gap-2"
+                                >
+                                    <span>💳</span>
+                                    <span className="flex-1">Pay with Card</span>
+                                    <span className="text-[#7a8a9d]">Stripe · Alipay · WeChat</span>
+                                </button>
+                                <div className="h-px bg-white/5" />
+                                <button
+                                    onClick={handleX402Checkout}
+                                    className="w-full px-4 py-3 text-left text-xs text-[#eae6df] hover:bg-white/5 transition-all flex items-center gap-2"
+                                >
+                                    <span>🔗</span>
+                                    <span className="flex-1">Pay with Crypto</span>
+                                    <span className="text-[#7a8a9d]">USDC on Base L2</span>
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 }
