@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Detect if text contains Chinese characters
 function isChinese(text: string): boolean {
@@ -15,14 +16,57 @@ const ELEVENLABS_VOICES: Record<string, string> = {
     koharu: "jBpfAIEiAKNebRVppxo4",  // Gigi — sweet
 };
 
-// Edge TTS voices for Chinese
+// Edge TTS voices for Chinese (fallback)
 const EDGE_VOICES: Record<string, string> = {
     haru: "zh-CN-XiaoxiaoNeural",     // 小晓 — 活泼可爱
     shizuku: "zh-CN-XiaoyiNeural",    // 小忆 — 温柔优雅
     koharu: "zh-CN-XiaohanNeural",    // 小涵 — 甜美
 };
 
-// Generate Chinese TTS with Microsoft Edge
+// Google Cloud TTS voices for Chinese (primary — best quality)
+const GOOGLE_VOICES: Record<string, { name: string; ssmlGender: string }> = {
+    haru: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },     // 清新女声
+    shizuku: { name: "cmn-CN-Wavenet-D", ssmlGender: "FEMALE" },  // 温柔女声
+    koharu: { name: "cmn-CN-Wavenet-A", ssmlGender: "FEMALE" },   // 甜美女声
+};
+
+// Generate Chinese TTS with Google Cloud TTS (Wavenet — near-human quality)
+async function generateGoogleTTS(text: string, voiceConfig: { name: string; ssmlGender: string }): Promise<Buffer | null> {
+    if (!GEMINI_API_KEY) return null;
+
+    const response = await fetch(
+        `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GEMINI_API_KEY}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                input: { text },
+                voice: {
+                    languageCode: "cmn-CN",
+                    name: voiceConfig.name,
+                    ssmlGender: voiceConfig.ssmlGender,
+                },
+                audioConfig: {
+                    audioEncoding: "MP3",
+                    speakingRate: 1.0,
+                    pitch: 0,
+                },
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const errText = await response.text();
+        console.error("[Google TTS] Error:", response.status, errText.slice(0, 200));
+        return null;
+    }
+
+    const data = await response.json();
+    if (!data.audioContent) return null;
+    return Buffer.from(data.audioContent, "base64");
+}
+
+// Generate Chinese TTS with Microsoft Edge (fallback)
 async function generateEdgeTTS(text: string, voice: string): Promise<Buffer> {
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
@@ -74,32 +118,47 @@ export async function POST(req: NextRequest) {
         let engine = "none";
 
         if (chinese) {
-            // Chinese → Microsoft Edge TTS (much better quality)
-            const voice = EDGE_VOICES[avatarId] || EDGE_VOICES.haru;
-            console.log(`[TTS] Chinese detected → Edge TTS voice: ${voice}`);
+            // Chinese: Google Cloud TTS (best) → Edge TTS → ElevenLabs (worst for Chinese)
+            const googleVoice = GOOGLE_VOICES[avatarId] || GOOGLE_VOICES.haru;
+            console.log(`[TTS] Chinese detected → trying Google Cloud TTS: ${googleVoice.name}`);
+
+            // 1. Google Cloud TTS (Wavenet — native Mandarin, best quality)
             try {
-                audioBuffer = await generateEdgeTTS(text, voice);
-                engine = "edge-tts";
+                audioBuffer = await generateGoogleTTS(text, googleVoice);
+                if (audioBuffer) engine = "google-cloud-tts";
             } catch (e: any) {
-                console.error("Edge TTS error (will fallback to ElevenLabs):", e?.message || e);
+                console.warn("[TTS] Google Cloud TTS error:", e?.message);
+            }
+
+            // 2. Edge TTS fallback
+            if (!audioBuffer) {
+                const edgeVoice = EDGE_VOICES[avatarId] || EDGE_VOICES.haru;
+                console.log(`[TTS] Falling back to Edge TTS: ${edgeVoice}`);
+                try {
+                    audioBuffer = await generateEdgeTTS(text, edgeVoice);
+                    if (audioBuffer) engine = "edge-tts";
+                } catch (e: any) {
+                    console.warn("[TTS] Edge TTS error:", e?.message);
+                }
+            }
+
+            // 3. ElevenLabs last resort (sounds foreign for Chinese)
+            if (!audioBuffer) {
+                const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
+                audioBuffer = await generateElevenLabsTTS(text, voiceId).catch(() => null);
+                if (audioBuffer) engine = "elevenlabs-fallback";
             }
         } else {
-            // English → ElevenLabs
+            // English: ElevenLabs (best) → Edge TTS fallback
             const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
             try {
                 audioBuffer = await generateElevenLabsTTS(text, voiceId);
                 if (audioBuffer) engine = "elevenlabs";
             } catch (e) {
-                console.error("ElevenLabs error:", e);
+                console.error("[TTS] ElevenLabs error:", e);
             }
-        }
 
-        if (!audioBuffer) {
-            if (chinese) {
-                const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
-                audioBuffer = await generateElevenLabsTTS(text, voiceId).catch(() => null);
-                if (audioBuffer) engine = "elevenlabs-fallback";
-            } else {
+            if (!audioBuffer) {
                 const voice = EDGE_VOICES[avatarId] || EDGE_VOICES.haru;
                 audioBuffer = await generateEdgeTTS(text, voice).catch(() => null);
                 if (audioBuffer) engine = "edge-tts-fallback";
@@ -125,3 +184,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: error.message || "TTS failed" }, { status: 500 });
     }
 }
+
