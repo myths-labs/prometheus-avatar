@@ -36,7 +36,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
   }, []);
 
   return (
-    <section className="hero-bg relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
+    <section className="hero-bg relative min-h-screen flex items-center justify-center pt-16 overflow-x-hidden">
       {/* Particles */}
       <div className="absolute inset-0 pointer-events-none z-[3]">
         {particles.map((p) => (
