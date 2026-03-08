@@ -164,7 +164,7 @@ export default function TelegramPage() {
                 <div className={`absolute inset-0 flex items-center justify-center transition-all ${isSpeaking ? "ring-2 ring-[#00d4aa]/40" : ""}`}>
                     <AvatarCanvas
                         ref={avatarRef}
-                        avatarId="haru"
+                        modelUrl="https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json"
                         onEmotionChange={() => { }}
                     />
                 </div>
