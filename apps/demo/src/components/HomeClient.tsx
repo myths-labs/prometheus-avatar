@@ -9,6 +9,9 @@ import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
 import { useMarketplaceAssets } from "@/lib/useMarketplaceAssets";
 import EffectOverlay from "@/components/EffectOverlay";
+import dynamic from "next/dynamic";
+
+const FaceTracker = dynamic(() => import("@/components/FaceTracker"), { ssr: false });
 
 
 const AVATARS = [
@@ -23,6 +26,7 @@ export default function HomeClient() {
   const [isAvatarReady, setIsAvatarReady] = useState(false);
   const [voiceOverride, setVoiceOverride] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [vtubMode, setVtubMode] = useState(false);
   const avatarRef = useRef<AvatarCanvasHandle>(null);
   const demoRef = useRef<HTMLDivElement>(null);
 
@@ -33,6 +37,14 @@ export default function HomeClient() {
       await avatarRef.current?.speak(text);
     } finally {
       setIsSpeaking(false);
+    }
+  }, []);
+
+  // VTuber mode: send face angles to avatar iframe
+  const handleFaceAngles = useCallback((angles: { x: number; y: number; z: number }) => {
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'set-head-angles', ...angles }, '*');
     }
   }, []);
 
@@ -99,6 +111,13 @@ export default function HomeClient() {
               )}
               <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} voiceOverride={marketplace.voiceConfig?.voiceId || voiceOverride} />
               <div className="absolute top-4 right-4 flex items-center gap-2">
+                <button
+                  onClick={() => setVtubMode(!vtubMode)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-all ${vtubMode ? 'bg-[#00d4aa]/20 text-[#00d4aa] border-[#00d4aa]/30' : 'bg-white/5 text-[#7a8a9d] border-white/10 hover:border-[#00d4aa]/20'}`}
+                  title="VTuber Mode: Uses your camera to track face angles and move the avatar's head in real-time"
+                >
+                  {vtubMode ? '🎥 VTuber ON' : '📷 VTuber'}
+                </button>
                 <div className={`emotion-badge ${currentEmotion === "happy" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
                   : currentEmotion === "sad" ? "bg-[#4a7ab5]/20 text-[#7ab5e0]"
                     : currentEmotion === "angry" ? "bg-[#c94c4c]/20 text-[#e88b8b]"
@@ -125,6 +144,9 @@ export default function HomeClient() {
           </div>
           <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} onVoiceChange={(v) => setVoiceOverride(v)} systemPrompt={systemPrompt} />
         </div>
+
+        {/* VTuber camera tracker */}
+        <FaceTracker enabled={vtubMode} onFaceAngles={handleFaceAngles} />
       </section>
 
       {/* CTA — Aithena-style clean card */}
