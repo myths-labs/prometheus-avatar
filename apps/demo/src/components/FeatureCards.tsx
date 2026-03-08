@@ -6,7 +6,7 @@ const FEATURES = [
     { icon: "😊", title: "Emotion Engine", description: "Automatic emotion detection from text. Your avatar smiles when happy, frowns when sad.", accent: "from-[#4aecd0] to-[#00d4aa]" },
     { icon: "🔌", title: "Any LLM, Any Agent", description: "Works with Claude, GPT, Gemini, local models — or any OpenClaw agent.", accent: "from-[#00d4aa] to-[#c9a84c]" },
     { icon: "🏪", title: "Marketplace", description: "Browse, buy, and sell avatar skins, voices, effects. Creators earn, agents create.", accent: "from-[#c9a84c] to-[#e8d48b]" },
-    { icon: "🤖", title: "Agent Creator SDK", description: "Let your AI agent design its own avatar via text-to-image generation.", accent: "from-[#4aecd0] to-[#c9a84c]" },
+    { icon: "📦", title: "Developer SDK", description: "Integrate avatars into any app — works for humans, AI agents, and lobsters alike.", accent: "from-[#4aecd0] to-[#c9a84c]" },
 ];
 
 export default function FeatureCards() {

@@ -408,7 +408,7 @@ export default function MarketplacePage() {
                     <div className="flex flex-wrap justify-center gap-4">
                         <Link href="/marketplace/upload" className="btn-primary">📤 Start Selling</Link>
                         <Link href="https://github.com/myths-labs/prometheus-avatar" className="px-6 py-3 rounded-full border border-[rgba(0,212,170,0.2)] text-[#a8b8d0] hover:text-white hover:border-[#00d4aa]/40 transition-all">
-                            🤖 Agent Creator SDK
+                            📦 View on GitHub
                         </Link>
                     </div>
                 </div>
