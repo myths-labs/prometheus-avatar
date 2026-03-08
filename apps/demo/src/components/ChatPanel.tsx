@@ -196,46 +196,48 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, o
                         >LLM Chat</button>
                     </div>
                 </div>
-                <button className="text-[#7a8a9d] hover:text-[#a8b8d0] text-xs" onClick={() => setShowSettings(!showSettings)}>
-                    ⚙️
-                </button>
+                {/* Speaking indicator */}
+                {isProcessing && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-[#00d4aa]">
+                        <div className="flex gap-[2px] items-end h-3">
+                            <span className="w-[3px] bg-[#00d4aa] rounded-full animate-pulse" style={{ height: '40%', animationDelay: '0ms' }} />
+                            <span className="w-[3px] bg-[#00d4aa] rounded-full animate-pulse" style={{ height: '80%', animationDelay: '150ms' }} />
+                            <span className="w-[3px] bg-[#00d4aa] rounded-full animate-pulse" style={{ height: '55%', animationDelay: '300ms' }} />
+                            <span className="w-[3px] bg-[#00d4aa] rounded-full animate-pulse" style={{ height: '90%', animationDelay: '450ms' }} />
+                        </div>
+                        Speaking...
+                    </div>
+                )}
             </div>
 
-            {showSettings && (
-                <div className="px-5 py-3 border-b border-[rgba(0,212,170,0.06)] bg-black/20 space-y-3">
-                    <div>
-                        <p className="text-xs text-[#a8b8d0]"><strong>LLM Chat:</strong> Gemini 2.0 Flash — smart AI responses</p>
-                        <p className="text-xs text-[#7a8a9d] mt-1"><strong>Direct:</strong> Avatar speaks your text exactly</p>
-                    </div>
-                    <div>
-                        <label className="text-xs text-[#a8b8d0] font-semibold block mb-1">🎤 Voice</label>
-                        <select
-                            value={selectedVoice}
-                            onChange={(e) => { setSelectedVoice(e.target.value); onVoiceChange?.(e.target.value); }}
-                            className="w-full bg-black/40 border border-[rgba(0,212,170,0.15)] rounded-md px-3 py-1.5 text-xs text-[#eae6df] focus:border-[#00d4aa] focus:outline-none transition-colors"
-                        >
-                            <optgroup label="🇨🇳 Chinese Optimized">
-                                <option value="Kore">Kore — Energetic, Youthful</option>
-                                <option value="Aoede">Aoede — Clear, Conversational</option>
-                                <option value="Leda">Leda — Youthful, Higher Pitch</option>
-                                <option value="Zephyr">Zephyr — Bright, Perky</option>
-                                <option value="Achird">Achird — Breathy, Friendly</option>
-                            </optgroup>
-                            <optgroup label="🌏 All Female">
-                                <option value="Despina">Despina — Warm, Smooth</option>
-                                <option value="Callirrhoe">Callirrhoe — Confident, Clear</option>
-                                <option value="Algenib">Algenib — Warm, Authoritative</option>
-                                <option value="Laomedeia">Laomedeia — Upbeat, Engaging</option>
-                            </optgroup>
-                            <optgroup label="🗣️ Male">
-                                <option value="Puck">Puck — Upbeat, Friendly</option>
-                                <option value="Charon">Charon — Smooth, Assured</option>
-                                <option value="Fenrir">Fenrir — Excitable, Energetic</option>
-                            </optgroup>
-                        </select>
-                    </div>
-                </div>
-            )}
+            {/* Always-visible voice selector */}
+            <div className="px-4 py-2 border-b border-[rgba(0,212,170,0.04)] flex items-center gap-2">
+                <span className="text-[10px] text-[#7a8a9d] whitespace-nowrap">🎤</span>
+                <select
+                    value={selectedVoice}
+                    onChange={(e) => { setSelectedVoice(e.target.value); onVoiceChange?.(e.target.value); }}
+                    className="flex-1 bg-black/20 border border-white/[0.06] rounded-lg px-2.5 py-1 text-[11px] text-[#a8b8d0] focus:border-[#00d4aa]/30 focus:outline-none transition-colors appearance-none cursor-pointer hover:border-white/10"
+                >
+                    <optgroup label="🇨🇳 Chinese Optimized">
+                        <option value="Kore">Kore — Energetic ♀</option>
+                        <option value="Aoede">Aoede — Clear ♀</option>
+                        <option value="Leda">Leda — Sweet ♀</option>
+                        <option value="Zephyr">Zephyr — Bright ♀</option>
+                        <option value="Achird">Achird — Breathy ♀</option>
+                    </optgroup>
+                    <optgroup label="♀ Female">
+                        <option value="Despina">Despina — Warm</option>
+                        <option value="Callirrhoe">Callirrhoe — Confident</option>
+                        <option value="Algenib">Algenib — Authoritative</option>
+                        <option value="Laomedeia">Laomedeia — Engaging</option>
+                    </optgroup>
+                    <optgroup label="♂ Male">
+                        <option value="Puck">Puck — Upbeat</option>
+                        <option value="Charon">Charon — Smooth</option>
+                        <option value="Fenrir">Fenrir — Energetic</option>
+                    </optgroup>
+                </select>
+            </div>
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">

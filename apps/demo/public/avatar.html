@@ -210,15 +210,58 @@
     // Idle animation — breathing + eye blink
     function startIdleAnimation(model) {
       let frame;
+      let nextBlink = Date.now() + 2000 + Math.random() * 4000;
+      let blinkPhase = 0; // 0=open, 1=closing, 2=closed, 3=opening
+      let blinkTimer = 0;
+
       function animate() {
         const t = Date.now();
-        // Breathing
+
         try {
+          // Breathing — smooth sine wave
           const breathVal = Math.sin(t / 3000) * 0.5 + 0.5;
-          if (isCubism2) {
-            model.internalModel.coreModel.setParamFloat("PARAM_BREATH", breathVal);
-          } else {
-            model.internalModel.coreModel.setParameterValueById("ParamBreath", breathVal);
+          setParam(model, 'ParamBreath', breathVal);
+
+          // Subtle head sway — two overlapping sine waves for natural movement
+          const headX = Math.sin(t / 5000) * 3 + Math.sin(t / 7000) * 2;
+          const headY = Math.sin(t / 6000) * 2 + Math.sin(t / 9000) * 1.5;
+          setParam(model, 'ParamAngleX', headX);
+          setParam(model, 'ParamAngleY', headY);
+
+          // Body follows head slightly
+          setParam(model, 'ParamBodyAngleX', headX * 0.3);
+
+          // Eye blinking — random intervals, natural close/open
+          if (t > nextBlink && blinkPhase === 0) {
+            blinkPhase = 1;
+            blinkTimer = t;
+          }
+          if (blinkPhase > 0) {
+            const elapsed = t - blinkTimer;
+            if (blinkPhase === 1 && elapsed < 80) {
+              // Closing
+              const p = elapsed / 80;
+              setParam(model, 'ParamEyeLOpen', 1 - p);
+              setParam(model, 'ParamEyeROpen', 1 - p);
+            } else if (blinkPhase === 1) {
+              blinkPhase = 2;
+              blinkTimer = t;
+              setParam(model, 'ParamEyeLOpen', 0);
+              setParam(model, 'ParamEyeROpen', 0);
+            } else if (blinkPhase === 2 && elapsed > 50) {
+              blinkPhase = 3;
+              blinkTimer = t;
+            } else if (blinkPhase === 3 && elapsed < 120) {
+              // Opening
+              const p = elapsed / 120;
+              setParam(model, 'ParamEyeLOpen', p);
+              setParam(model, 'ParamEyeROpen', p);
+            } else if (blinkPhase === 3) {
+              setParam(model, 'ParamEyeLOpen', 1);
+              setParam(model, 'ParamEyeROpen', 1);
+              blinkPhase = 0;
+              nextBlink = t + 2000 + Math.random() * 4000;
+            }
           }
         } catch { }
         frame = requestAnimationFrame(animate);
