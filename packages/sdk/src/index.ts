@@ -25,4 +25,6 @@ export type {
     TTSOptions,
     LipSyncFrame,
     AvatarEventMap,
+    ILLMProvider,
+    ILLMMessage,
 } from './types';

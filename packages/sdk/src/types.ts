@@ -78,3 +78,24 @@ export interface AvatarEventMap {
     'lipsync:frame': { frame: LipSyncFrame };
     'destroy': void;
 }
+
+// ═══ Multi-LLM Provider Interface ═══
+
+/** Standard chat message format (OpenAI-compatible) */
+export interface ILLMMessage {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+}
+
+/** LLM Provider interface — implement this to plug in any LLM */
+export interface ILLMProvider {
+    /** Provider name (e.g. "gemini", "groq", "deepseek") */
+    readonly name: string;
+    /** Whether this provider is available (has API key etc.) */
+    available(): boolean;
+    /** Generate a streaming response. Returns an async iterator of text tokens. */
+    stream(messages: ILLMMessage[]): AsyncIterable<string>;
+    /** Generate a non-streaming response. */
+    generate?(messages: ILLMMessage[]): Promise<string>;
+}
+

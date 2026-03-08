@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;  // Alibaba Qwen
+const MOONSHOT_API_KEY = process.env.MOONSHOT_API_KEY;    // Kimi
 
 const SYSTEM_PROMPT = `You are Prometheus — a warm, witty AI companion with genuine personality.
 
@@ -42,6 +45,27 @@ const PROVIDERS: LLMProvider[] = [
         model: "llama-3.3-70b-versatile",
         authHeader: () => ({ "Authorization": `Bearer ${GROQ_API_KEY}` }),
         available: () => !!GROQ_API_KEY,
+    },
+    {
+        name: "deepseek",
+        url: "https://api.deepseek.com/chat/completions",
+        model: "deepseek-chat",
+        authHeader: () => ({ "Authorization": `Bearer ${DEEPSEEK_API_KEY}` }),
+        available: () => !!DEEPSEEK_API_KEY,
+    },
+    {
+        name: "qwen",
+        url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+        model: "qwen-plus",
+        authHeader: () => ({ "Authorization": `Bearer ${DASHSCOPE_API_KEY}` }),
+        available: () => !!DASHSCOPE_API_KEY,
+    },
+    {
+        name: "kimi",
+        url: "https://api.moonshot.cn/v1/chat/completions",
+        model: "moonshot-v1-8k",
+        authHeader: () => ({ "Authorization": `Bearer ${MOONSHOT_API_KEY}` }),
+        available: () => !!MOONSHOT_API_KEY,
     },
 ];
 
