@@ -7,6 +7,7 @@ import AvatarSelector from "@/components/AvatarSelector";
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
+import { useMarketplaceAssets } from "@/lib/useMarketplaceAssets";
 
 const AVATARS = [
   { id: "haru", name: "Haru", description: "Friendly and expressive", modelUrl: "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json", thumbnail: "🧑‍🎤", badge: "official" },
@@ -21,6 +22,19 @@ export default function HomeClient() {
   const [voiceOverride, setVoiceOverride] = useState<string | null>(null);
   const avatarRef = useRef<AvatarCanvasHandle>(null);
   const demoRef = useRef<HTMLDivElement>(null);
+
+  // ═══ Marketplace → Avatar Integration ═══
+  // This hook connects ALL 9 marketplace asset categories to the live avatar
+  const marketplace = useMarketplaceAssets(
+    // onModelLoad callback — when a skin is purchased from marketplace
+    useCallback(async (modelUrl: string) => {
+      setSelectedAvatar(prev => ({ ...prev, modelUrl, name: "Custom Skin", description: "Loaded from Marketplace" }));
+      // AvatarCanvas will re-render with new modelUrl
+    }, [])
+  );
+
+  // Wire persona changes to ChatPanel's system prompt
+  const systemPrompt = marketplace.personaPrompt || undefined;
 
   const handleSpeak = useCallback(async (text: string) => {
     if (avatarRef.current) { try { await avatarRef.current.speak(text); } catch (e) { console.error(e); } }
@@ -53,8 +67,18 @@ export default function HomeClient() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
           <div className="relative">
-            <div className="w-full aspect-[4/3]">
-              <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} voiceOverride={voiceOverride} />
+            {/* Scene background — loaded from marketplace */}
+            {marketplace.sceneUrl && (
+              <div className="absolute inset-0 z-0 rounded-2xl overflow-hidden">
+                {marketplace.sceneUrl.match(/\.(mp4|webm)$/i) ? (
+                  <video src={marketplace.sceneUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                ) : (
+                  <img src={marketplace.sceneUrl} alt="Scene" className="w-full h-full object-cover" />
+                )}
+              </div>
+            )}
+            <div className="w-full aspect-[4/3] relative z-10">
+              <AvatarCanvas ref={avatarRef} modelUrl={selectedAvatar.modelUrl} onReady={() => setIsAvatarReady(true)} onEmotionChange={handleEmotionChange} voiceOverride={marketplace.voiceConfig?.voiceId || voiceOverride} />
               <div className="absolute top-4 right-4">
                 <div className={`emotion-badge ${currentEmotion === "happy" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
                   : currentEmotion === "sad" ? "bg-[#4a7ab5]/20 text-[#7ab5e0]"

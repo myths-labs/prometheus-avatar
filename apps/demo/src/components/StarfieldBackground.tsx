@@ -57,9 +57,9 @@ export default function StarfieldBackground() {
                     brightness: isMilkyWay
                         ? 0.4 + Math.random() * 0.6
                         : 0.1 + Math.random() * 0.5,
-                    twinkleSpeed: 0.005 + Math.random() * 0.02,
+                    twinkleSpeed: 0.015 + Math.random() * 0.04,
                     twinklePhase: Math.random() * Math.PI * 2,
-                    drift: (Math.random() - 0.5) * 0.15,
+                    drift: (Math.random() - 0.5) * 0.6,
                     color: getStarColor(),
                 });
             }
@@ -80,9 +80,9 @@ export default function StarfieldBackground() {
                     y: ((y % canvas!.height) + canvas!.height) % canvas!.height,
                     size: 0.2 + Math.random() * 0.6,
                     brightness: 0.15 + Math.random() * 0.35,
-                    twinkleSpeed: 0.003 + Math.random() * 0.01,
+                    twinkleSpeed: 0.008 + Math.random() * 0.03,
                     twinklePhase: Math.random() * Math.PI * 2,
-                    drift: (Math.random() - 0.5) * 0.08,
+                    drift: (Math.random() - 0.5) * 0.4,
                     color: getMilkyWayColor(),
                 });
             }
@@ -137,9 +137,9 @@ export default function StarfieldBackground() {
 
                 if (alpha <= 0) continue;
 
-                // Drift
-                star.x += star.drift * 0.3;
-                star.y -= 0.02; // slow upward drift
+                // Drift — noticeable streaming movement
+                star.x += star.drift * 0.8;
+                star.y -= 0.15 + star.size * 0.1; // faster upward drift, bigger = faster
 
                 // Wrap
                 if (star.x < 0) star.x += canvas!.width;
