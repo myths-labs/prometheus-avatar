@@ -352,24 +352,26 @@ export default function MarketplacePage() {
                     </div>
 
                     {/* Membership CTA */}
-                    <div className="card-dark p-8 max-w-xl mx-auto text-center border-[#c9a84c]/20 relative overflow-visible mt-6">
+                    <div className="relative max-w-xl mx-auto mt-6">
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#c9a84c] text-[#0a0f1a] text-xs font-bold rounded-full z-10">✨ MEMBERSHIP</div>
-                        <h3 className="text-xl font-bold text-[#eae6df] mt-2 mb-2">50% Off Commission Fees</h3>
-                        <p className="text-sm text-[#a8b8d0] mb-6">Keep more of every sale.</p>
-                        <div className="flex justify-center gap-4 mb-5">
-                            <div className="px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5">
-                                <div className="text-2xl font-bold text-[#eae6df]">$9.9<span className="text-sm font-normal text-[#7a8a9d]">/mo</span></div>
-                                <p className="text-xs text-[#7a8a9d] mt-1">Cancel anytime</p>
+                        <div className="card-dark p-8 text-center border-[#c9a84c]/20">
+                            <h3 className="text-xl font-bold text-[#eae6df] mt-2 mb-2">50% Off Commission Fees</h3>
+                            <p className="text-sm text-[#a8b8d0] mb-6">Keep more of every sale.</p>
+                            <div className="flex justify-center gap-4 mb-5">
+                                <div className="px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                                    <div className="text-2xl font-bold text-[#eae6df]">$9.9<span className="text-sm font-normal text-[#7a8a9d]">/mo</span></div>
+                                    <p className="text-xs text-[#7a8a9d] mt-1">Cancel anytime</p>
+                                </div>
+                                <div className="px-6 py-4 rounded-2xl bg-[#c9a84c]/5 border border-[#c9a84c]/20 relative">
+                                    <div className="absolute -top-2 right-2 text-[9px] px-1.5 py-0.5 bg-[#c9a84c]/20 text-[#c9a84c] rounded-full font-bold">SAVE 17%</div>
+                                    <div className="text-2xl font-bold text-[#eae6df]">$99<span className="text-sm font-normal text-[#7a8a9d]">/yr</span></div>
+                                    <p className="text-xs text-[#c9a84c] mt-1">$8.25/mo effective</p>
+                                </div>
                             </div>
-                            <div className="px-6 py-4 rounded-2xl bg-[#c9a84c]/5 border border-[#c9a84c]/20 relative overflow-visible">
-                                <div className="absolute -top-2 right-2 text-[9px] px-1.5 py-0.5 bg-[#c9a84c]/20 text-[#c9a84c] rounded-full font-bold">SAVE 17%</div>
-                                <div className="text-2xl font-bold text-[#eae6df]">$99<span className="text-sm font-normal text-[#7a8a9d]">/yr</span></div>
-                                <p className="text-xs text-[#c9a84c] mt-1">$8.25/mo effective</p>
-                            </div>
+                            <button className="px-8 py-3 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]">
+                                Become a Member
+                            </button>
                         </div>
-                        <button className="px-8 py-3 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]">
-                            Become a Member
-                        </button>
                     </div>
                 </div>
             </section>
@@ -379,21 +381,11 @@ export default function MarketplacePage() {
                 <div className="max-w-3xl mx-auto">
                     <h3 className="text-lg font-semibold text-[#eae6df] mb-6">Accepted Payments</h3>
                     <div className="flex flex-wrap justify-center gap-3">
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <img src="/logos/stripe.svg" alt="Stripe" className="h-4" />
-                        </span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <img src="/logos/alipay.svg" alt="Alipay" className="h-4" />
-                        </span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            <img src="/logos/wechatpay.svg" alt="WeChat Pay" className="h-4" />
-                        </span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            🔗 x402
-                        </span>
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#a8b8d0] border border-white/5 inline-flex items-center gap-2 hover:border-white/15 transition-all">
-                            💲 USDC / USDT
-                        </span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#635BFF] border border-white/5 font-semibold">Stripe</span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#1677FF] border border-white/5 font-semibold">Alipay</span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#07C160] border border-white/5 font-semibold">WeChat Pay</span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#0052FF] border border-white/5 font-semibold">x402</span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-sm text-[#2775CA] border border-white/5 font-semibold">USDC / USDT</span>
                     </div>
                 </div>
             </section>
