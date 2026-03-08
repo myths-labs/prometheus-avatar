@@ -177,7 +177,7 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     iframeRef.current.contentWindow.postMessage({ type: "add-accessory", url }, "*");
                 }
             },
-        }), [onEmotionChange, modelUrl]);
+        }), [onEmotionChange, modelUrl, voiceOverride]);
 
         // Listen for marketplace asset events and forward to iframe
         useEffect(() => {
