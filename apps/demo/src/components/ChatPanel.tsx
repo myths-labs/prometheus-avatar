@@ -11,7 +11,7 @@ interface Message {
 
 interface ChatPanelProps {
     onSendMessage: (text: string) => Promise<void>;
-    onInterrupt?: () => void; // Stop avatar speaking
+    onInterrupt?: () => void;
     isAvatarReady: boolean;
 }
 
@@ -30,15 +30,16 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
     const [mode, setMode] = useState<"direct" | "llm">("llm");
     const [showSettings, setShowSettings] = useState(false);
     const [voiceMode, setVoiceMode] = useState(false);
-    const [isListening, setIsListening] = useState(false);
+    const [voiceStatus, setVoiceStatus] = useState<"idle" | "listening" | "processing">("idle");
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
     const voiceModeRef = useRef(false);
     const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const accumulatedTextRef = useRef("");
     const isProcessingRef = useRef(false);
-    const isSpeakingRef = useRef(false); // Track if avatar is currently speaking
+    const isBusyRef = useRef(false); // Prevents restart during speaking/processing
 
     useEffect(() => {
         const el = messagesEndRef.current;
@@ -47,6 +48,16 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         }
     }, [messages]);
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            voiceModeRef.current = false;
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+            if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+            try { recognitionRef.current?.stop(); } catch { }
+        };
+    }, []);
+
     const addMessage = useCallback((role: "user" | "assistant", content: string) => {
         setMessages((prev) => [
             ...prev,
@@ -54,35 +65,128 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         ]);
     }, []);
 
-    // Interrupt current speech
     const interrupt = useCallback(() => {
-        isSpeakingRef.current = false;
+        isBusyRef.current = false;
         onInterrupt?.();
     }, [onInterrupt]);
 
+    // Stop recognition cleanly
+    const stopRecognition = useCallback(() => {
+        if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+        if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
+        try { recognitionRef.current?.abort?.(); } catch { }
+        try { recognitionRef.current?.stop(); } catch { }
+        recognitionRef.current = null;
+        setVoiceStatus("idle");
+    }, []);
+
+    // Start recognition
+    const startRecognition = useCallback(() => {
+        // Guard: don't start if busy or already running
+        if (isBusyRef.current || !voiceModeRef.current) return;
+        if (recognitionRef.current) return; // Already running
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false; // Single utterance — prevents feedback loops
+        recognition.interimResults = true;
+        recognition.lang = "";
+
+        let hasResult = false;
+
+        recognition.onstart = () => {
+            if (voiceModeRef.current) setVoiceStatus("listening");
+        };
+
+        recognition.onresult = (event: any) => {
+            hasResult = true;
+            let transcript = "";
+            let isFinal = false;
+
+            for (let i = 0; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
+                if (event.results[i].isFinal) isFinal = true;
+            }
+
+            setInput(transcript);
+            accumulatedTextRef.current = transcript;
+
+            if (isFinal) {
+                // Got final result — wait for silence then send
+                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = setTimeout(() => {
+                    const text = accumulatedTextRef.current.trim();
+                    if (text && !isProcessingRef.current) {
+                        stopRecognition();
+                        sendMessage(text);
+                    }
+                }, 1500);
+            }
+        };
+
+        recognition.onerror = (event: any) => {
+            if (event.error === "aborted" || event.error === "no-speech") {
+                // Normal — will restart via onend
+            } else {
+                console.warn("Speech error:", event.error);
+            }
+        };
+
+        recognition.onend = () => {
+            recognitionRef.current = null;
+
+            // If we got a result and timer is running, don't restart yet
+            if (silenceTimerRef.current) return;
+
+            // Auto-restart if voice mode is on and not busy
+            if (voiceModeRef.current && !isBusyRef.current && !isProcessingRef.current) {
+                setVoiceStatus("idle");
+                if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+                restartTimerRef.current = setTimeout(() => {
+                    if (voiceModeRef.current && !isBusyRef.current) {
+                        startRecognition();
+                    }
+                }, 800); // Delay prevents rapid cycling
+            } else {
+                setVoiceStatus(isBusyRef.current ? "processing" : "idle");
+            }
+        };
+
+        recognitionRef.current = recognition;
+        try {
+            recognition.start();
+        } catch (e) {
+            recognitionRef.current = null;
+            // Retry after delay
+            if (voiceModeRef.current && !isBusyRef.current) {
+                restartTimerRef.current = setTimeout(() => startRecognition(), 1000);
+            }
+        }
+    }, [stopRecognition]);
+
     // Core send logic
     const sendMessage = useCallback(async (text: string) => {
-        if (!text.trim()) return;
+        if (!text.trim() || isProcessingRef.current) return;
 
-        // If AI is speaking, interrupt it first
-        if (isSpeakingRef.current) {
+        // If avatar is speaking, interrupt
+        if (isBusyRef.current) {
             interrupt();
             await new Promise(r => setTimeout(r, 200));
         }
 
-        if (isProcessingRef.current) return;
-
         isProcessingRef.current = true;
+        isBusyRef.current = true;
         setIsProcessing(true);
+        setVoiceStatus("processing");
         addMessage("user", text);
         setInput("");
         accumulatedTextRef.current = "";
 
         try {
             if (mode === "direct") {
-                isSpeakingRef.current = true;
                 await onSendMessage(text);
-                isSpeakingRef.current = false;
             } else {
                 const response = await fetch("/api/chat", {
                     method: "POST",
@@ -98,117 +202,47 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                 }
                 const data = await response.json();
                 addMessage("assistant", data.reply);
-                isSpeakingRef.current = true;
                 await onSendMessage(data.reply);
-                isSpeakingRef.current = false;
             }
         } catch (err: any) {
             console.error("Chat error:", err);
             addMessage("assistant", `⚠️ ${err.message || "Error"}`);
-            isSpeakingRef.current = true;
             await onSendMessage(text);
-            isSpeakingRef.current = false;
         } finally {
             isProcessingRef.current = false;
+            isBusyRef.current = false;
             setIsProcessing(false);
 
-            // Resume listening if in voice mode
+            // Resume listening after AI finishes speaking
             if (voiceModeRef.current) {
-                setTimeout(() => startListening(), 300);
-            }
-        }
-    }, [mode, messages, onSendMessage, addMessage, interrupt]);
-
-    // Start speech recognition
-    const startListening = useCallback(() => {
-        if (recognitionRef.current) {
-            try { recognitionRef.current.stop(); } catch { }
-            recognitionRef.current = null;
-        }
-
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = "";
-
-        recognition.onstart = () => setIsListening(true);
-
-        recognition.onresult = (event: any) => {
-            let finalText = "";
-            let interimText = "";
-
-            for (let i = 0; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                    finalText += event.results[i][0].transcript;
-                } else {
-                    interimText += event.results[i][0].transcript;
-                }
-            }
-
-            const display = finalText + interimText;
-            setInput(display);
-            accumulatedTextRef.current = display;
-
-            // If user starts speaking while AI is talking → interrupt
-            if ((finalText || interimText) && isSpeakingRef.current) {
-                interrupt();
-            }
-
-            // When final result + no more interim, start silence timer
-            if (finalText && !interimText) {
-                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = setTimeout(() => {
-                    const text = accumulatedTextRef.current.trim();
-                    if (text && !isProcessingRef.current) {
-                        try { recognition.stop(); } catch { }
-                        setIsListening(false);
-                        sendMessage(text);
+                // Wait a bit for TTS audio to fully stop before resuming mic
+                setTimeout(() => {
+                    if (voiceModeRef.current) {
+                        setVoiceStatus("idle");
+                        startRecognition();
                     }
-                }, 1800); // 1.8s silence → auto-send
-            } else if (interimText) {
-                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+                }, 1500); // 1.5s delay to avoid picking up tail-end of TTS
             }
-        };
-
-        recognition.onerror = (event: any) => {
-            console.warn("Speech error:", event.error);
-            setIsListening(false);
-            if (voiceModeRef.current && event.error !== "aborted") {
-                setTimeout(() => { if (voiceModeRef.current) startListening(); }, 1000);
-            }
-        };
-
-        recognition.onend = () => {
-            setIsListening(false);
-            if (voiceModeRef.current && !isProcessingRef.current) {
-                setTimeout(() => { if (voiceModeRef.current && !isProcessingRef.current) startListening(); }, 500);
-            }
-        };
-
-        recognitionRef.current = recognition;
-        try { recognition.start(); } catch { }
-    }, [sendMessage, interrupt]);
+        }
+    }, [mode, messages, onSendMessage, addMessage, interrupt, startRecognition]);
 
     // Toggle voice mode
     const toggleVoiceMode = useCallback(() => {
         if (voiceMode) {
+            // Turn OFF
             voiceModeRef.current = false;
             setVoiceMode(false);
-            setIsListening(false);
-            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            try { recognitionRef.current?.stop(); } catch { }
-            recognitionRef.current = null;
+            stopRecognition();
         } else {
+            // Turn ON
             voiceModeRef.current = true;
+            isBusyRef.current = false;
             setVoiceMode(true);
             accumulatedTextRef.current = "";
             setInput("");
-            startListening();
+            startRecognition();
         }
-    }, [voiceMode, startListening]);
+    }, [voiceMode, startRecognition, stopRecognition]);
 
     const handleSend = useCallback(() => {
         const text = input.trim();
@@ -220,6 +254,8 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
     const handleQuickPrompt = useCallback((text: string) => {
         sendMessage(text);
     }, [sendMessage]);
+
+    const isListening = voiceStatus === "listening";
 
     return (
         <div className="glass-strong flex flex-col h-[500px]">
@@ -245,9 +281,9 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
 
             {showSettings && (
                 <div className="px-5 py-3 border-b border-[rgba(0,212,170,0.06)] bg-black/20">
-                    <p className="text-xs text-[#8a9ab5]"><strong>LLM Chat:</strong> Gemini AI — smart responses</p>
-                    <p className="text-xs text-[#5a6a80] mt-1"><strong>Direct:</strong> Avatar speaks your text</p>
-                    <p className="text-xs text-[#5a6a80] mt-1"><strong>🎤 Voice:</strong> Speak freely — auto-sends after pause, you can interrupt anytime</p>
+                    <p className="text-xs text-[#8a9ab5]"><strong>LLM Chat:</strong> AI responds intelligently (Groq Llama 3.3)</p>
+                    <p className="text-xs text-[#5a6a80] mt-1"><strong>Direct:</strong> Avatar speaks your text exactly</p>
+                    <p className="text-xs text-[#5a6a80] mt-1"><strong>🎤 Voice:</strong> Hands-free conversation — pauses mic while AI speaks</p>
                 </div>
             )}
 
@@ -290,17 +326,24 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
             <div className="px-5 py-3 border-t border-[rgba(0,212,170,0.06)]">
                 <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
                     <button type="button" onClick={toggleVoiceMode}
-                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${voiceMode ? isListening
-                                ? "bg-red-500/20 text-red-400 animate-pulse shadow-lg shadow-red-500/20"
-                                : "bg-orange-500/20 text-orange-400"
+                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${voiceMode
+                                ? isListening
+                                    ? "bg-red-500/20 text-red-400 shadow-lg shadow-red-500/20"
+                                    : voiceStatus === "processing"
+                                        ? "bg-orange-500/20 text-orange-400"
+                                        : "bg-yellow-500/20 text-yellow-400"
                                 : "bg-black/30 text-[#5a6a80] hover:text-[#00d4aa] hover:bg-black/40"
                             }`}
                         title={voiceMode ? "Exit voice mode" : "Start voice conversation"}
-                    >{voiceMode ? (isListening ? "🔴" : "⏸️") : "🎤"}</button>
+                    >{voiceMode ? (isListening ? "🔴" : voiceStatus === "processing" ? "⏳" : "🟡") : "🎤"}</button>
 
                     <input ref={inputRef} type="text" value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder={voiceMode ? (isListening ? "🎤 Listening... speak freely" : "⏸️ Processing...") : isAvatarReady ? "Type a message..." : "Loading..."}
+                        placeholder={
+                            voiceMode
+                                ? isListening ? "🎤 Listening..." : voiceStatus === "processing" ? "⏳ AI is thinking..." : "🟡 Waiting..."
+                                : isAvatarReady ? "Type a message..." : "Loading..."
+                        }
                         disabled={!isAvatarReady || isProcessing}
                         className="flex-1 bg-black/30 border border-[rgba(0,212,170,0.08)] rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#5a6a80] focus:outline-none focus:border-[#00d4aa]/30 transition-colors disabled:opacity-40"
                     />
@@ -310,8 +353,10 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                     >Send</button>
                 </form>
                 {voiceMode && (
-                    <p className="text-xs text-center mt-2" style={{ color: isListening ? "#ef4444" : "#5a6a80" }}>
-                        {isListening ? "🔴 Speak freely — auto-sends on pause • Interrupt anytime" : "⏸️ Processing..."}
+                    <p className="text-xs text-center mt-2" style={{ color: isListening ? "#ef4444" : "#6b7280" }}>
+                        {isListening ? "🔴 Listening — speak, auto-sends on pause"
+                            : voiceStatus === "processing" ? "⏳ AI responding... mic paused"
+                                : "🟡 Ready — mic will start shortly"}
                     </p>
                 )}
             </div>
