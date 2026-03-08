@@ -20,7 +20,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`dark ${inter.variable} ${playfair.variable}`} suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
-        {/* Live2D Cubism Core SDK — required for Cubism 4 model rendering */}
+        {/* Live2D Cubism 2 runtime — for Cubism 2 models */}
+        <Script
+          src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"
+          strategy="beforeInteractive"
+        />
+        {/* Live2D Cubism 4 Core — for Cubism 4 models */}
         <Script
           src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"
           strategy="beforeInteractive"
