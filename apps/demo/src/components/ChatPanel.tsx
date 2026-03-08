@@ -29,17 +29,12 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
     const [isProcessing, setIsProcessing] = useState(false);
     const [mode, setMode] = useState<"direct" | "llm">("llm");
     const [showSettings, setShowSettings] = useState(false);
-    const [voiceMode, setVoiceMode] = useState(false);
-    const [voiceStatus, setVoiceStatus] = useState<"idle" | "listening" | "processing">("idle");
+    const [isPTT, setIsPTT] = useState(false); // Push-to-talk active (holding)
+    const [pttText, setPttText] = useState(""); // Accumulated PTT text
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
-    const voiceModeRef = useRef(false);
-    const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const accumulatedTextRef = useRef("");
     const isProcessingRef = useRef(false);
-    const isBusyRef = useRef(false); // Prevents restart during speaking/processing
 
     useEffect(() => {
         const el = messagesEndRef.current;
@@ -48,16 +43,6 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         }
     }, [messages]);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            voiceModeRef.current = false;
-            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-            try { recognitionRef.current?.stop(); } catch { }
-        };
-    }, []);
-
     const addMessage = useCallback((role: "user" | "assistant", content: string) => {
         setMessages((prev) => [
             ...prev,
@@ -65,124 +50,13 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         ]);
     }, []);
 
-    const interrupt = useCallback(() => {
-        isBusyRef.current = false;
-        onInterrupt?.();
-    }, [onInterrupt]);
-
-    // Stop recognition cleanly
-    const stopRecognition = useCallback(() => {
-        if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
-        if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
-        try { recognitionRef.current?.abort?.(); } catch { }
-        try { recognitionRef.current?.stop(); } catch { }
-        recognitionRef.current = null;
-        setVoiceStatus("idle");
-    }, []);
-
-    // Start recognition
-    const startRecognition = useCallback(() => {
-        // Guard: don't start if busy or already running
-        if (isBusyRef.current || !voiceModeRef.current) return;
-        if (recognitionRef.current) return; // Already running
-
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false; // Single utterance — prevents feedback loops
-        recognition.interimResults = true;
-        recognition.lang = "";
-
-        let hasResult = false;
-
-        recognition.onstart = () => {
-            if (voiceModeRef.current) setVoiceStatus("listening");
-        };
-
-        recognition.onresult = (event: any) => {
-            hasResult = true;
-            let transcript = "";
-            let isFinal = false;
-
-            for (let i = 0; i < event.results.length; i++) {
-                transcript += event.results[i][0].transcript;
-                if (event.results[i].isFinal) isFinal = true;
-            }
-
-            setInput(transcript);
-            accumulatedTextRef.current = transcript;
-
-            if (isFinal) {
-                // Got final result — wait for silence then send
-                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = setTimeout(() => {
-                    const text = accumulatedTextRef.current.trim();
-                    if (text && !isProcessingRef.current) {
-                        stopRecognition();
-                        sendMessage(text);
-                    }
-                }, 1500);
-            }
-        };
-
-        recognition.onerror = (event: any) => {
-            if (event.error === "aborted" || event.error === "no-speech") {
-                // Normal — will restart via onend
-            } else {
-                console.warn("Speech error:", event.error);
-            }
-        };
-
-        recognition.onend = () => {
-            recognitionRef.current = null;
-
-            // If we got a result and timer is running, don't restart yet
-            if (silenceTimerRef.current) return;
-
-            // Auto-restart if voice mode is on and not busy
-            if (voiceModeRef.current && !isBusyRef.current && !isProcessingRef.current) {
-                setVoiceStatus("idle");
-                if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-                restartTimerRef.current = setTimeout(() => {
-                    if (voiceModeRef.current && !isBusyRef.current) {
-                        startRecognition();
-                    }
-                }, 800); // Delay prevents rapid cycling
-            } else {
-                setVoiceStatus(isBusyRef.current ? "processing" : "idle");
-            }
-        };
-
-        recognitionRef.current = recognition;
-        try {
-            recognition.start();
-        } catch (e) {
-            recognitionRef.current = null;
-            // Retry after delay
-            if (voiceModeRef.current && !isBusyRef.current) {
-                restartTimerRef.current = setTimeout(() => startRecognition(), 1000);
-            }
-        }
-    }, [stopRecognition]);
-
-    // Core send logic
-    const sendMessage = useCallback(async (text: string) => {
+    // Core send — uses browser TTS in voice mode for speed, ElevenLabs for text mode
+    const sendMessage = useCallback(async (text: string, skipTTS = false) => {
         if (!text.trim() || isProcessingRef.current) return;
-
-        // If avatar is speaking, interrupt
-        if (isBusyRef.current) {
-            interrupt();
-            await new Promise(r => setTimeout(r, 200));
-        }
-
         isProcessingRef.current = true;
-        isBusyRef.current = true;
         setIsProcessing(true);
-        setVoiceStatus("processing");
         addMessage("user", text);
         setInput("");
-        accumulatedTextRef.current = "";
 
         try {
             if (mode === "direct") {
@@ -210,40 +84,72 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
             await onSendMessage(text);
         } finally {
             isProcessingRef.current = false;
-            isBusyRef.current = false;
             setIsProcessing(false);
+        }
+    }, [mode, messages, onSendMessage, addMessage]);
 
-            // Resume listening after AI finishes speaking
-            if (voiceModeRef.current) {
-                // Wait a bit for TTS audio to fully stop before resuming mic
-                setTimeout(() => {
-                    if (voiceModeRef.current) {
-                        setVoiceStatus("idle");
-                        startRecognition();
-                    }
-                }, 1500); // 1.5s delay to avoid picking up tail-end of TTS
+    // Interrupt avatar
+    const handleInterrupt = useCallback(() => {
+        onInterrupt?.();
+    }, [onInterrupt]);
+
+    // ========== PUSH-TO-TALK ==========
+    const startPTT = useCallback(() => {
+        if (isProcessingRef.current) {
+            // If AI is talking, interrupt first
+            handleInterrupt();
+            return;
+        }
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Your browser doesn't support voice. Try Chrome.");
+            return;
+        }
+
+        setIsPTT(true);
+        setPttText("");
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "";
+
+        recognition.onresult = (event: any) => {
+            let transcript = "";
+            for (let i = 0; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
             }
-        }
-    }, [mode, messages, onSendMessage, addMessage, interrupt, startRecognition]);
+            setPttText(transcript);
+        };
 
-    // Toggle voice mode
-    const toggleVoiceMode = useCallback(() => {
-        if (voiceMode) {
-            // Turn OFF
-            voiceModeRef.current = false;
-            setVoiceMode(false);
-            stopRecognition();
-        } else {
-            // Turn ON
-            voiceModeRef.current = true;
-            isBusyRef.current = false;
-            setVoiceMode(true);
-            accumulatedTextRef.current = "";
-            setInput("");
-            startRecognition();
-        }
-    }, [voiceMode, startRecognition, stopRecognition]);
+        recognition.onerror = () => { };
+        recognition.onend = () => { };
 
+        recognitionRef.current = recognition;
+        try { recognition.start(); } catch { }
+    }, [handleInterrupt]);
+
+    const stopPTT = useCallback(() => {
+        setIsPTT(false);
+
+        // Stop recognition
+        try { recognitionRef.current?.stop(); } catch { }
+        recognitionRef.current = null;
+
+        // Get the text and send
+        // Use setTimeout to get the latest pttText from state
+        setTimeout(() => {
+            const textEl = document.getElementById("ptt-text-holder");
+            const text = textEl?.getAttribute("data-text") || "";
+            if (text.trim()) {
+                sendMessage(text.trim());
+            }
+            setPttText("");
+        }, 300);
+    }, [sendMessage]);
+
+    // Text mode send
     const handleSend = useCallback(() => {
         const text = input.trim();
         if (!text) return;
@@ -255,10 +161,11 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         sendMessage(text);
     }, [sendMessage]);
 
-    const isListening = voiceStatus === "listening";
-
     return (
         <div className="glass-strong flex flex-col h-[500px]">
+            {/* Hidden element to pass PTT text */}
+            <div id="ptt-text-holder" data-text={pttText} style={{ display: "none" }} />
+
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-[rgba(0,212,170,0.06)]">
                 <div className="flex items-center gap-3">
@@ -281,9 +188,9 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
 
             {showSettings && (
                 <div className="px-5 py-3 border-b border-[rgba(0,212,170,0.06)] bg-black/20">
-                    <p className="text-xs text-[#8a9ab5]"><strong>LLM Chat:</strong> AI responds intelligently (Groq Llama 3.3)</p>
-                    <p className="text-xs text-[#5a6a80] mt-1"><strong>Direct:</strong> Avatar speaks your text exactly</p>
-                    <p className="text-xs text-[#5a6a80] mt-1"><strong>🎤 Voice:</strong> Hands-free conversation — pauses mic while AI speaks</p>
+                    <p className="text-xs text-[#8a9ab5]"><strong>LLM Chat:</strong> AI responds intelligently</p>
+                    <p className="text-xs text-[#5a6a80] mt-1"><strong>Direct:</strong> Avatar speaks your text</p>
+                    <p className="text-xs text-[#5a6a80] mt-1"><strong>🎤 Hold mic:</strong> Push-to-talk — hold to speak, release to send</p>
                 </div>
             )}
 
@@ -292,7 +199,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                 {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center gap-4">
                         <p className="text-[#5a6a80] text-sm text-center">
-                            {mode === "llm" ? "Chat with AI — type or tap 🎤 for voice" : "Type a message or try a quick prompt ↓"}
+                            Chat with AI — type or hold 🎤 to speak
                         </p>
                         <div className="flex flex-wrap justify-center gap-2">
                             {QUICK_PROMPTS.map((prompt) => (
@@ -322,28 +229,43 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                 <div ref={messagesEndRef} />
             </div>
 
+            {/* PTT overlay */}
+            {isPTT && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-2xl">
+                    <div className="text-6xl mb-4 animate-pulse">🎤</div>
+                    <p className="text-white text-lg font-medium mb-2">Listening...</p>
+                    <p className="text-[#00d4aa] text-sm max-w-[80%] text-center min-h-[40px]">
+                        {pttText || "Start speaking..."}
+                    </p>
+                    <p className="text-[#5a6a80] text-xs mt-4">Release to send</p>
+                </div>
+            )}
+
             {/* Input */}
             <div className="px-5 py-3 border-t border-[rgba(0,212,170,0.06)]">
                 <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
-                    <button type="button" onClick={toggleVoiceMode}
-                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${voiceMode
-                                ? isListening
-                                    ? "bg-red-500/20 text-red-400 shadow-lg shadow-red-500/20"
-                                    : voiceStatus === "processing"
-                                        ? "bg-orange-500/20 text-orange-400"
-                                        : "bg-yellow-500/20 text-yellow-400"
-                                : "bg-black/30 text-[#5a6a80] hover:text-[#00d4aa] hover:bg-black/40"
+                    {/* Push-to-talk button */}
+                    <button
+                        type="button"
+                        onMouseDown={startPTT}
+                        onMouseUp={stopPTT}
+                        onMouseLeave={() => { if (isPTT) stopPTT(); }}
+                        onTouchStart={(e) => { e.preventDefault(); startPTT(); }}
+                        onTouchEnd={(e) => { e.preventDefault(); stopPTT(); }}
+                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 select-none ${isPTT
+                                ? "bg-red-500/30 text-red-400 scale-110 shadow-lg shadow-red-500/30"
+                                : isProcessing
+                                    ? "bg-orange-500/20 text-orange-400 cursor-pointer"
+                                    : "bg-black/30 text-[#5a6a80] hover:text-[#00d4aa] hover:bg-black/40 active:scale-95"
                             }`}
-                        title={voiceMode ? "Exit voice mode" : "Start voice conversation"}
-                    >{voiceMode ? (isListening ? "🔴" : voiceStatus === "processing" ? "⏳" : "🟡") : "🎤"}</button>
+                        title={isProcessing ? "Tap to interrupt" : "Hold to speak"}
+                    >
+                        {isPTT ? "🔴" : isProcessing ? "⏹️" : "🎤"}
+                    </button>
 
                     <input ref={inputRef} type="text" value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder={
-                            voiceMode
-                                ? isListening ? "🎤 Listening..." : voiceStatus === "processing" ? "⏳ AI is thinking..." : "🟡 Waiting..."
-                                : isAvatarReady ? "Type a message..." : "Loading..."
-                        }
+                        placeholder={isProcessing ? "AI is responding..." : isAvatarReady ? "Type or hold 🎤 to speak..." : "Loading..."}
                         disabled={!isAvatarReady || isProcessing}
                         className="flex-1 bg-black/30 border border-[rgba(0,212,170,0.08)] rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#5a6a80] focus:outline-none focus:border-[#00d4aa]/30 transition-colors disabled:opacity-40"
                     />
@@ -352,13 +274,6 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                         className="btn-primary !py-2.5 !px-5 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                     >Send</button>
                 </form>
-                {voiceMode && (
-                    <p className="text-xs text-center mt-2" style={{ color: isListening ? "#ef4444" : "#6b7280" }}>
-                        {isListening ? "🔴 Listening — speak, auto-sends on pause"
-                            : voiceStatus === "processing" ? "⏳ AI responding... mic paused"
-                                : "🟡 Ready — mic will start shortly"}
-                    </p>
-                )}
             </div>
         </div>
     );
