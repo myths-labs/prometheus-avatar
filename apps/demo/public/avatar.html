@@ -378,16 +378,13 @@
           }
 
           if (e.data.type === "stop-speaking") {
-            // Stop browser TTS
             speechSynthesis.cancel();
-            // Stop audio element (TTS from ElevenLabs/Google Cloud)
             if (window._currentAudio) {
               window._currentAudio.pause();
               window._currentAudio.currentTime = 0;
               window._currentAudio.src = "";
               window._currentAudio = null;
             }
-            // Stop lip sync animation
             if (window._stopLipSync) {
               window._stopLipSync();
               window._stopLipSync = null;
@@ -395,6 +392,116 @@
             setMouth(model, 0);
             window._muteModelSounds = false;
             window.parent.postMessage({ type: "speak-done" }, "*");
+          }
+
+          // ═══ Marketplace Asset Handlers ═══
+
+          // Motion: play a motion3.json animation on the model
+          if (e.data.type === "load-motion") {
+            try {
+              const url = e.data.url;
+              console.log("[Avatar] Loading motion:", url);
+              // Live2D models have a motion manager — try to use it
+              if (model.internalModel && model.internalModel.motionManager) {
+                // Load motion from URL
+                const res = await fetch(url);
+                const motionData = await res.json();
+                // Create a temporary motion and play it
+                const motionManager = model.internalModel.motionManager;
+                // Try using the model's built-in motion loading
+                if (typeof motionManager.startMotion === 'function') {
+                  motionManager.startMotion(url, 0);
+                } else if (typeof model.motion === 'function') {
+                  model.motion(url);
+                }
+              }
+              window.parent.postMessage({ type: "motion-loaded", url: e.data.url }, "*");
+            } catch (err) {
+              console.warn("[Avatar] Motion load failed:", err);
+              window.parent.postMessage({ type: "motion-error", error: err.message }, "*");
+            }
+          }
+
+          // Expression: load and apply an expression preset
+          if (e.data.type === "load-expression") {
+            try {
+              const url = e.data.url;
+              console.log("[Avatar] Loading expression:", url);
+
+              // Try loading as Live2D exp3.json
+              const res = await fetch(url);
+              const expData = await res.json();
+
+              // If it has Parameters array (exp3 format), apply each param
+              if (expData.Parameters && Array.isArray(expData.Parameters)) {
+                for (const param of expData.Parameters) {
+                  setParam(model, param.Id, param.Value);
+                }
+              }
+              // If it's a simple key-value object, apply directly
+              else if (typeof expData === 'object') {
+                for (const [paramId, value] of Object.entries(expData)) {
+                  if (typeof value === 'number') {
+                    setParam(model, paramId, value);
+                  }
+                }
+              }
+              window.parent.postMessage({ type: "expression-loaded", url }, "*");
+            } catch (err) {
+              console.warn("[Avatar] Expression load failed:", err);
+              window.parent.postMessage({ type: "expression-error", error: err.message }, "*");
+            }
+          }
+
+          // Accessory: add a sprite/image overlay on the avatar
+          if (e.data.type === "add-accessory") {
+            try {
+              const url = e.data.url;
+              console.log("[Avatar] Adding accessory:", url);
+
+              // Check if it's an image — add as sprite overlay
+              if (url.match(/\.(png|jpg|webp|gif)$/i)) {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = url;
+                img.onload = () => {
+                  // Create a canvas overlay for the accessory
+                  const canvas = document.createElement("canvas");
+                  canvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;";
+                  canvas.width = window.innerWidth;
+                  canvas.height = window.innerHeight;
+                  const ctx = canvas.getContext("2d");
+                  if (ctx) {
+                    // Draw accessory centered on the model's head area
+                    const scale = Math.min(window.innerWidth, window.innerHeight) * 0.25;
+                    const x = (canvas.width - scale) / 2;
+                    const y = canvas.height * 0.1; // top of head
+                    ctx.drawImage(img, x, y, scale, scale);
+                  }
+                  document.body.appendChild(canvas);
+                  window._accessoryCanvases = window._accessoryCanvases || [];
+                  window._accessoryCanvases.push(canvas);
+                };
+              }
+              // If it's a model3.json, load as additional Live2D overlay
+              else if (url.includes("model3.json") || url.includes("model.json")) {
+                const PIXI = window.PIXI;
+                const { Live2DModel: L2D } = window;
+                if (L2D && PIXI) {
+                  const accessory = await L2D.from(url);
+                  const scale = Math.min(window.innerWidth / accessory.width, window.innerHeight / accessory.height) * 0.3;
+                  accessory.scale.set(scale);
+                  accessory.anchor.set(0.5, 0.5);
+                  accessory.x = window.innerWidth / 2;
+                  accessory.y = window.innerHeight * 0.25;
+                  window._live2dApp.stage.addChild(accessory);
+                }
+              }
+              window.parent.postMessage({ type: "accessory-added", url }, "*");
+            } catch (err) {
+              console.warn("[Avatar] Accessory load failed:", err);
+              window.parent.postMessage({ type: "accessory-error", error: err.message }, "*");
+            }
           }
         });
 

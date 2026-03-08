@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import FeatureCards from "@/components/FeatureCards";
 import { useMarketplaceAssets } from "@/lib/useMarketplaceAssets";
+import EffectOverlay from "@/components/EffectOverlay";
 
 const AVATARS = [
   { id: "haru", name: "Haru", description: "Friendly and expressive", modelUrl: "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json", thumbnail: "🧑‍🎤", badge: "official" },
@@ -97,12 +98,14 @@ export default function HomeClient() {
                 </div>
               </div>
             </div>
+            {/* Effects overlay — particles/sparkle from marketplace */}
+            <EffectOverlay effects={marketplace.activeEffects} />
             <div className="text-center mt-3 pb-2">
               <h3 className="text-lg font-semibold text-[#eae6df]">{selectedAvatar.name}</h3>
               <p className="text-sm text-[#6b7a8d]">{selectedAvatar.description}</p>
             </div>
           </div>
-          <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} onVoiceChange={(v) => setVoiceOverride(v)} />
+          <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} onVoiceChange={(v) => setVoiceOverride(v)} systemPrompt={systemPrompt} />
         </div>
       </section>
 

@@ -5,6 +5,12 @@ import { useRef, useImperativeHandle, forwardRef, useState, useEffect } from "re
 export interface AvatarCanvasHandle {
     speak: (text: string) => Promise<void>;
     interrupt: () => void;
+    /** Load a motion from marketplace (motion3.json URL) */
+    loadMotion: (url: string) => void;
+    /** Load an expression preset from marketplace */
+    loadExpression: (url: string) => void;
+    /** Add an accessory overlay */
+    addAccessory: (url: string) => void;
 }
 
 interface AvatarCanvasProps {
@@ -106,16 +112,63 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
             },
 
             interrupt: () => {
-                // Stop current speech immediately
                 if (iframeRef.current?.contentWindow) {
                     iframeRef.current.contentWindow.postMessage({ type: "stop-speaking" }, "*");
                 }
-                // Resolve any pending speak promise
                 speakResolveRef.current?.();
                 speakResolveRef.current = null;
                 onEmotionChange?.("neutral");
             },
+
+            loadMotion: (url: string) => {
+                if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage({ type: "load-motion", url }, "*");
+                }
+            },
+
+            loadExpression: (url: string) => {
+                if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage({ type: "load-expression", url }, "*");
+                }
+            },
+
+            addAccessory: (url: string) => {
+                if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage({ type: "add-accessory", url }, "*");
+                }
+            },
         }), [onEmotionChange, modelUrl]);
+
+        // Listen for marketplace asset events and forward to iframe
+        useEffect(() => {
+            function onMotion(e: Event) {
+                const detail = (e as CustomEvent).detail;
+                if (iframeRef.current?.contentWindow && detail?.url) {
+                    iframeRef.current.contentWindow.postMessage({ type: "load-motion", url: detail.url }, "*");
+                }
+            }
+            function onExpression(e: Event) {
+                const detail = (e as CustomEvent).detail;
+                if (iframeRef.current?.contentWindow && detail?.url) {
+                    iframeRef.current.contentWindow.postMessage({ type: "load-expression", url: detail.url }, "*");
+                }
+            }
+            function onAccessory(e: Event) {
+                const detail = (e as CustomEvent).detail;
+                if (iframeRef.current?.contentWindow && detail?.url) {
+                    iframeRef.current.contentWindow.postMessage({ type: "add-accessory", url: detail.url }, "*");
+                }
+            }
+
+            window.addEventListener("prometheus:motion", onMotion);
+            window.addEventListener("prometheus:expression", onExpression);
+            window.addEventListener("prometheus:accessory", onAccessory);
+            return () => {
+                window.removeEventListener("prometheus:motion", onMotion);
+                window.removeEventListener("prometheus:expression", onExpression);
+                window.removeEventListener("prometheus:accessory", onAccessory);
+            };
+        }, []);
 
         const iframeSrc = `/avatar.html?model=${encodeURIComponent(modelUrl)}`;
 

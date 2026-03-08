@@ -14,6 +14,8 @@ interface ChatPanelProps {
     onInterrupt?: () => void;
     isAvatarReady: boolean;
     onVoiceChange?: (voice: string) => void;
+    /** System prompt from marketplace persona — changes the AI's behavior */
+    systemPrompt?: string;
 }
 
 const QUICK_PROMPTS = [
@@ -24,7 +26,7 @@ const QUICK_PROMPTS = [
     { label: "😢 Something sad", text: "My best friend is moving away..." },
 ];
 
-export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, onVoiceChange }: ChatPanelProps) {
+export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady, onVoiceChange, systemPrompt }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
