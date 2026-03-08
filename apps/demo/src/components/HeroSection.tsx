@@ -59,7 +59,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
       {/* Content */}
       <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 text-[#8a9ab5] text-sm font-medium mb-10">
+        <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 text-[#a8b8d0] text-sm font-medium mb-10">
           <span className="w-2 h-2 rounded-full bg-[#00d4aa] animate-pulse" />
           Open Source — MIT License
         </div>
@@ -72,7 +72,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
         </h1>
 
         {/* Subtitle — clean, spacious */}
-        <p className="text-lg md:text-xl text-[#8a9ab5] max-w-xl mx-auto mb-12 leading-relaxed font-light">
+        <p className="text-lg md:text-xl text-[#a8b8d0] max-w-xl mx-auto mb-12 leading-relaxed font-light">
           The open-source SDK that gives any LLM agent a Live2D avatar with
           real-time lip-sync, emotion expressions, and TTS.
         </p>
@@ -103,7 +103,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
         {/* Code snippet */}
         <div className="card-dark inline-block px-8 py-5 text-left font-mono text-sm">
           <div className="relative z-10">
-            <div className="text-[#4a5568] mb-2">{"// 5 lines to bring your AI to life"}</div>
+            <div className="text-[#6b7a8d] mb-2">{"// 5 lines to bring your AI to life"}</div>
             <div>
               <span className="text-[#00d4aa]">import</span>{" "}
               <span className="text-[#c9a84c]">{"{ createAvatar }"}</span>{" "}
@@ -113,19 +113,19 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
             <div className="mt-1">
               <span className="text-[#00d4aa]">const</span>{" "}
               <span className="text-[#c9a84c]">avatar</span>{" "}
-              <span className="text-[#4a5568]">=</span>{" "}
+              <span className="text-[#6b7a8d]">=</span>{" "}
               <span className="text-[#00d4aa]">await</span>{" "}
               <span className="text-[#e8d48b]">createAvatar</span>
-              <span className="text-[#8a9ab5]">({"{ "}container, modelUrl{" }"})</span>
+              <span className="text-[#a8b8d0]">({"{ "}container, modelUrl{" }"})</span>
             </div>
             <div>
               <span className="text-[#00d4aa]">await</span>{" "}
               <span className="text-[#c9a84c]">avatar</span>
-              <span className="text-[#4a5568]">.</span>
+              <span className="text-[#6b7a8d]">.</span>
               <span className="text-[#e8d48b]">speak</span>
-              <span className="text-[#8a9ab5]">(</span>
+              <span className="text-[#a8b8d0]">(</span>
               <span className="text-[#4aecd0]">&apos;Hello world! 😊&apos;</span>
-              <span className="text-[#8a9ab5]">)</span>
+              <span className="text-[#a8b8d0]">)</span>
             </div>
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
 
       {/* Scroll indicator */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce z-10">
-        <svg className="w-6 h-6 text-[#4a5568]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-6 h-6 text-[#6b7a8d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
         </svg>
       </div>

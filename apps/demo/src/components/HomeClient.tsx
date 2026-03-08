@@ -60,7 +60,7 @@ export default function HomeClient() {
                     : currentEmotion === "angry" ? "bg-[#c94c4c]/20 text-[#e88b8b]"
                       : currentEmotion === "surprised" ? "bg-[#c9a84c]/20 text-[#e8d48b]"
                         : currentEmotion === "thinking" ? "bg-[#00d4aa]/20 text-[#4aecd0]"
-                          : "bg-[#4a5568]/20 text-[#8a9ab5]"
+                          : "bg-[#6b7a8d]/20 text-[#a8b8d0]"
                   }`}>
                   {currentEmotion === "happy" && "😊"}
                   {currentEmotion === "sad" && "😢"}
@@ -74,7 +74,7 @@ export default function HomeClient() {
             </div>
             <div className="text-center mt-3 pb-2">
               <h3 className="text-lg font-semibold text-[#eae6df]">{selectedAvatar.name}</h3>
-              <p className="text-sm text-[#4a5568]">{selectedAvatar.description}</p>
+              <p className="text-sm text-[#6b7a8d]">{selectedAvatar.description}</p>
             </div>
           </div>
           <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} />
@@ -89,7 +89,7 @@ export default function HomeClient() {
             <h2 className="heading-serif text-3xl md:text-4xl mb-4">
               Ready to give your AI <em>a body</em>?
             </h2>
-            <p className="text-[#8a9ab5] text-lg mb-10 font-light">
+            <p className="text-[#a8b8d0] text-lg mb-10 font-light">
               One command. Five minutes. Infinite possibilities.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
@@ -109,7 +109,7 @@ export default function HomeClient() {
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-10 text-center">
-        <p className="text-[#4a5568] text-sm font-light">
+        <p className="text-[#6b7a8d] text-sm font-light">
           Built with 🔥 by{" "}
           <a href="https://github.com/myths-labs" className="text-[#00d4aa] hover:text-[#4aecd0] transition-colors">Myths Labs</a>
           {" "}— Open Source under MIT License

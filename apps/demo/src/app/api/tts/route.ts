@@ -80,27 +80,29 @@ export async function POST(req: NextRequest) {
             try {
                 audioBuffer = await generateEdgeTTS(text, voice);
                 engine = "edge-tts";
-            } catch (e) {
-                console.error("Edge TTS error:", e);
+            } catch (e: any) {
+                console.error("Edge TTS error (will fallback to ElevenLabs):", e?.message || e);
             }
         } else {
             // English → ElevenLabs
             const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
             try {
                 audioBuffer = await generateElevenLabsTTS(text, voiceId);
+                if (audioBuffer) engine = "elevenlabs";
             } catch (e) {
                 console.error("ElevenLabs error:", e);
             }
         }
 
-        // Fallback: try the other provider
         if (!audioBuffer) {
             if (chinese) {
                 const voiceId = ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
                 audioBuffer = await generateElevenLabsTTS(text, voiceId).catch(() => null);
+                if (audioBuffer) engine = "elevenlabs-fallback";
             } else {
                 const voice = EDGE_VOICES[avatarId] || EDGE_VOICES.haru;
                 audioBuffer = await generateEdgeTTS(text, voice).catch(() => null);
+                if (audioBuffer) engine = "edge-tts-fallback";
             }
         }
 
@@ -108,10 +110,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "TTS generation failed" }, { status: 500 });
         }
 
-        return new NextResponse(audioBuffer, {
+        console.log(`[TTS] Result: engine=${engine}, language=${chinese ? 'zh' : 'en'}, bytes=${audioBuffer.length}`);
+
+        return new NextResponse(new Uint8Array(audioBuffer), {
             headers: {
                 "Content-Type": "audio/mpeg",
                 "Cache-Control": "public, max-age=3600",
+                "X-TTS-Engine": engine,
+                "X-TTS-Language": chinese ? "zh" : "en",
             },
         });
     } catch (error: any) {

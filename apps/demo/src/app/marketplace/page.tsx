@@ -83,7 +83,7 @@ export default function MarketplacePage() {
                     <span className="text-[#eae6df]">Avatar </span>
                     <span className="text-[#00d4aa] italic font-serif">Marketplace</span>
                 </h1>
-                <p className="text-[#8a9ab5] text-lg mb-2">
+                <p className="text-[#a8b8d0] text-lg mb-2">
                     Skins, voices, effects, and more — created by humans and AI agents alike.
                 </p>
                 <p className="text-[#c9a84c] text-sm font-serif italic">
@@ -94,13 +94,13 @@ export default function MarketplacePage() {
             {/* Search */}
             <div className="max-w-2xl mx-auto px-6 mb-8">
                 <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5a6a80]">🔍</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7a8a9d]">🔍</span>
                     <input
                         type="text"
                         placeholder="Search avatars, effects, voices..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3.5 bg-[#0d1420]/80 border border-[rgba(0,212,170,0.1)] rounded-2xl text-sm text-white placeholder-[#5a6a80] focus:outline-none focus:border-[#00d4aa]/30"
+                        className="w-full pl-12 pr-4 py-3.5 bg-[#0d1420]/80 border border-[rgba(0,212,170,0.1)] rounded-2xl text-sm text-white placeholder-[#7a8a9d] focus:outline-none focus:border-[#00d4aa]/30"
                     />
                 </div>
             </div>
@@ -113,8 +113,8 @@ export default function MarketplacePage() {
                             key={cat.id}
                             onClick={() => setSelectedCategory(cat.id)}
                             className={`px-4 py-2 rounded-full text-sm transition-all ${selectedCategory === cat.id
-                                    ? "bg-[#00d4aa] text-[#0a0f1a] font-semibold shadow-[0_0_20px_rgba(0,212,170,0.3)]"
-                                    : "bg-[#0d1420] text-[#8a9ab5] border border-[rgba(0,212,170,0.08)] hover:border-[#00d4aa]/30"
+                                ? "bg-[#00d4aa] text-[#0a0f1a] font-semibold shadow-[0_0_20px_rgba(0,212,170,0.3)]"
+                                : "bg-[#0d1420] text-[#a8b8d0] border border-[rgba(0,212,170,0.08)] hover:border-[#00d4aa]/30"
                                 }`}
                         >
                             {cat.label}
@@ -125,13 +125,13 @@ export default function MarketplacePage() {
 
             {/* Results bar */}
             <div className="max-w-6xl mx-auto px-6 mb-6 flex items-center justify-between">
-                <p className="text-sm text-[#5a6a80]">
+                <p className="text-sm text-[#7a8a9d]">
                     {loading ? "Loading..." : `${filtered.length} assets found`}
                 </p>
                 <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-[#0d1420] border border-[rgba(0,212,170,0.1)] rounded-xl px-4 py-2 text-sm text-[#8a9ab5] focus:outline-none"
+                    className="bg-[#0d1420] border border-[rgba(0,212,170,0.1)] rounded-xl px-4 py-2 text-sm text-[#a8b8d0] focus:outline-none"
                 >
                     {SORT_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -183,10 +183,10 @@ export default function MarketplacePage() {
 
                                 {/* Info */}
                                 <h3 className="text-sm font-semibold text-[#eae6df] mt-3 mb-1">{asset.name}</h3>
-                                <p className="text-xs text-[#5a6a80] mb-3 line-clamp-2">{asset.description}</p>
+                                <p className="text-xs text-[#7a8a9d] mb-3 line-clamp-2">{asset.description}</p>
 
                                 {/* Creator + Stats */}
-                                <div className="flex items-center justify-between text-[10px] text-[#5a6a80]">
+                                <div className="flex items-center justify-between text-[10px] text-[#7a8a9d]">
                                     <span className="flex items-center gap-1">
                                         {asset.creator?.is_agent ? "🤖" : "👤"}
                                         {asset.creator?.name || "Unknown"}
@@ -208,12 +208,12 @@ export default function MarketplacePage() {
                     <h2 className="text-2xl md:text-3xl font-bold text-[#eae6df] mb-3">
                         Create. Upload. <span className="text-[#00d4aa] italic font-serif">Earn.</span>
                     </h2>
-                    <p className="text-[#8a9ab5] mb-8">
+                    <p className="text-[#a8b8d0] mb-8">
                         Whether you&apos;re a designer, an AI agent, or just creative — upload your avatar assets and earn 80–90% of every sale.
                     </p>
                     <div className="flex flex-wrap justify-center gap-4">
                         <button className="btn-primary">🎨 Start Creating</button>
-                        <button className="px-6 py-3 rounded-full border border-[rgba(0,212,170,0.2)] text-[#8a9ab5] hover:text-white hover:border-[#00d4aa]/40 transition-all">
+                        <button className="px-6 py-3 rounded-full border border-[rgba(0,212,170,0.2)] text-[#a8b8d0] hover:text-white hover:border-[#00d4aa]/40 transition-all">
                             🤖 Agent Creator SDK
                         </button>
                     </div>
@@ -221,7 +221,7 @@ export default function MarketplacePage() {
             </section>
 
             {/* Footer */}
-            <footer className="text-center py-8 text-xs text-[#5a6a80]">
+            <footer className="text-center py-8 text-xs text-[#7a8a9d]">
                 Built with 🔥 by <a href="https://github.com/myths-labs" className="text-[#00d4aa] hover:underline">Myths Labs</a> — Open Source under MIT License
             </footer>
         </div>

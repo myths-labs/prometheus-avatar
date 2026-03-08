@@ -19,8 +19,8 @@
   --gold-light: #e8d48b;
   /* Text on dark */
   --text-primary: #eae6df;
-  --text-secondary: #8a9ab5;
-  --text-muted: #4a5568;
+  --text-secondary: #a8b8d0;
+  --text-muted: #6b7a8d;
   /* Text on light sections */
   --text-dark: #1a1a2e;
   --text-dark-secondary: #4a4a5a;
@@ -326,7 +326,7 @@ body {
 
 .stat-label {
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
@@ -337,7 +337,7 @@ body {
   color: var(--text-secondary);
   font-size: 1.1rem;
   line-height: 1.6;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 /* ═══ Typing Dots ═══ */

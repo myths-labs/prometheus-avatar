@@ -61,7 +61,7 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 onEmotionChange?.(emotion);
                 const avatarId = getAvatarId(modelUrl);
 
-                // Try ElevenLabs TTS first
+                // Try server-side TTS (Edge TTS for Chinese, ElevenLabs for English)
                 let audioUrl: string | null = null;
                 try {
                     const res = await fetch("/api/tts", {
@@ -72,9 +72,10 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     if (res.ok) {
                         const blob = await res.blob();
                         audioUrl = URL.createObjectURL(blob);
+                        console.log(`[TTS] engine=${res.headers.get('X-TTS-Engine')}, lang=${res.headers.get('X-TTS-Language')}`);
                     }
                 } catch (e) {
-                    console.warn("ElevenLabs TTS failed, using fallback:", e);
+                    console.warn("Server TTS failed, using browser fallback:", e);
                 }
 
                 if (iframeRef.current?.contentWindow) {
@@ -126,13 +127,13 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 {!ready && !error && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                         <div className="text-4xl animate-pulse">⏳</div>
-                        <p className="text-xs text-[#8a9ab5]">Loading avatar...</p>
+                        <p className="text-xs text-[#a8b8d0]">Loading avatar...</p>
                     </div>
                 )}
                 {error && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                         <div className="text-5xl">🤖</div>
-                        <p className="text-xs text-[#4a5568] text-center max-w-[200px]">{error}</p>
+                        <p className="text-xs text-[#6b7a8d] text-center max-w-[200px]">{error}</p>
                     </div>
                 )}
             </div>

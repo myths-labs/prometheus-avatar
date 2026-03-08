@@ -17,7 +17,7 @@ export default function FeatureCards() {
                 <h2 className="heading-serif text-4xl md:text-5xl mb-6">
                     Everything you need to <em>embody your AI</em>
                 </h2>
-                <p className="text-[#8a9ab5] text-lg max-w-xl mx-auto font-light">
+                <p className="text-[#a8b8d0] text-lg max-w-xl mx-auto font-light">
                     A complete SDK with rendering, speech, emotion, and a thriving marketplace.
                 </p>
             </div>
@@ -33,7 +33,7 @@ export default function FeatureCards() {
                                 {feature.icon}
                             </div>
                             <h3 className="text-lg font-semibold mb-2 text-[#eae6df]">{feature.title}</h3>
-                            <p className="text-[#8a9ab5] text-sm leading-relaxed font-light">{feature.description}</p>
+                            <p className="text-[#a8b8d0] text-sm leading-relaxed font-light">{feature.description}</p>
                         </div>
                     </div>
                 ))}

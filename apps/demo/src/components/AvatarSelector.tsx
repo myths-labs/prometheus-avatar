@@ -32,7 +32,7 @@ export default function AvatarSelector({ avatars, selected, onSelect }: AvatarSe
                     )}
                     <div className="text-3xl mb-2">{avatar.thumbnail}</div>
                     <div className="text-sm font-medium text-[#eae6df]">{avatar.name}</div>
-                    <div className="text-xs text-[#5a6a80] mt-0.5">{avatar.description}</div>
+                    <div className="text-xs text-[#7a8a9d] mt-0.5">{avatar.description}</div>
                 </button>
             ))}
         </div>
