@@ -4,6 +4,7 @@ import { useRef, useImperativeHandle, forwardRef, useState, useEffect } from "re
 
 export interface AvatarCanvasHandle {
     speak: (text: string) => Promise<void>;
+    interrupt: () => void;
 }
 
 interface AvatarCanvasProps {
@@ -60,7 +61,7 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 onEmotionChange?.(emotion);
                 const avatarId = getAvatarId(modelUrl);
 
-                // Try ElevenLabs TTS first, fallback to browser TTS
+                // Try ElevenLabs TTS first
                 let audioUrl: string | null = null;
                 try {
                     const res = await fetch("/api/tts", {
@@ -96,9 +97,18 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                     await new Promise((r) => setTimeout(r, 1500));
                 }
 
-                setTimeout(() => {
-                    onEmotionChange?.("neutral");
-                }, 2000);
+                setTimeout(() => onEmotionChange?.("neutral"), 2000);
+            },
+
+            interrupt: () => {
+                // Stop current speech immediately
+                if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage({ type: "stop-speaking" }, "*");
+                }
+                // Resolve any pending speak promise
+                speakResolveRef.current?.();
+                speakResolveRef.current = null;
+                onEmotionChange?.("neutral");
             },
         }), [onEmotionChange, modelUrl]);
 

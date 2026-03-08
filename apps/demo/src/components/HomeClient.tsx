@@ -24,6 +24,9 @@ export default function HomeClient() {
   const handleSpeak = useCallback(async (text: string) => {
     if (avatarRef.current) { try { await avatarRef.current.speak(text); } catch (e) { console.error(e); } }
   }, []);
+  const handleInterrupt = useCallback(() => {
+    if (avatarRef.current) { try { avatarRef.current.interrupt?.(); } catch { } }
+  }, []);
   const handleEmotionChange = useCallback((emotion: string) => { setCurrentEmotion(emotion); }, []);
   const scrollToDemo = useCallback(() => { demoRef.current?.scrollIntoView({ behavior: "smooth" }); }, []);
 
@@ -74,7 +77,7 @@ export default function HomeClient() {
               <p className="text-sm text-[#4a5568]">{selectedAvatar.description}</p>
             </div>
           </div>
-          <ChatPanel onSendMessage={handleSpeak} isAvatarReady={isAvatarReady} />
+          <ChatPanel onSendMessage={handleSpeak} onInterrupt={handleInterrupt} isAvatarReady={isAvatarReady} />
         </div>
       </section>
 
@@ -91,7 +94,7 @@ export default function HomeClient() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
               <code className="bg-black/50 border border-white/5 rounded-full px-6 py-3 font-mono text-sm text-[#00d4aa]">
-                npm install @prometheus-avatar/core
+                npm install @prometheusavatar/core
               </code>
               <a href="https://github.com/myths-labs/prometheus-avatar" className="btn-primary" target="_blank" rel="noopener">
                 ⭐ Star on GitHub

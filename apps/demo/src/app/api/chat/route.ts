@@ -17,13 +17,11 @@ export async function POST(req: NextRequest) {
         }
 
         if (!GEMINI_API_KEY) {
-            return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
+            return NextResponse.json({ error: "GEMINI_API_KEY not set on server" }, { status: 500 });
         }
 
-        // Build conversation for Gemini
+        // Build conversation
         const contents = [];
-
-        // Add history
         if (history && Array.isArray(history)) {
             for (const msg of history.slice(-8)) {
                 contents.push({
@@ -32,48 +30,51 @@ export async function POST(req: NextRequest) {
                 });
             }
         }
+        contents.push({ role: "user", parts: [{ text: message }] });
 
-        // Add current message
-        contents.push({
-            role: "user",
-            parts: [{ text: message }],
-        });
+        // Try multiple model names
+        const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
 
-        const MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-3-flash-preview"];
+        for (const model of models) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 
-        let lastError = "";
-        for (const model of MODELS) {
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
-                {
+                const response = await fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         contents,
-                        systemInstruction: {
-                            parts: [{ text: SYSTEM_PROMPT }],
-                        },
-                        generationConfig: {
-                            maxOutputTokens: 150,
-                            temperature: 0.9,
-                        },
+                        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+                        generationConfig: { maxOutputTokens: 200, temperature: 0.9 },
                     }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Hmm...";
+                    return NextResponse.json({ reply });
                 }
-            );
 
-            if (response.ok) {
-                const data = await response.json();
-                const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Hmm, let me think about that...";
-                return NextResponse.json({ reply, model });
+                const errText = await response.text();
+                console.error(`Model ${model} failed (${response.status}):`, errText.slice(0, 300));
+
+                // If 404 (model not found), try next model
+                if (response.status === 404) continue;
+
+                // Other errors — return details
+                return NextResponse.json({
+                    error: `Gemini ${model}: ${response.status} — ${errText.slice(0, 150)}`
+                }, { status: 500 });
+
+            } catch (fetchErr: any) {
+                console.error(`Fetch error for ${model}:`, fetchErr.message);
+                continue;
             }
-
-            lastError = await response.text();
-            console.error(`Gemini ${model} error:`, lastError);
         }
 
-        return NextResponse.json({ error: `All models failed. Last: ${lastError.slice(0, 200)}` }, { status: 500 });
-    } catch (error) {
-        console.error("Chat error:", error);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "All Gemini models failed" }, { status: 500 });
+    } catch (error: any) {
+        console.error("Chat route error:", error);
+        return NextResponse.json({ error: error.message || "Server error" }, { status: 500 });
     }
 }

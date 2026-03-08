@@ -11,6 +11,7 @@ interface Message {
 
 interface ChatPanelProps {
     onSendMessage: (text: string) => Promise<void>;
+    onInterrupt?: () => void; // Stop avatar speaking
     isAvatarReady: boolean;
 }
 
@@ -22,16 +23,22 @@ const QUICK_PROMPTS = [
     { label: "😢 Something sad", text: "My best friend is moving away..." },
 ];
 
-export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelProps) {
+export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }: ChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [mode, setMode] = useState<"direct" | "llm">("llm");
     const [showSettings, setShowSettings] = useState(false);
+    const [voiceMode, setVoiceMode] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
+    const voiceModeRef = useRef(false);
+    const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const accumulatedTextRef = useRef("");
+    const isProcessingRef = useRef(false);
+    const isSpeakingRef = useRef(false); // Track if avatar is currently speaking
 
     useEffect(() => {
         const el = messagesEndRef.current;
@@ -47,16 +54,36 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
         ]);
     }, []);
 
-    // Core send logic — handles both Direct and LLM modes
+    // Interrupt current speech
+    const interrupt = useCallback(() => {
+        isSpeakingRef.current = false;
+        onInterrupt?.();
+    }, [onInterrupt]);
+
+    // Core send logic
     const sendMessage = useCallback(async (text: string) => {
-        if (!text.trim() || isProcessing) return;
-        addMessage("user", text);
+        if (!text.trim()) return;
+
+        // If AI is speaking, interrupt it first
+        if (isSpeakingRef.current) {
+            interrupt();
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        if (isProcessingRef.current) return;
+
+        isProcessingRef.current = true;
         setIsProcessing(true);
+        addMessage("user", text);
+        setInput("");
+        accumulatedTextRef.current = "";
+
         try {
             if (mode === "direct") {
+                isSpeakingRef.current = true;
                 await onSendMessage(text);
+                isSpeakingRef.current = false;
             } else {
-                // LLM mode — call Gemini API
                 const response = await fetch("/api/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -67,21 +94,121 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
                 });
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
-                    throw new Error(err.error || "API request failed");
+                    throw new Error(err.error || "API failed");
                 }
                 const data = await response.json();
                 addMessage("assistant", data.reply);
+                isSpeakingRef.current = true;
                 await onSendMessage(data.reply);
+                isSpeakingRef.current = false;
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Chat error:", err);
-            // Fallback to direct mode
-            addMessage("assistant", "⚠️ AI unavailable, using direct mode.");
+            addMessage("assistant", `⚠️ ${err.message || "Error"}`);
+            isSpeakingRef.current = true;
             await onSendMessage(text);
+            isSpeakingRef.current = false;
         } finally {
+            isProcessingRef.current = false;
             setIsProcessing(false);
+
+            // Resume listening if in voice mode
+            if (voiceModeRef.current) {
+                setTimeout(() => startListening(), 300);
+            }
         }
-    }, [isProcessing, mode, messages, onSendMessage, addMessage]);
+    }, [mode, messages, onSendMessage, addMessage, interrupt]);
+
+    // Start speech recognition
+    const startListening = useCallback(() => {
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch { }
+            recognitionRef.current = null;
+        }
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "";
+
+        recognition.onstart = () => setIsListening(true);
+
+        recognition.onresult = (event: any) => {
+            let finalText = "";
+            let interimText = "";
+
+            for (let i = 0; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    finalText += event.results[i][0].transcript;
+                } else {
+                    interimText += event.results[i][0].transcript;
+                }
+            }
+
+            const display = finalText + interimText;
+            setInput(display);
+            accumulatedTextRef.current = display;
+
+            // If user starts speaking while AI is talking → interrupt
+            if ((finalText || interimText) && isSpeakingRef.current) {
+                interrupt();
+            }
+
+            // When final result + no more interim, start silence timer
+            if (finalText && !interimText) {
+                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = setTimeout(() => {
+                    const text = accumulatedTextRef.current.trim();
+                    if (text && !isProcessingRef.current) {
+                        try { recognition.stop(); } catch { }
+                        setIsListening(false);
+                        sendMessage(text);
+                    }
+                }, 1800); // 1.8s silence → auto-send
+            } else if (interimText) {
+                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+            }
+        };
+
+        recognition.onerror = (event: any) => {
+            console.warn("Speech error:", event.error);
+            setIsListening(false);
+            if (voiceModeRef.current && event.error !== "aborted") {
+                setTimeout(() => { if (voiceModeRef.current) startListening(); }, 1000);
+            }
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+            if (voiceModeRef.current && !isProcessingRef.current) {
+                setTimeout(() => { if (voiceModeRef.current && !isProcessingRef.current) startListening(); }, 500);
+            }
+        };
+
+        recognitionRef.current = recognition;
+        try { recognition.start(); } catch { }
+    }, [sendMessage, interrupt]);
+
+    // Toggle voice mode
+    const toggleVoiceMode = useCallback(() => {
+        if (voiceMode) {
+            voiceModeRef.current = false;
+            setVoiceMode(false);
+            setIsListening(false);
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+            try { recognitionRef.current?.stop(); } catch { }
+            recognitionRef.current = null;
+        } else {
+            voiceModeRef.current = true;
+            setVoiceMode(true);
+            accumulatedTextRef.current = "";
+            setInput("");
+            startListening();
+        }
+    }, [voiceMode, startListening]);
 
     const handleSend = useCallback(() => {
         const text = input.trim();
@@ -94,53 +221,6 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
         sendMessage(text);
     }, [sendMessage]);
 
-    // Voice input — Web Speech Recognition
-    const toggleVoiceInput = useCallback(() => {
-        if (isListening) {
-            recognitionRef.current?.stop();
-            setIsListening(false);
-            return;
-        }
-
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert("Your browser doesn't support voice input. Try Chrome.");
-            return;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = ""; // Auto-detect language
-
-        recognition.onstart = () => setIsListening(true);
-
-        recognition.onresult = (event: any) => {
-            const transcript = Array.from(event.results)
-                .map((r: any) => r[0].transcript)
-                .join("");
-            setInput(transcript);
-
-            // If final result, auto-send
-            if (event.results[event.results.length - 1].isFinal) {
-                setTimeout(() => {
-                    setInput("");
-                    sendMessage(transcript);
-                }, 300);
-            }
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error("Speech recognition error:", event.error);
-            setIsListening(false);
-        };
-
-        recognition.onend = () => setIsListening(false);
-
-        recognitionRef.current = recognition;
-        recognition.start();
-    }, [isListening, sendMessage]);
-
     return (
         <div className="glass-strong flex flex-col h-[500px]">
             {/* Header */}
@@ -151,15 +231,11 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
                         <button
                             className={`px-3 py-1 rounded-md transition-all ${mode === "direct" ? "bg-[#00d4aa]/15 text-[#00f0c8]" : "text-[#5a6a80] hover:text-[#8a9ab5]"}`}
                             onClick={() => setMode("direct")}
-                        >
-                            Direct
-                        </button>
+                        >Direct</button>
                         <button
                             className={`px-3 py-1 rounded-md transition-all ${mode === "llm" ? "bg-[#00d4aa]/15 text-[#00f0c8]" : "text-[#5a6a80] hover:text-[#8a9ab5]"}`}
                             onClick={() => setMode("llm")}
-                        >
-                            LLM Chat
-                        </button>
+                        >LLM Chat</button>
                     </div>
                 </div>
                 <button className="text-[#5a6a80] hover:text-[#8a9ab5] text-xs" onClick={() => setShowSettings(!showSettings)}>
@@ -167,15 +243,11 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
                 </button>
             </div>
 
-            {/* Settings */}
             {showSettings && (
                 <div className="px-5 py-3 border-b border-[rgba(0,212,170,0.06)] bg-black/20">
-                    <p className="text-xs text-[#8a9ab5]">
-                        <strong>LLM Chat:</strong> Powered by Gemini AI — avatar responds intelligently
-                    </p>
-                    <p className="text-xs text-[#5a6a80] mt-1">
-                        <strong>Direct:</strong> Avatar speaks exactly what you type
-                    </p>
+                    <p className="text-xs text-[#8a9ab5]"><strong>LLM Chat:</strong> Gemini AI — smart responses</p>
+                    <p className="text-xs text-[#5a6a80] mt-1"><strong>Direct:</strong> Avatar speaks your text</p>
+                    <p className="text-xs text-[#5a6a80] mt-1"><strong>🎤 Voice:</strong> Speak freely — auto-sends after pause, you can interrupt anytime</p>
                 </div>
             )}
 
@@ -184,32 +256,22 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
                 {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center gap-4">
                         <p className="text-[#5a6a80] text-sm text-center">
-                            {mode === "llm" ? "Chat with AI — type or use your voice 🎤" : "Type a message or try a quick prompt ↓"}
+                            {mode === "llm" ? "Chat with AI — type or tap 🎤 for voice" : "Type a message or try a quick prompt ↓"}
                         </p>
                         <div className="flex flex-wrap justify-center gap-2">
                             {QUICK_PROMPTS.map((prompt) => (
-                                <button
-                                    key={prompt.label}
-                                    onClick={() => handleQuickPrompt(prompt.text)}
+                                <button key={prompt.label} onClick={() => handleQuickPrompt(prompt.text)}
                                     disabled={!isAvatarReady || isProcessing}
                                     className="text-xs px-3 py-1.5 rounded-full bg-[#00d4aa]/8 border border-[#00d4aa]/15 text-[#00f0c8] hover:bg-[#00d4aa]/15 transition-all disabled:opacity-40"
-                                >
-                                    {prompt.label}
-                                </button>
+                                >{prompt.label}</button>
                             ))}
                         </div>
                     </div>
                 ) : (
                     messages.map((msg) => (
                         <div key={msg.id} className={`message-enter flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                            <div
-                                className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === "user"
-                                    ? "bg-[#00d4aa]/15 text-[#c5f5e8] rounded-br-md"
-                                    : "bg-white/5 text-[#c5cfe0] rounded-bl-md"
-                                    }`}
-                            >
-                                {msg.content}
-                            </div>
+                            <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === "user" ? "bg-[#00d4aa]/15 text-[#c5f5e8] rounded-br-md" : "bg-white/5 text-[#c5cfe0] rounded-bl-md"
+                                }`}>{msg.content}</div>
                         </div>
                     ))
                 )}
@@ -217,48 +279,41 @@ export default function ChatPanel({ onSendMessage, isAvatarReady }: ChatPanelPro
                 {isProcessing && (
                     <div className="flex justify-start message-enter">
                         <div className="bg-white/5 px-4 py-3 rounded-2xl rounded-bl-md flex gap-1.5">
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
+                            <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
                         </div>
                     </div>
                 )}
-
                 <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
             <div className="px-5 py-3 border-t border-[rgba(0,212,170,0.06)]">
                 <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
-                    {/* Mic button */}
-                    <button
-                        type="button"
-                        onClick={toggleVoiceInput}
-                        className={`p-2.5 rounded-xl transition-all ${isListening
-                                ? "bg-red-500/20 text-red-400 animate-pulse"
-                                : "bg-black/30 text-[#5a6a80] hover:text-[#00d4aa]"
+                    <button type="button" onClick={toggleVoiceMode}
+                        className={`p-2.5 rounded-xl transition-all flex-shrink-0 ${voiceMode ? isListening
+                                ? "bg-red-500/20 text-red-400 animate-pulse shadow-lg shadow-red-500/20"
+                                : "bg-orange-500/20 text-orange-400"
+                                : "bg-black/30 text-[#5a6a80] hover:text-[#00d4aa] hover:bg-black/40"
                             }`}
-                        title={isListening ? "Stop listening" : "Voice input"}
-                    >
-                        {isListening ? "🔴" : "🎤"}
-                    </button>
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={input}
+                        title={voiceMode ? "Exit voice mode" : "Start voice conversation"}
+                    >{voiceMode ? (isListening ? "🔴" : "⏸️") : "🎤"}</button>
+
+                    <input ref={inputRef} type="text" value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder={isListening ? "Listening..." : isAvatarReady ? "Type or speak..." : "Loading avatar..."}
+                        placeholder={voiceMode ? (isListening ? "🎤 Listening... speak freely" : "⏸️ Processing...") : isAvatarReady ? "Type a message..." : "Loading..."}
                         disabled={!isAvatarReady || isProcessing}
                         className="flex-1 bg-black/30 border border-[rgba(0,212,170,0.08)] rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#5a6a80] focus:outline-none focus:border-[#00d4aa]/30 transition-colors disabled:opacity-40"
                     />
-                    <button
-                        type="submit"
-                        disabled={!input.trim() || !isAvatarReady || isProcessing}
-                        className="btn-primary !py-2.5 !px-5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        Send
-                    </button>
+
+                    <button type="submit" disabled={!input.trim() || !isAvatarReady || isProcessing}
+                        className="btn-primary !py-2.5 !px-5 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    >Send</button>
                 </form>
+                {voiceMode && (
+                    <p className="text-xs text-center mt-2" style={{ color: isListening ? "#ef4444" : "#5a6a80" }}>
+                        {isListening ? "🔴 Speak freely — auto-sends on pause • Interrupt anytime" : "⏸️ Processing..."}
+                    </p>
+                )}
             </div>
         </div>
     );
