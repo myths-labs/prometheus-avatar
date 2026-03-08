@@ -10,9 +10,10 @@
   },
   "dependencies": {
     "@prometheusavatar/core": "workspace:*",
-    "msedge-tts": "^2.0.4",
     "@supabase/supabase-js": "^2.98.0",
+    "msedge-tts": "^2.0.4",
     "next": "14.2.35",
+    "node-edge-tts": "^1.2.10",
     "pixi-live2d-display": "^0.4.0",
     "pixi.js": "^6.5.10",
     "react": "^18",

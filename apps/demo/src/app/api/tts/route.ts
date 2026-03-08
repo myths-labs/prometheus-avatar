@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { EdgeTTS } from "node-edge-tts";
+import { readFile, unlink } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+// Edge TTS voices — fast, free, good quality
+const EDGE_VOICES_ZH: Record<string, string> = {
+    haru: "zh-CN-XiaoxiaoNeural",     // Warm female
+    shizuku: "zh-CN-XiaohanNeural",   // Calm female
+    koharu: "zh-CN-XiaoyiNeural",     // Sweet female
+};
+const EDGE_VOICES_EN: Record<string, string> = {
+    haru: "en-US-JennyNeural",        // Warm female
+    shizuku: "en-US-AriaNeural",      // Professional female
+    koharu: "en-US-SaraNeural",       // Young female
+};
 
 // Detect if text contains Chinese characters
 function isChinese(text: string): boolean {
@@ -31,6 +47,23 @@ const GEMINI_VOICES: Record<string, string> = {
     shizuku: "Aoede",   // Elegant female
     koharu: "Leda",     // Sweet female
 };
+
+// ═══ Edge TTS: Fast, free, good Chinese (~0.5-1s) ═══
+async function generateEdgeTTS(text: string, voice: string): Promise<Buffer | null> {
+    const tmpFile = join(tmpdir(), `edge-tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
+    try {
+        const tts = new EdgeTTS({ voice });
+        await tts.ttsPromise(text, tmpFile);
+        const audioData = await readFile(tmpFile);
+        // Clean up temp file asynchronously
+        unlink(tmpFile).catch(() => { });
+        return audioData;
+    } catch (e: any) {
+        console.warn(`[EdgeTTS] Failed: ${e.message}`);
+        unlink(tmpFile).catch(() => { });
+        return null;
+    }
+}
 
 // Generate TTS with Gemini native audio (same API key as chat)
 async function generateGeminiTTS(text: string, voiceName: string): Promise<Buffer | null> {
@@ -174,55 +207,62 @@ export async function POST(req: NextRequest) {
         let engine = "none";
 
         if (chinese) {
-            // Chinese: Gemini native TTS (6s) → ElevenLabs (4s)
-            const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
+            // Chinese priority: Edge TTS (fast+good) → Gemini (slower+good) → ElevenLabs (bad Chinese)
+            const edgeVoice = EDGE_VOICES_ZH[avatarId] || EDGE_VOICES_ZH.haru;
             try {
-                audioBuffer = await withTimeout(
-                    generateGeminiTTS(text, geminiVoice),
-                    6000, "Gemini TTS"
-                );
-                if (audioBuffer) engine = "gemini-tts";
+                audioBuffer = await withTimeout(generateEdgeTTS(text, edgeVoice), 3000, "EdgeTTS-ZH");
+                if (audioBuffer) engine = "edge-tts-zh";
             } catch (e: any) {
-                console.warn(`[TTS] Gemini TTS failed: ${e.message}`);
+                console.warn(`[TTS] Edge TTS ZH failed: ${e.message}`);
             }
 
-            // Fallback: ElevenLabs (sounds accented but works)
-            if (!audioBuffer) {
-                const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
-                try {
-                    audioBuffer = await withTimeout(
-                        generateElevenLabsTTS(text, voiceId),
-                        4000, "ElevenLabs"
-                    );
-                    if (audioBuffer) engine = "elevenlabs-zh-fallback";
-                } catch (e: any) {
-                    console.warn(`[TTS] ElevenLabs fallback failed: ${e.message}`);
-                }
-            }
-        } else {
-            // English: ElevenLabs (4s) → Gemini TTS (6s)
-            const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
-            try {
-                audioBuffer = await withTimeout(
-                    generateElevenLabsTTS(text, voiceId),
-                    4000, "ElevenLabs"
-                );
-                if (audioBuffer) engine = "elevenlabs";
-            } catch (e: any) {
-                console.warn(`[TTS] ElevenLabs failed: ${e.message}`);
-            }
-
-            // Fallback: Gemini TTS for English
             if (!audioBuffer) {
                 const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
                 try {
-                    audioBuffer = await withTimeout(
-                        generateGeminiTTS(text, geminiVoice),
-                        6000, "Gemini-TTS-EN"
-                    );
+                    audioBuffer = await withTimeout(generateGeminiTTS(text, geminiVoice), 6000, "Gemini TTS");
+                    if (audioBuffer) engine = "gemini-tts";
+                } catch (e: any) {
+                    console.warn(`[TTS] Gemini TTS failed: ${e.message}`);
+                }
+            }
+
+            // ElevenLabs Chinese is terrible — last resort only
+            if (!audioBuffer) {
+                const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
+                try {
+                    audioBuffer = await withTimeout(generateElevenLabsTTS(text, voiceId), 4000, "ElevenLabs-ZH");
+                    if (audioBuffer) engine = "elevenlabs-zh-lastresort";
+                } catch (e: any) {
+                    console.warn(`[TTS] ElevenLabs ZH fallback failed: ${e.message}`);
+                }
+            }
+        } else {
+            // English priority: Edge TTS (fast) → ElevenLabs (best quality) → Gemini
+            const edgeVoice = EDGE_VOICES_EN[avatarId] || EDGE_VOICES_EN.haru;
+            try {
+                audioBuffer = await withTimeout(generateEdgeTTS(text, edgeVoice), 3000, "EdgeTTS-EN");
+                if (audioBuffer) engine = "edge-tts-en";
+            } catch (e: any) {
+                console.warn(`[TTS] Edge TTS EN failed: ${e.message}`);
+            }
+
+            if (!audioBuffer) {
+                const voiceId = voiceOverride?.elevenlabs || ELEVENLABS_VOICES[avatarId] || ELEVENLABS_VOICES.haru;
+                try {
+                    audioBuffer = await withTimeout(generateElevenLabsTTS(text, voiceId), 4000, "ElevenLabs");
+                    if (audioBuffer) engine = "elevenlabs";
+                } catch (e: any) {
+                    console.warn(`[TTS] ElevenLabs failed: ${e.message}`);
+                }
+            }
+
+            if (!audioBuffer) {
+                const geminiVoice = voiceOverride?.gemini || GEMINI_VOICES[avatarId] || GEMINI_VOICES.haru;
+                try {
+                    audioBuffer = await withTimeout(generateGeminiTTS(text, geminiVoice), 6000, "Gemini-TTS-EN");
                     if (audioBuffer) engine = "gemini-tts-en";
                 } catch (e: any) {
-                    console.warn(`[TTS] Gemini TTS EN fallback failed: ${e.message}`);
+                    console.warn(`[TTS] Gemini EN fallback failed: ${e.message}`);
                 }
             }
         }
