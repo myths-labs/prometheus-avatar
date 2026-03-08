@@ -39,7 +39,7 @@
 | 😊 **Emotion Engine** | Auto-detect emotions from text → expressions + motions |
 | 🎨 **Marketplace** | Browse, buy, and sell avatar skins, voices, and effects |
 | 🔌 **LLM Integration** | Connect to OpenAI / Claude / any LLM for AI conversations |
-| 📦 **SDK** | Drop-in `@prometheus-avatar/core` package for your own apps |
+| 📦 **SDK** | Drop-in `@prometheusavatar/core` package for your own apps |
 
 ## 🎬 Demo
 
@@ -54,13 +54,13 @@
 ### Install
 
 ```bash
-npm install @prometheus-avatar/core
+npm install @prometheusavatar/core
 ```
 
 ### Usage
 
 ```typescript
-import { AvatarEngine } from '@prometheus-avatar/core';
+import { AvatarEngine } from '@prometheusavatar/core';
 
 // Initialize
 const avatar = new AvatarEngine({
@@ -75,7 +75,7 @@ await avatar.speak("Hello! I'm your AI assistant.", { emotion: 'happy' });
 ### With React / Next.js
 
 ```tsx
-import { AvatarCanvas } from '@prometheus-avatar/core/react';
+import { AvatarCanvas } from '@prometheusavatar/core/react';
 
 export default function App() {
   return (
@@ -92,7 +92,7 @@ export default function App() {
 ```
 prometheus-avatar/
 ├── packages/
-│   └── sdk/                  # @prometheus-avatar/core — the NPM package
+│   └── sdk/                  # @prometheusavatar/core — the NPM package
 │       ├── src/
 │       │   ├── engine.ts     # Core avatar rendering engine
 │       │   ├── tts.ts        # Text-to-speech with lip sync
@@ -175,11 +175,11 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 ### 🚀 快速开始
 
 ```bash
-npm install @prometheus-avatar/core
+npm install @prometheusavatar/core
 ```
 
 ```typescript
-import { AvatarEngine } from '@prometheus-avatar/core';
+import { AvatarEngine } from '@prometheusavatar/core';
 
 const avatar = new AvatarEngine({
   container: document.getElementById('avatar'),
