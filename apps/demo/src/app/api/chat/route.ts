@@ -39,34 +39,39 @@ export async function POST(req: NextRequest) {
             parts: [{ text: message }],
         });
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents,
-                    systemInstruction: {
-                        parts: [{ text: SYSTEM_PROMPT }],
-                    },
-                    generationConfig: {
-                        maxOutputTokens: 150,
-                        temperature: 0.9,
-                    },
-                }),
-            }
-        );
+        const MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-3-flash-preview"];
 
-        if (!response.ok) {
-            const error = await response.text();
-            console.error("Gemini error:", error);
-            return NextResponse.json({ error: "AI response failed" }, { status: 500 });
+        let lastError = "";
+        for (const model of MODELS) {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents,
+                        systemInstruction: {
+                            parts: [{ text: SYSTEM_PROMPT }],
+                        },
+                        generationConfig: {
+                            maxOutputTokens: 150,
+                            temperature: 0.9,
+                        },
+                    }),
+                }
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Hmm, let me think about that...";
+                return NextResponse.json({ reply, model });
+            }
+
+            lastError = await response.text();
+            console.error(`Gemini ${model} error:`, lastError);
         }
 
-        const data = await response.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Hmm, let me think about that...";
-
-        return NextResponse.json({ reply });
+        return NextResponse.json({ error: `All models failed. Last: ${lastError.slice(0, 200)}` }, { status: 500 });
     } catch (error) {
         console.error("Chat error:", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
