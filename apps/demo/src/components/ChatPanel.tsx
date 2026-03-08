@@ -35,6 +35,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
     const inputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
     const isProcessingRef = useRef(false);
+    const isSpeakingRef = useRef(false);
 
     useEffect(() => {
         const el = messagesEndRef.current;
@@ -59,6 +60,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
 
         try {
             if (mode === "direct") {
+                isSpeakingRef.current = true;
                 await onSendMessage(text);
             } else {
                 const response = await fetch("/api/chat", {
@@ -75,6 +77,7 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
                 }
                 const data = await response.json();
                 addMessage("assistant", data.reply);
+                isSpeakingRef.current = true;
                 await onSendMessage(data.reply);
             }
         } catch (err: any) {
@@ -83,34 +86,14 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
             await onSendMessage(text);
         } finally {
             isProcessingRef.current = false;
+            isSpeakingRef.current = false;
             setIsProcessing(false);
         }
     }, [mode, messages, onSendMessage, addMessage]);
 
-    // Toggle recording on/off
-    const toggleRecording = useCallback(() => {
-        if (isRecording) {
-            // STOP recording
-            try { recognitionRef.current?.stop(); } catch { }
-            recognitionRef.current = null;
-            setIsRecording(false);
 
-            // Send whatever was recorded
-            const text = recordText.trim();
-            setRecordText("");
-            if (text) {
-                sendMessage(text);
-            }
-            return;
-        }
-
-        // If AI is talking, interrupt
-        if (isProcessingRef.current) {
-            onInterrupt?.();
-            return;
-        }
-
-        // START recording
+    // Start speech recognition helper
+    const startRecording = useCallback(() => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) {
             alert("Your browser doesn't support voice input. Use Chrome.");
@@ -145,7 +128,40 @@ export default function ChatPanel({ onSendMessage, onInterrupt, isAvatarReady }:
         setIsRecording(true);
         setRecordText("");
         try { recognition.start(); } catch { }
-    }, [isRecording, recordText, sendMessage, onInterrupt]);
+    }, []);
+
+    // Toggle recording on/off
+    const toggleRecording = useCallback(() => {
+        if (isRecording) {
+            // STOP recording → send
+            try { recognitionRef.current?.stop(); } catch { }
+            recognitionRef.current = null;
+            setIsRecording(false);
+
+            const text = recordText.trim();
+            setRecordText("");
+            if (text) {
+                sendMessage(text);
+            }
+            return;
+        }
+
+        // If AI is currently speaking or processing, interrupt FIRST
+        if (isProcessingRef.current || isSpeakingRef.current) {
+            onInterrupt?.();
+            isSpeakingRef.current = false;
+
+            // Wait for audio to fully stop before starting mic
+            // This prevents recording the avatar's voice
+            setTimeout(() => {
+                startRecording();
+            }, 600);
+            return;
+        }
+
+        // Normal start recording
+        startRecording();
+    }, [isRecording, recordText, sendMessage, onInterrupt, startRecording]);
 
     const handleSend = useCallback(() => {
         const text = input.trim();

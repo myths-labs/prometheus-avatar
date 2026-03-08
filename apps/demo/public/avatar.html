@@ -211,23 +211,28 @@
             applyEmotion(model, emotion || "neutral");
 
             if (audioUrl && !useBrowserTTS) {
-              // ElevenLabs audio — real lip sync
+              // Server TTS audio — real lip sync
               const audio = new Audio(audioUrl);
               audio.crossOrigin = "anonymous";
+              window._currentAudio = audio; // Track for interrupt
               let stopLipSync;
 
               audio.onplay = () => {
                 try {
                   stopLipSync = startAudioLipSync(model, audio);
+                  window._stopLipSync = stopLipSync; // Track for interrupt
                 } catch (err) {
                   // If MediaElementSource fails, use simulated
                   console.warn("Audio lip sync failed, using simulated:", err);
                   stopLipSync = animateMouthSimulated(model, text.length * 80);
+                  window._stopLipSync = stopLipSync;
                 }
               };
 
               audio.onended = () => {
                 if (stopLipSync) stopLipSync();
+                window._currentAudio = null;
+                window._stopLipSync = null;
                 setMouth(model, 0);
                 window.parent.postMessage({ type: "speak-done" }, "*");
                 setTimeout(() => applyEmotion(model, "neutral"), 2000);
@@ -235,11 +240,14 @@
 
               audio.onerror = () => {
                 if (stopLipSync) stopLipSync();
+                window._currentAudio = null;
+                window._stopLipSync = null;
                 window.parent.postMessage({ type: "speak-done" }, "*");
               };
 
               try { await audio.play(); } catch (err) {
                 console.warn("Audio play failed:", err);
+                window._currentAudio = null;
                 window.parent.postMessage({ type: "speak-done" }, "*");
               }
 
@@ -272,8 +280,22 @@
           }
 
           if (e.data.type === "stop-speaking") {
+            // Stop browser TTS
             speechSynthesis.cancel();
+            // Stop audio element (TTS from ElevenLabs/Google Cloud)
+            if (window._currentAudio) {
+              window._currentAudio.pause();
+              window._currentAudio.currentTime = 0;
+              window._currentAudio.src = "";
+              window._currentAudio = null;
+            }
+            // Stop lip sync animation
+            if (window._stopLipSync) {
+              window._stopLipSync();
+              window._stopLipSync = null;
+            }
             setMouth(model, 0);
+            window.parent.postMessage({ type: "speak-done" }, "*");
           }
         });
 
