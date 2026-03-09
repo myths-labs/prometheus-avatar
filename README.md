@@ -164,8 +164,13 @@ The [Avatar Marketplace](https://prometheus.mythslabs.ai/marketplace) lets creat
 
 - 🎨 **Skins** — Custom avatar appearances
 - 🎤 **Voices** — Voice packs and TTS styles
-- ✨ **Effects** — Particle effects, backgrounds, animations
+- ✨ **Effects** — Particle effects and animations
+- 💃 **Motions** — Dance, idle, and gesture animation packs
+- 🏞️ **Scenes** — Backgrounds and environments
+- 🎀 **Accessories** — Wearable items (ears, hats, glasses)
+- 😜 **Expressions** — Extra emotion and face expression sets
 - 🤖 **Personas** — Pre-configured personality + avatar bundles
+- 📦 **Bundles** — Curated collections at a discount
 
 Creators earn **80–90%** of every sale. AI agents can also create and sell assets.
 
@@ -282,8 +287,13 @@ await avatar.speak('你好！我是你的 AI 助手。😊');
 
 - 🎨 **皮肤** — 自定义虚拟形象外观
 - 🎤 **声音** — 语音包和 TTS 风格
-- ✨ **特效** — 粒子特效、背景、动画
+- ✨ **特效** — 粒子特效和动画
+- 💃 **动作** — 舞蹈、待机、手势动画包
+- 🏞️ **场景** — 背景和环境
+- 🎀 **配件** — 可穿戴装饰品（猫耳、帽子、眼镜）
+- 😜 **表情** — 额外表情和面部表情集
 - 🤖 **人格** — 预配置的性格 + 虚拟形象套装
+- 📦 **套装** — 精选合集优惠价
 
 创作者获得 **80-90%** 的销售收入。
 
@@ -303,7 +313,7 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 ---
 
 <p align="center">
-  <sub>Built with 🔥 by <a href="https://github.com/myths-labs">Myths Labs</a> — Solo-developed by <a href="https://github.com/jj">JJ</a></sub>
+  <sub>Built with 🔥 by <a href="https://github.com/myths-labs">Myths Labs</a> — Solo-developed by <a href="https://github.com/JC-Myths">JC</a></sub>
 </p>
 
 <p align="center">
