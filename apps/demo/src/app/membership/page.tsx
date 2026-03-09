@@ -41,6 +41,7 @@ const PLANS = [
 
 const PAYMENT_METHODS = [
     { id: "metamask", icon: "🦊", label: "MetaMask", status: "live", desc: "Pay with ETH/USDC" },
+    { id: "x402", icon: "⚡", label: "x402 Protocol", status: "live", desc: "HTTP micropayments (Agent/Lobster)" },
     { id: "moonpay", icon: "🌙", label: "MoonPay", status: "coming", desc: "Credit card → crypto" },
     { id: "stripe", icon: "💳", label: "Stripe", status: "coming", desc: "Credit/debit card" },
     { id: "alipay", icon: "🔵", label: "Alipay", status: "coming", desc: "支付宝" },
@@ -59,6 +60,9 @@ export default function MembershipPage() {
         if (selectedPayment === "metamask") {
             // Existing MetaMask flow
             alert("MetaMask payment flow — connecting wallet...");
+        } else if (selectedPayment === "x402") {
+            // x402 HTTP payment protocol
+            alert("x402 Protocol — send payment via HTTP 402 header. Documentation: github.com/myths-labs/prometheus-avatar");
         } else if (selectedPayment === "moonpay") {
             // Will open MoonPay widget when API key is available
             alert("MoonPay integration coming soon! API key pending.");
