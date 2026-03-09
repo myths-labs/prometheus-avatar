@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import LiveCounter from "@/components/LiveCounter";
 
 interface HeroSectionProps {
   onTryDemo: () => void;
@@ -110,9 +111,14 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
         </div>
 
         {/* Prophecy tagline */}
-        <p className="prophecy-quote max-w-lg mx-auto mb-12">
+        <p className="prophecy-quote max-w-lg mx-auto mb-8">
           &ldquo;Like Prometheus bringing fire to humanity — we bring embodiment to AI.&rdquo;
         </p>
+
+        {/* Live registration counter + milestone */}
+        <div className="mb-10">
+          <LiveCounter variant="hero" />
+        </div>
 
         {/* Code snippet */}
         <div className="card-dark code-shimmer inline-block px-5 sm:px-8 py-4 sm:py-5 text-left font-mono text-xs sm:text-sm max-w-full overflow-x-auto">

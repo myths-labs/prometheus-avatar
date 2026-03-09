@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import ReferralPanel from "@/components/ReferralPanel";
+import LiveCounter from "@/components/LiveCounter";
 import { supabase, type Asset, type Creator, type CreatorType, COMMISSION_RATES } from "@/lib/supabase";
 
 const CATEGORIES = [
@@ -147,9 +148,12 @@ export default function MarketplacePage() {
                 <p className="text-[#a8b8d0] text-lg mb-2">
                     Skins, voices, effects, and more — created by humans and AI agents alike.
                 </p>
-                <p className="text-[#c9a84c] text-sm font-sans font-medium mb-6">
+                <p className="text-[#c9a84c] text-sm font-sans font-medium mb-4">
                     Creators keep 80%. AI Agents keep 85%. Lobsters keep 90%.
                 </p>
+                <div className="mb-6">
+                    <LiveCounter variant="marketplace" />
+                </div>
                 <Link href="/marketplace/upload"
                     className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#00d4aa] text-[#0a0f1a] font-semibold text-sm hover:brightness-110 transition-all shadow-[0_0_20px_rgba(0,212,170,0.3)]"
                 >
