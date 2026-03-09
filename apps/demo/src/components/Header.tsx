@@ -22,7 +22,7 @@ export default function Header() {
                     </span>
                 </a>
 
-                {/* Nav */}
+                {/* Desktop nav */}
                 <nav className="hidden md:flex items-center gap-8">
                     <a href="#demo" className="text-sm text-[#a0b4cc] hover:text-[#00f0c8] transition-colors">Demo</a>
                     <a href="#features" className="text-sm text-[#a0b4cc] hover:text-[#00f0c8] transition-colors">Features</a>
@@ -30,23 +30,26 @@ export default function Header() {
                     <a href="/marketplace" className="btn-primary text-sm !py-2 !px-5">Marketplace</a>
                 </nav>
 
-                {/* Mobile toggle */}
-                <button className="md:hidden text-[#a0b4cc]" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        {mobileMenuOpen ? (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        ) : (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                        )}
-                    </svg>
-                </button>
+                {/* Mobile: Marketplace button + hamburger */}
+                <div className="md:hidden flex items-center gap-3">
+                    <a href="/marketplace" className="btn-primary text-xs !py-1.5 !px-4">Marketplace</a>
+                    <button className="text-[#a0b4cc] p-1" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {mobileMenuOpen ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                            )}
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             {mobileMenuOpen && (
                 <div className="md:hidden glass border-t border-[rgba(0,212,170,0.06)] px-6 py-4 space-y-3">
-                    <a href="#demo" className="block text-[#a0b4cc] hover:text-[#00f0c8] transition-colors">Demo</a>
-                    <a href="#features" className="block text-[#a0b4cc] hover:text-[#00f0c8] transition-colors">Features</a>
-                    <a href="/marketplace" className="block text-[#00d4aa] hover:text-[#00f0c8] transition-colors">Marketplace</a>
+                    <a href="#demo" className="block text-[#a0b4cc] hover:text-[#00f0c8] transition-colors" onClick={() => setMobileMenuOpen(false)}>Demo</a>
+                    <a href="#features" className="block text-[#a0b4cc] hover:text-[#00f0c8] transition-colors" onClick={() => setMobileMenuOpen(false)}>Features</a>
+                    <a href="https://github.com/myths-labs/prometheus-avatar" className="block text-[#a0b4cc] hover:text-[#00f0c8] transition-colors" target="_blank" rel="noopener">GitHub</a>
                 </div>
             )}
         </header>
