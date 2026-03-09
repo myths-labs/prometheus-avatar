@@ -37,11 +37,16 @@ html {
   scroll-behavior: smooth;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   font-family: 'General Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* ═══ Typography — 2-font system ═══
