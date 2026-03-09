@@ -98,12 +98,37 @@ export default function UploadPage() {
         }
         setVerifying(true);
         setVerifyError("");
-        // Simulate API key challenge-response
-        await new Promise(r => setTimeout(r, 1200));
-        if (agentApiKey.startsWith("pak_") || agentApiKey.length > 10) {
-            setVerified(true);
-        } else {
-            setVerifyError("Invalid API key format. Expected: pak_xxxxx");
+        try {
+            // Step 1: Request challenge
+            const challengeRes = await fetch("/api/verify/agent", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ apiKey: agentApiKey, step: "challenge" }),
+            });
+            const challengeData = await challengeRes.json();
+
+            if (!challengeRes.ok) {
+                setVerifyError(challengeData.error || "Challenge failed");
+                setVerifying(false);
+                return;
+            }
+
+            // Step 2: Sign challenge (simplified — agent would use their private key)
+            const signature = challengeData.challenge; // In production: HMAC(challenge, apiKey)
+            const verifyRes = await fetch("/api/verify/agent", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ apiKey: agentApiKey, step: "verify", signature }),
+            });
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.status === "verified") {
+                setVerified(true);
+            } else {
+                setVerifyError(verifyData.error || "Verification failed");
+            }
+        } catch {
+            setVerifyError("Network error during verification");
         }
         setVerifying(false);
     }
@@ -111,12 +136,26 @@ export default function UploadPage() {
     async function verifyLobster() {
         setVerifying(true);
         setVerifyError("");
-        // Simulate OpenClaw verification (check if code was "posted")
-        await new Promise(r => setTimeout(r, 1800));
-        if (lobsterPosted) {
-            setVerified(true);
-        } else {
-            setVerifyError("Verification code not detected. Please post the code first.");
+        try {
+            const xHandle = prompt("Enter your X (Twitter) handle (e.g. @myhandle):");
+            if (!xHandle) {
+                setVerifyError("X handle required for verification");
+                setVerifying(false);
+                return;
+            }
+            const res = await fetch("/api/verify/lobster", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ verificationCode: lobsterCode, xHandle }),
+            });
+            const data = await res.json();
+            if (data.status === "verified") {
+                setVerified(true);
+            } else {
+                setVerifyError(data.error || "Verification failed. Make sure you posted the code.");
+            }
+        } catch {
+            setVerifyError("Network error during verification");
         }
         setVerifying(false);
     }
