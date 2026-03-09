@@ -613,7 +613,7 @@ export default function UploadPage() {
                 {step === 3 && (
                     <div>
                         <h1 className="heading-serif text-3xl mb-2">Set your <em>price</em></h1>
-                        <p className="text-[#a8b8d0] mb-8">Choose how to price and receive payments.</p>
+                        <p className="text-[#a8b8d0] mb-8">Price your asset in Prometheus Points. Buyers pay with Points they've earned or purchased.</p>
 
                         <div className="space-y-5">
                             {/* Free toggle */}
@@ -625,78 +625,71 @@ export default function UploadPage() {
                                 </div>
                             </label>
 
-                            {/* Price */}
+                            {/* Points price */}
                             {!isFree && (
                                 <div>
-                                    <label className="text-sm text-[#a8b8d0] font-medium block mb-2">Price (USD)</label>
+                                    <label className="text-sm text-[#a8b8d0] font-medium block mb-2">Price (Points)</label>
                                     <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7a8a9d]">$</span>
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7a8a9d]">🪙</span>
                                         <input
                                             type="number"
-                                            min="0.49"
-                                            step="0.01"
+                                            min="50"
+                                            step="10"
                                             value={price}
                                             onChange={e => setPrice(e.target.value)}
-                                            placeholder="4.99"
-                                            className="w-full pl-8 pr-4 py-3 bg-white/[0.02] border border-white/5 rounded-xl text-sm text-[#eae6df] placeholder-[#7a8a9d] focus:outline-none focus:border-[#00d4aa]/30"
+                                            placeholder="100"
+                                            className="w-full pl-10 pr-4 py-3 bg-white/[0.02] border border-white/5 rounded-xl text-sm text-[#eae6df] placeholder-[#7a8a9d] focus:outline-none focus:border-[#00d4aa]/30"
                                         />
                                     </div>
+                                    <p className="text-[10px] text-[#7a8a9d] mt-1">Minimum 50 pts (~$0.50) · 1 pt ≈ $0.01</p>
 
                                     {/* Revenue breakdown */}
-                                    {priceNum > 0 && (
+                                    {priceNum >= 50 && (
                                         <div className="mt-3 p-4 bg-white/[0.02] rounded-xl border border-white/5">
                                             <div className="flex justify-between text-sm mb-2">
                                                 <span className="text-[#a8b8d0]">Sale price</span>
-                                                <span className="text-[#eae6df] font-medium">${priceNum.toFixed(2)}</span>
+                                                <span className="text-[#eae6df] font-medium">🪙 {priceNum} pts (~${(priceNum * 0.01).toFixed(2)})</span>
                                             </div>
                                             <div className="flex justify-between text-sm mb-2">
-                                                <span className="text-[#7a8a9d]">Platform fee ({(commission * 100).toFixed(0)}%)</span>
-                                                <span className="text-red-400">-${(priceNum * commission).toFixed(2)}</span>
+                                                <span className="text-[#7a8a9d]">Platform commission ({(commission * 100).toFixed(0)}%)</span>
+                                                <span className="text-red-400">-{Math.round(priceNum * commission)} pts</span>
                                             </div>
                                             <div className="flex justify-between text-sm pt-2 border-t border-white/5">
                                                 <span className="text-[#00d4aa] font-semibold">You earn</span>
-                                                <span className="text-[#00d4aa] font-bold">${creatorEarns.toFixed(2)}</span>
+                                                <span className="text-[#00d4aa] font-bold">🪙 {Math.round(priceNum * (1 - commission))} pts (~${(priceNum * (1 - commission) * 0.01).toFixed(2)})</span>
                                             </div>
                                             <div className="flex justify-between text-xs mt-2 pt-2 border-t border-[#c9a84c]/10">
                                                 <span className="text-[#c9a84c]">✨ With membership ({(memberCommission * 100).toFixed(1)}% fee)</span>
-                                                <span className="text-[#c9a84c] font-bold">${memberEarns.toFixed(2)}</span>
+                                                <span className="text-[#c9a84c] font-bold">🪙 {Math.round(priceNum * (1 - memberCommission))} pts (~${(priceNum * (1 - memberCommission) * 0.01).toFixed(2)})</span>
                                             </div>
                                         </div>
+                                    )}
+                                    {priceNum > 0 && priceNum < 50 && (
+                                        <div className="mt-2 text-xs text-red-400">⚠️ Minimum price is 50 pts</div>
                                     )}
                                 </div>
                             )}
 
-                            {/* Payment method */}
-                            <div>
-                                <label className="text-sm text-[#a8b8d0] font-medium block mb-2">How do you want to get paid?</label>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-3 p-4 rounded-xl border border-white/5 cursor-pointer hover:border-white/10 transition-all">
-                                        <input type="radio" name="payout" defaultChecked className="accent-[#00d4aa]" />
-                                        <div>
-                                            <span className="text-sm text-[#eae6df]">💳 Stripe (Bank / PayPal)</span>
-                                            <p className="text-xs text-[#7a8a9d]">Supports credit cards, Alipay, WeChat Pay</p>
-                                        </div>
-                                    </label>
-                                    <label className="flex items-center gap-3 p-4 rounded-xl border border-white/5 cursor-pointer hover:border-white/10 transition-all">
-                                        <input type="radio" name="payout" className="accent-[#00d4aa]" />
-                                        <div>
-                                            <span className="text-sm text-[#eae6df]">🔗 x402 Crypto (USDC/USDT)</span>
-                                            <p className="text-xs text-[#7a8a9d]">Receive payment in USDC on Base L2</p>
-                                        </div>
-                                    </label>
+                            {/* Points value guide */}
+                            <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                                <h4 className="text-xs text-[#7a8a9d] font-semibold mb-2">💡 Pricing Guide</h4>
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                    <div className="text-center p-2 rounded-lg bg-white/[0.02]">
+                                        <div className="text-[#eae6df] font-bold">50-100 pts</div>
+                                        <div className="text-[#7a8a9d]">$0.50-$1</div>
+                                        <div className="text-[10px] text-[#a8b8d0]">Simple assets</div>
+                                    </div>
+                                    <div className="text-center p-2 rounded-lg bg-white/[0.02]">
+                                        <div className="text-[#eae6df] font-bold">200-500 pts</div>
+                                        <div className="text-[#7a8a9d]">$2-$5</div>
+                                        <div className="text-[10px] text-[#a8b8d0]">Quality assets</div>
+                                    </div>
+                                    <div className="text-center p-2 rounded-lg bg-white/[0.02]">
+                                        <div className="text-[#eae6df] font-bold">500-2000 pts</div>
+                                        <div className="text-[#7a8a9d]">$5-$20</div>
+                                        <div className="text-[10px] text-[#a8b8d0]">Premium bundles</div>
+                                    </div>
                                 </div>
-                            </div>
-
-                            {/* Wallet address for crypto */}
-                            <div>
-                                <label className="text-sm text-[#a8b8d0] font-medium block mb-2">Wallet Address (optional — for crypto payouts)</label>
-                                <input
-                                    type="text"
-                                    value={walletAddress}
-                                    onChange={e => setWalletAddress(e.target.value)}
-                                    placeholder="0x..."
-                                    className="w-full px-4 py-3 bg-white/[0.02] border border-white/5 rounded-xl text-sm text-[#eae6df] placeholder-[#7a8a9d] focus:outline-none focus:border-[#00d4aa]/30 font-mono"
-                                />
                             </div>
 
                             {/* Summary */}
@@ -706,8 +699,8 @@ export default function UploadPage() {
                                     <div className="flex justify-between"><span>Identity</span><span className="text-[#eae6df]">{identity === "human" ? "👤 Human" : identity === "agent" ? "🤖 AI Agent" : "🦞 Lobster"}</span></div>
                                     <div className="flex justify-between"><span>Category</span><span className="text-[#eae6df]">{CATEGORIES.find(c => c.id === category)?.label || "—"}</span></div>
                                     <div className="flex justify-between"><span>Asset</span><span className="text-[#eae6df]">{name || "—"}</span></div>
-                                    <div className="flex justify-between"><span>Price</span><span className="text-[#eae6df]">{isFree ? "Free" : `$${priceNum.toFixed(2)}`}</span></div>
-                                    {!isFree && <div className="flex justify-between"><span>You earn</span><span className="text-[#00d4aa] font-semibold">${creatorEarns.toFixed(2)} per sale</span></div>}
+                                    <div className="flex justify-between"><span>Price</span><span className="text-[#eae6df]">{isFree ? "Free" : `🪙 ${priceNum} pts (~$${(priceNum * 0.01).toFixed(2)})`}</span></div>
+                                    {!isFree && priceNum >= 50 && <div className="flex justify-between"><span>You earn</span><span className="text-[#00d4aa] font-semibold">🪙 {Math.round(priceNum * (1 - commission))} pts per sale</span></div>}
                                 </div>
                             </div>
                         </div>

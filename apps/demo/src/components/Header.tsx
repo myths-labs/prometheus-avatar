@@ -29,6 +29,7 @@ export default function Header() {
                     <a href="https://github.com/myths-labs/prometheus-avatar" className="text-sm text-[#a0b4cc] hover:text-[#00f0c8] transition-colors" target="_blank" rel="noopener">GitHub</a>
                     <a href="https://www.npmjs.com/package/@prometheusavatar/core" className="text-sm px-3 py-1.5 rounded-full border border-[#c9a84c]/30 text-[#c9a84c] hover:bg-[#c9a84c]/10 transition-all" target="_blank" rel="noopener">📦 SDK</a>
                     <a href="/membership" className="text-sm text-[#a0b4cc] hover:text-[#00f0c8] transition-colors">Membership</a>
+                    <a href="/dashboard" className="text-sm text-[#a0b4cc] hover:text-[#00f0c8] transition-colors">Dashboard</a>
                     <a href="/marketplace" className="btn-primary text-sm !py-2 !px-5">Marketplace</a>
                 </nav>
 
