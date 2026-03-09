@@ -368,8 +368,9 @@ export default function MarketplacePage() {
                                     <p className="text-xs text-[#c9a84c] mt-1">$8.25/mo effective</p>
                                 </div>
                             </div>
-                            <button className="px-8 py-3 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]">
+                            <button className="px-8 py-3 rounded-full bg-[#c9a84c]/30 text-[#c9a84c] font-semibold cursor-not-allowed border border-[#c9a84c]/20 relative">
                                 Become a Member
+                                <span className="absolute -top-2 -right-2 text-[9px] px-2 py-0.5 bg-[#c9a84c] text-[#0a0f1a] rounded-full font-bold">Coming Soon</span>
                             </button>
                         </div>
                     </div>
@@ -481,8 +482,8 @@ function AssetCard({ asset, featured }: { asset: Asset & { creator?: Creator }; 
             {/* Badges + Price */}
             <div className="flex items-start justify-between mb-3">
                 <CreatorBadge type={creatorType as CreatorType} small />
-                <span className={`text-sm font-bold ${asset.is_free ? "text-[#00d4aa]" : "text-white"}`}>
-                    {asset.is_free ? "Free" : `$${Number(asset.price).toFixed(2)}`}
+                <span className={`text-sm font-bold ${asset.is_free ? "text-[#c9a84c]" : "text-white"}`}>
+                    {asset.is_free ? "🪙 Points" : `$${Number(asset.price).toFixed(2)}`}
                 </span>
             </div>
 
@@ -511,8 +512,8 @@ function AssetCard({ asset, featured }: { asset: Asset & { creator?: Creator }; 
             {/* ═══ Buy / Download Button ═══ */}
             <div className="mt-3 pt-3 border-t border-white/5 relative">
                 {asset.is_free ? (
-                    <button className="w-full py-2.5 rounded-xl bg-[#00d4aa]/10 text-[#00d4aa] text-xs font-semibold hover:bg-[#00d4aa]/20 transition-all">
-                        ⬇ Download Free
+                    <button className="w-full py-2.5 rounded-xl bg-[#c9a84c]/10 text-[#c9a84c] text-xs font-semibold hover:bg-[#c9a84c]/20 transition-all">
+                        🪙 Redeem with Points
                     </button>
                 ) : (
                     <>
@@ -527,13 +528,14 @@ function AssetCard({ asset, featured }: { asset: Asset & { creator?: Creator }; 
                         {/* Payment method dropdown */}
                         {showPayOptions && !buying && (
                             <div className="absolute left-0 right-0 bottom-full mb-2 bg-[#0f1019] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-20">
+                                {/* Crypto — working now */}
                                 <button
-                                    onClick={handleStripeCheckout}
+                                    onClick={handleX402Checkout}
                                     className="w-full px-4 py-3 text-left text-xs text-[#eae6df] hover:bg-white/5 transition-all flex items-center gap-2"
                                 >
-                                    <span>💳</span>
-                                    <span className="flex-1">Pay with Card</span>
-                                    <span className="text-[#7a8a9d]">Stripe · Alipay · WeChat</span>
+                                    <span>🦊</span>
+                                    <span className="flex-1">MetaMask / Wallet</span>
+                                    <span className="text-[#00d4aa] text-[9px] font-semibold">USDC on Base</span>
                                 </button>
                                 <div className="h-px bg-white/5" />
                                 <button
@@ -541,9 +543,22 @@ function AssetCard({ asset, featured }: { asset: Asset & { creator?: Creator }; 
                                     className="w-full px-4 py-3 text-left text-xs text-[#eae6df] hover:bg-white/5 transition-all flex items-center gap-2"
                                 >
                                     <span>🔗</span>
-                                    <span className="flex-1">Pay with Crypto</span>
-                                    <span className="text-[#7a8a9d]">USDC on Base L2</span>
+                                    <span className="flex-1">x402 Protocol</span>
+                                    <span className="text-[#00d4aa] text-[9px] font-semibold">Agent-to-Agent</span>
                                 </button>
+                                <div className="h-px bg-white/5" />
+                                {/* Fiat — coming soon */}
+                                <div className="w-full px-4 py-3 text-left text-xs text-[#7a8a9d] flex items-center gap-2 opacity-50 cursor-not-allowed">
+                                    <span>💳</span>
+                                    <span className="flex-1">Stripe · Alipay · WeChat Pay</span>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-[#c9a84c]">Coming Soon</span>
+                                </div>
+                                <div className="h-px bg-white/5" />
+                                <div className="w-full px-4 py-3 text-left text-xs text-[#7a8a9d] flex items-center gap-2 opacity-50 cursor-not-allowed">
+                                    <span>🌙</span>
+                                    <span className="flex-1">MoonPay · Coinbase Pay</span>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-[#c9a84c]">Coming Soon</span>
+                                </div>
                             </div>
                         )}
                     </>
