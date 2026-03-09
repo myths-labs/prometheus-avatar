@@ -199,11 +199,8 @@ export function useLiveVoice(
             audioContextRef.current = ctx;
             nextPlayTimeRef.current = 0;
 
-            // 3. Connect to Gemini Live API (v1beta for live models)
-            const ai = new GoogleGenAI({
-                apiKey: token,
-                httpOptions: { apiVersion: "v1beta" },
-            });
+            // 3. Connect to Gemini Live API (direct API key)
+            const ai = new GoogleGenAI({ apiKey: token });
 
             const systemInstruction = systemPrompt
                 ? `${systemPrompt}\n\nYou are Prometheus — a warm, witty AI companion. Keep responses short and conversational (1-2 sentences). STRICTLY match the user's language. React emotionally first, then respond.`
