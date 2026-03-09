@@ -1,5 +1,0 @@
-{
-    "installCommand": "cd ../.. && pnpm install",
-    "buildCommand": "cd ../.. && pnpm --filter @prometheusavatar/core build && cd apps/demo && next build",
-    "outputDirectory": ".next"
-}
