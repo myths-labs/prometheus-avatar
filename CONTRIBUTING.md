@@ -7,7 +7,7 @@ Thank you for your interest in contributing! 🎉
 ### 🎨 Create & Share Avatars
 The easiest way to contribute — create Live2D or 3D avatars and share them on the Marketplace.
 
-### �� Build Plugins  
+### 🧩 Build Plugins  
 Extend Prometheus with plugins for different AI platforms (see `packages/openclaw-plugin` for reference).
 
 ### 🛠️ Improve the SDK
