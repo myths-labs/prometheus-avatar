@@ -42,7 +42,6 @@ const PLANS = [
 const PAYMENT_METHODS = [
     { id: "metamask", icon: "🦊", label: "MetaMask", status: "live", desc: "Pay with ETH/USDC" },
     { id: "moonpay", icon: "🌙", label: "MoonPay", status: "coming", desc: "Credit card → crypto" },
-    { id: "coinbase", icon: "🟦", label: "Coinbase", status: "coming", desc: "Coinbase account" },
     { id: "stripe", icon: "💳", label: "Stripe", status: "coming", desc: "Credit/debit card" },
     { id: "alipay", icon: "🔵", label: "Alipay", status: "coming", desc: "支付宝" },
     { id: "wechat", icon: "💚", label: "WeChat Pay", status: "coming", desc: "微信支付" },
@@ -63,8 +62,6 @@ export default function MembershipPage() {
         } else if (selectedPayment === "moonpay") {
             // Will open MoonPay widget when API key is available
             alert("MoonPay integration coming soon! API key pending.");
-        } else if (selectedPayment === "coinbase") {
-            alert("Coinbase Commerce integration coming soon!");
         } else if (selectedPayment === "points") {
             alert("Points redemption — checking your balance...");
         } else {
