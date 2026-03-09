@@ -26,8 +26,8 @@ export async function GET(request: Request) {
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
                 code,
-                client_id: process.env.GOOGLE_CLIENT_ID!,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+                client_id: (process.env.GOOGLE_CLIENT_ID || "").trim(),
+                client_secret: (process.env.GOOGLE_CLIENT_SECRET || "").trim(),
                 redirect_uri: `${baseUrl}/api/auth/callback/google`,
                 grant_type: "authorization_code",
             }),

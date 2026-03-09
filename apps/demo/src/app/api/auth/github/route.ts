@@ -3,7 +3,7 @@ import { getBaseUrl } from "@/lib/authUrl";
 
 // GitHub OAuth — Step 1: Redirect user to GitHub authorization
 export async function GET(request: Request) {
-    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientId = (process.env.GITHUB_CLIENT_ID || "").trim();
     if (!clientId) {
         return NextResponse.json({ error: "GitHub OAuth not configured" }, { status: 500 });
     }

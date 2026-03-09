@@ -3,7 +3,7 @@ import { getBaseUrl } from "@/lib/authUrl";
 
 // Google OAuth — Step 1: Redirect user to Google authorization
 export async function GET(request: Request) {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientId = (process.env.GOOGLE_CLIENT_ID || "").trim();
     if (!clientId) {
         return NextResponse.json({ error: "Google OAuth not configured" }, { status: 500 });
     }
