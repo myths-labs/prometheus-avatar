@@ -192,7 +192,6 @@ export default function TelegramPage() {
                         ref={avatarRef}
                         modelUrl="https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json"
                         onEmotionChange={() => { }}
-                        onLoad={() => setAvatarLoaded(true)}
                     />
                 </div>
                 {/* Name tag */}
@@ -232,8 +231,8 @@ export default function TelegramPage() {
                             type="button"
                             onClick={toggleVoiceInput}
                             className={`w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 transition-all ${isListening
-                                    ? "bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/30"
-                                    : "bg-white/5 text-white/50 active:bg-white/10"
+                                ? "bg-red-500/20 text-red-400 animate-pulse ring-2 ring-red-500/30"
+                                : "bg-white/5 text-white/50 active:bg-white/10"
                                 }`}
                         >
                             🎤
