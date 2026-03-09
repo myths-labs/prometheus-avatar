@@ -188,11 +188,22 @@ export default function TelegramPage() {
             {/* Avatar — top 35% */}
             <div className="relative flex-shrink-0" style={{ height: "35vh" }}>
                 <div className={`absolute inset-0 flex items-center justify-center transition-all ${isSpeaking ? "ring-2 ring-[#00d4aa]/40" : ""}`}>
-                    <AvatarCanvas
-                        ref={avatarRef}
-                        modelUrl="https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json"
-                        onEmotionChange={() => { }}
-                    />
+                    {!avatarLoaded ? (
+                        <AvatarCanvas
+                            ref={avatarRef}
+                            modelUrl="https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json"
+                            onReady={() => setAvatarLoaded(true)}
+                            onEmotionChange={() => { }}
+                        />
+                    ) : null}
+                    {/* Fallback: show after timeout if Live2D didn't load */}
+                    {avatarLoaded && (
+                        <div className="flex flex-col items-center gap-2">
+                            <div className={`w-24 h-24 rounded-full bg-gradient-to-br from-[#00d4aa]/20 to-[#c9a84c]/20 flex items-center justify-center text-5xl border-2 ${isSpeaking ? "border-[#00d4aa] animate-pulse" : "border-white/10"} transition-all`}>
+                                🎭
+                            </div>
+                        </div>
+                    )}
                 </div>
                 {/* Name tag */}
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">

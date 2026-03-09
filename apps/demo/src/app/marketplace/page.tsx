@@ -368,10 +368,36 @@ export default function MarketplacePage() {
                                     <p className="text-xs text-[#c9a84c] mt-1">$8.25/mo effective</p>
                                 </div>
                             </div>
-                            <button className="px-8 py-3 rounded-full bg-[#c9a84c]/30 text-[#c9a84c] font-semibold cursor-not-allowed border border-[#c9a84c]/20 relative">
-                                Become a Member
-                                <span className="absolute -top-2 -right-2 text-[9px] px-2 py-0.5 bg-[#c9a84c] text-[#0a0f1a] rounded-full font-bold">Coming Soon</span>
-                            </button>
+                            <div className="relative inline-block">
+                                <button
+                                    onClick={() => {
+                                        const el = document.getElementById('membership-pay');
+                                        if (el) el.classList.toggle('hidden');
+                                    }}
+                                    className="px-8 py-3 rounded-full bg-[#c9a84c] text-[#0a0f1a] font-semibold hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,168,76,0.2)]"
+                                >
+                                    Become a Member
+                                </button>
+                                <div id="membership-pay" className="hidden absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 bg-[#0f1019] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-20">
+                                    <button className="w-full px-4 py-3 text-left text-xs text-[#eae6df] hover:bg-white/5 transition-all flex items-center gap-2">
+                                        <span>🦊</span>
+                                        <span className="flex-1">MetaMask / Wallet</span>
+                                        <span className="text-[#00d4aa] text-[9px] font-semibold">USDC</span>
+                                    </button>
+                                    <div className="h-px bg-white/5" />
+                                    <button className="w-full px-4 py-3 text-left text-xs text-[#eae6df] hover:bg-white/5 transition-all flex items-center gap-2">
+                                        <span>🔗</span>
+                                        <span className="flex-1">x402 Protocol</span>
+                                        <span className="text-[#00d4aa] text-[9px] font-semibold">Agent Pay</span>
+                                    </button>
+                                    <div className="h-px bg-white/5" />
+                                    <div className="w-full px-4 py-3 text-left text-xs text-[#7a8a9d] flex items-center gap-2 opacity-50 cursor-not-allowed">
+                                        <span>💳</span>
+                                        <span className="flex-1">Stripe · Alipay · WeChat</span>
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-[#c9a84c]">Soon</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
