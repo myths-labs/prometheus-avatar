@@ -221,6 +221,13 @@ export default function HomeClient() {
           <a href="https://github.com/myths-labs" className="text-[#00d4aa] hover:text-[#4aecd0] transition-colors">Myths Labs</a>
           {" "}— Open Source under MIT License
         </p>
+        <div className="flex justify-center gap-4 mt-3">
+          <a href="/privacy" className="text-xs text-[#6b7a8d] hover:text-[#a8b8d0] transition-colors">Privacy Policy</a>
+          <span className="text-[#6b7a8d]/30">·</span>
+          <a href="/terms" className="text-xs text-[#6b7a8d] hover:text-[#a8b8d0] transition-colors">Terms of Service</a>
+          <span className="text-[#6b7a8d]/30">·</span>
+          <a href="https://github.com/myths-labs/prometheus-avatar" className="text-xs text-[#6b7a8d] hover:text-[#a8b8d0] transition-colors" target="_blank" rel="noopener">GitHub</a>
+        </div>
       </footer>
     </main>
   );
