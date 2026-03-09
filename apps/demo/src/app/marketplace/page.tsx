@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
+import ReferralPanel from "@/components/ReferralPanel";
 import { supabase, type Asset, type Creator, type CreatorType, COMMISSION_RATES } from "@/lib/supabase";
 
 const CATEGORIES = [
@@ -76,6 +77,7 @@ export default function MarketplacePage() {
     const [selectedCreatorFilter, setSelectedCreatorFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState("popular");
+    const [referralOpen, setReferralOpen] = useState(false);
 
     useEffect(() => {
         fetchAssets();
@@ -440,6 +442,17 @@ export default function MarketplacePage() {
                     </div>
                 </div>
             </section>
+
+            {/* Floating Refer & Earn button */}
+            <button
+                onClick={() => setReferralOpen(true)}
+                className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-full bg-gradient-to-r from-[#c9a84c] to-[#e8c84a] text-[#0a0f1a] font-bold text-sm shadow-[0_0_25px_rgba(201,168,76,0.3)] hover:shadow-[0_0_40px_rgba(201,168,76,0.5)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            >
+                🔗 Refer & Earn
+            </button>
+
+            {/* Referral Panel */}
+            <ReferralPanel isOpen={referralOpen} onClose={() => setReferralOpen(false)} />
 
             <footer className="text-center py-8 text-xs text-[#7a8a9d]">
                 Built with 🔥 by <a href="https://github.com/myths-labs" className="text-[#00d4aa] hover:underline">Myths Labs</a> — Open Source under MIT License
