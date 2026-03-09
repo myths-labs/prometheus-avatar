@@ -5,6 +5,8 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import ReferralPanel from "@/components/ReferralPanel";
 import LiveCounter from "@/components/LiveCounter";
+import LeaderboardTable from "@/components/LeaderboardTable";
+import MilestoneBanner from "@/components/MilestoneBanner";
 import { supabase, type Asset, type Creator, type CreatorType, COMMISSION_RATES } from "@/lib/supabase";
 
 const CATEGORIES = [
@@ -310,6 +312,24 @@ export default function MarketplacePage() {
                             <p className="text-xs text-[#7a8a9d]">Get paid via Stripe or x402 crypto — instantly, globally</p>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            {/* Community — Leaderboard + Milestone */}
+            <section className="py-16 px-6 border-t border-white/5">
+                <div className="max-w-4xl mx-auto">
+                    <h2 className="heading-serif text-3xl text-center mb-3">
+                        Community <em>Leaderboard</em>
+                    </h2>
+                    <p className="text-[#a8b8d0] text-center mb-8">Top referrers this week — earn points, climb the ranks, get featured.</p>
+
+                    {/* Milestone progress */}
+                    <div className="mb-8">
+                        <MilestoneBanner />
+                    </div>
+
+                    {/* Weekly leaderboard */}
+                    <LeaderboardTable />
                 </div>
             </section>
 
