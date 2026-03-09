@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getBaseUrl } from "@/lib/authUrl";
 
 // Google OAuth — Step 2: Handle callback from Google
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code");
     const state = searchParams.get("state");
+    const baseUrl = getBaseUrl();
 
     if (!code) {
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}/marketplace?error=no_code`);
+        return NextResponse.redirect(`${baseUrl}/marketplace?error=no_code`);
     }
 
     let returnTo = "/marketplace";
@@ -26,7 +28,7 @@ export async function GET(request: Request) {
                 code,
                 client_id: process.env.GOOGLE_CLIENT_ID!,
                 client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-                redirect_uri: `${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}/api/auth/callback/google`,
+                redirect_uri: `${baseUrl}/api/auth/callback/google`,
                 grant_type: "authorization_code",
             }),
         });
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
         const tokenData = await tokenRes.json();
         if (tokenData.error) {
             console.error("[Google OAuth] Token error:", tokenData.error_description);
-            return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/marketplace?error=token_failed`);
+            return NextResponse.redirect(`${baseUrl}/marketplace?error=token_failed`);
         }
 
         // Get user profile
@@ -65,9 +67,9 @@ export async function GET(request: Request) {
 
         console.log(`[Google OAuth] ✅ Verified: ${user.name} (${user.email})`);
 
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}${returnTo}?verified=google`);
+        return NextResponse.redirect(`${baseUrl}${returnTo}?verified=google`);
     } catch (error: any) {
         console.error("[Google OAuth] Error:", error.message);
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}/marketplace?error=oauth_failed`);
+        return NextResponse.redirect(`${baseUrl}/marketplace?error=oauth_failed`);
     }
 }

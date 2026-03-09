@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getBaseUrl } from "@/lib/authUrl";
 
 // GitHub OAuth — Step 2: Handle callback from GitHub
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code");
     const state = searchParams.get("state");
+    const baseUrl = getBaseUrl();
 
     if (!code) {
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}/marketplace?error=no_code`);
+        return NextResponse.redirect(`${baseUrl}/marketplace?error=no_code`);
     }
 
     let returnTo = "/marketplace";
@@ -35,7 +37,7 @@ export async function GET(request: Request) {
         const tokenData = await tokenRes.json();
         if (tokenData.error) {
             console.error("[GitHub OAuth] Token error:", tokenData.error_description);
-            return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/marketplace?error=token_failed`);
+            return NextResponse.redirect(`${baseUrl}/marketplace?error=token_failed`);
         }
 
         // Get user profile
@@ -84,9 +86,9 @@ export async function GET(request: Request) {
 
         console.log(`[GitHub OAuth] ✅ Verified: ${user.login} (${email})`);
 
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}${returnTo}?verified=github`);
+        return NextResponse.redirect(`${baseUrl}${returnTo}?verified=github`);
     } catch (error: any) {
         console.error("[GitHub OAuth] Error:", error.message);
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}/marketplace?error=oauth_failed`);
+        return NextResponse.redirect(`${baseUrl}/marketplace?error=oauth_failed`);
     }
 }

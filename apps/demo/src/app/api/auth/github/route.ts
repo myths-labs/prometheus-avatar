@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getBaseUrl } from "@/lib/authUrl";
 
 // GitHub OAuth — Step 1: Redirect user to GitHub authorization
 export async function GET(request: Request) {
@@ -11,10 +12,11 @@ export async function GET(request: Request) {
     const returnTo = searchParams.get("returnTo") || "/marketplace";
 
     const state = Buffer.from(JSON.stringify({ returnTo, ts: Date.now() })).toString("base64url");
+    const baseUrl = getBaseUrl();
 
     const params = new URLSearchParams({
         client_id: clientId,
-        redirect_uri: `${process.env.NEXTAUTH_URL || "https://prometheus.mythslabs.ai"}/api/auth/callback/github`,
+        redirect_uri: `${baseUrl}/api/auth/callback/github`,
         scope: "read:user user:email",
         state,
     });
