@@ -9,11 +9,11 @@ export default function Header() {
     return (
         <header className="fixed top-0 left-0 right-0 z-50 border-b border-[rgba(0,212,170,0.04)] backdrop-blur-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 h-[72px] flex items-center justify-between">
-                {/* Logo — Myths Labs system style (Airachne/Aithena) */}
-                <a href="/" className="flex items-center gap-2.5 group">
-                    <Image src="/logo-small.png" alt="Prometheus" width={55} height={55} className="group-hover:scale-110 transition-transform drop-shadow-[0_0_12px_rgba(0,212,170,0.5)]" />
+                {/* Logo — Myths Labs system style */}
+                <a href="/" className="flex items-center gap-1.5 sm:gap-2.5 group min-w-0">
+                    <Image src="/logo-small.png" alt="Prometheus" width={55} height={55} className="w-9 h-9 sm:w-[55px] sm:h-[55px] group-hover:scale-110 transition-transform drop-shadow-[0_0_12px_rgba(0,212,170,0.5)]" />
                     <span
-                        className="heading-serif text-xl sm:text-2xl italic"
+                        className="heading-serif text-lg sm:text-2xl italic hidden min-[380px]:inline"
                         style={{ fontWeight: 400, letterSpacing: '0.02em' }}
                     >
                         <span className="bg-gradient-to-r from-[#00d4aa] via-[#4aecd0] to-[#c9a84c] bg-clip-text text-transparent">
