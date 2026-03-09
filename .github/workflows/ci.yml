@@ -37,7 +37,16 @@ jobs:
       - name: Build Demo
         run: pnpm --filter demo build
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'ci-placeholder' }}
+          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-placeholder-anon-key"
+          SUPABASE_SERVICE_ROLE_KEY: "ci-placeholder-service-key"
+          GITHUB_CLIENT_ID: "ci-placeholder"
+          GITHUB_CLIENT_SECRET: "ci-placeholder"
+          GOOGLE_CLIENT_ID: "ci-placeholder"
+          GOOGLE_CLIENT_SECRET: "ci-placeholder"
+          NEXTAUTH_URL: "http://localhost:3000"
+          NEXTAUTH_SECRET: "ci-placeholder-secret"
 
       - name: Lint
         run: pnpm --filter demo lint
