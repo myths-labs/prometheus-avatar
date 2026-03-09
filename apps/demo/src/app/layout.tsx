@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 import StarfieldBackground from "@/components/StarfieldBackground";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="antialiased" suppressHydrationWarning>
         <StarfieldBackground />
         {children}
+        <PWAInstallPrompt />
         <script dangerouslySetInnerHTML={{
           __html: `
           if ('serviceWorker' in navigator) {
