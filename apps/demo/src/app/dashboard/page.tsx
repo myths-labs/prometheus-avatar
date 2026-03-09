@@ -157,64 +157,25 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Withdraw Section */}
-                        <div className="bg-gradient-to-r from-[#00d4aa]/5 to-[#c9a84c]/5 border border-[#00d4aa]/20 rounded-2xl p-6 mb-8">
-                            <h3 className="text-sm font-semibold text-[#eae6df] mb-4">💸 Withdraw Points → USDC</h3>
-
-                            {/* Wallet connection */}
-                            {!walletConnected ? (
-                                <button
-                                    onClick={connectWallet}
-                                    className="w-full py-3 rounded-xl bg-white/[0.05] border border-white/10 text-sm text-[#eae6df] hover:bg-white/10 transition-all mb-4"
-                                >
-                                    🦊 Connect MetaMask Wallet
-                                </button>
-                            ) : (
-                                <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-white/[0.02] border border-[#00d4aa]/20">
-                                    <span className="text-xs text-[#00d4aa]">🦊 Connected:</span>
-                                    <span className="text-xs text-[#eae6df] font-mono">{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</span>
+                        {/* Withdraw Section — Coming Soon */}
+                        <div className="bg-gradient-to-r from-[#00d4aa]/5 to-[#c9a84c]/5 border border-[#00d4aa]/20 rounded-2xl p-6 mb-8 relative overflow-hidden">
+                            <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-[#c9a84c]/20 text-[#c9a84c] text-[10px] font-bold tracking-wide">COMING SOON</div>
+                            <h3 className="text-sm font-semibold text-[#eae6df] mb-3">💸 Withdraw Earnings</h3>
+                            <p className="text-xs text-[#a8b8d0] mb-4">
+                                Cash out your earned Points to real money. Withdrawal options are coming soon pending compliance review.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 opacity-60">
+                                    <div className="text-xs text-[#eae6df] font-medium mb-1">🦊 USDC via MetaMask</div>
+                                    <div className="text-[10px] text-[#7a8a9d]">Min 1,000 pts ($10) · 1-3 days · KYC required</div>
                                 </div>
-                            )}
-
-                            <div className="flex gap-3 mb-3">
-                                <div className="flex-1 relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8a9d] text-sm">🪙</span>
-                                    <input
-                                        type="number"
-                                        min="1000"
-                                        step="100"
-                                        value={withdrawAmount}
-                                        onChange={e => setWithdrawAmount(e.target.value)}
-                                        placeholder="1000 (min)"
-                                        className="w-full pl-9 pr-4 py-3 bg-black/30 border border-white/10 rounded-xl text-sm text-[#eae6df] placeholder:text-[#3a4a5d]"
-                                    />
+                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 opacity-60">
+                                    <div className="text-xs text-[#eae6df] font-medium mb-1">💳 Bank Transfer via Stripe</div>
+                                    <div className="text-[10px] text-[#7a8a9d]">Direct to bank · Stripe Connect · Most compliant</div>
                                 </div>
-                                <button
-                                    onClick={handleWithdraw}
-                                    disabled={withdrawing || !walletConnected || withdrawNum < 1000}
-                                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#00d4aa] to-[#00b896] text-[#0a0f1a] font-semibold text-sm hover:brightness-110 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                                >
-                                    {withdrawing ? "⏳..." : "Withdraw"}
-                                </button>
                             </div>
-
-                            {withdrawNum >= 1000 && (
-                                <div className="text-xs text-[#a8b8d0] mb-2">
-                                    You will receive: <span className="text-[#00d4aa] font-bold">${(withdrawNum * 0.01).toFixed(2)} USDC</span> to your wallet
-                                </div>
-                            )}
-                            {withdrawNum > 0 && withdrawNum < 1000 && (
-                                <div className="text-xs text-red-400 mb-2">⚠️ Minimum withdrawal: 1,000 pts ($10)</div>
-                            )}
-
-                            {withdrawResult && (
-                                <div className={`text-xs p-3 rounded-xl ${withdrawResult.startsWith("✅") ? "bg-[#00d4aa]/10 text-[#00d4aa]" : "bg-red-500/10 text-red-400"}`}>
-                                    {withdrawResult}
-                                </div>
-                            )}
-
-                            <div className="mt-3 text-[10px] text-[#7a8a9d]">
-                                Rate: 1 pt = $0.01 USDC · Min: 1,000 pts ($10) · Processing: 1-3 business days
+                            <div className="text-[10px] text-[#7a8a9d]">
+                                📌 Rate: 1 pt = $0.01 · Your Points are safe and will never expire · Use Points to buy assets or membership in the meantime
                             </div>
                         </div>
 
