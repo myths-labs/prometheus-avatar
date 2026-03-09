@@ -1,23 +1,27 @@
 <p align="center">
-  <img src="https://img.icons8.com/emoji/96/fire.png" width="80" alt="Prometheus" />
+  <a href="https://prometheus.mythslabs.ai">
+    <img src="docs/images/hero-banner.png" alt="Prometheus Avatar SDK — Give Your AI A Body" width="100%" />
+  </a>
 </p>
 
-<h1 align="center">Prometheus Avatar SDK</h1>
+<h1 align="center">🔥 Prometheus Avatar SDK</h1>
 
 <p align="center">
   <strong>Give your AI an embodied avatar — in 3 lines of code.</strong>
 </p>
 
 <p align="center">
-  Open-source SDK for driving Live2D & 3D avatars with LLM output.<br/>
-  Lip-sync · Emotion expressions · Real-time voice · Multi-language · Marketplace
+  Open-source SDK for driving Live2D & 3D avatars with any LLM output.<br/>
+  Lip-sync · Emotion expressions · Real-time voice · Multi-language TTS · VTuber mode
 </p>
 
 <p align="center">
-  <a href="https://prometheus.mythslabs.ai/">🌐 Live Demo</a> ·
-  <a href="https://prometheus.mythslabs.ai/marketplace">🛒 Marketplace</a> ·
-  <a href="#quick-start">🚀 Quick Start</a> ·
-  <a href="#中文文档">🇨🇳 中文</a>
+  <a href="https://prometheus.mythslabs.ai"><img src="https://img.shields.io/badge/🌐_Official_Site-prometheus.mythslabs.ai-00d4aa?style=for-the-badge" alt="Official Site" /></a>
+</p>
+
+<p align="center">
+  <a href="https://prometheus.mythslabs.ai/"><img src="https://img.shields.io/badge/🔥_Try_Live_Demo-Click_Here-c9a84c?style=for-the-badge" alt="Live Demo" /></a>
+  <a href="https://prometheus.mythslabs.ai/marketplace"><img src="https://img.shields.io/badge/🛒_Marketplace-Browse_Assets-00d4aa?style=for-the-badge" alt="Marketplace" /></a>
 </p>
 
 <p align="center">
@@ -28,6 +32,16 @@
   <img src="https://img.shields.io/badge/Live2D-Cubism_2_&_4-ff69b4.svg?style=for-the-badge" alt="Live2D" />
   <img src="https://img.shields.io/badge/LLMs-9_Providers-9c27b0.svg?style=for-the-badge" alt="9 LLMs" />
 </p>
+
+<p align="center">
+  <a href="https://x.com/MythsLabs"><img src="https://img.shields.io/badge/𝕏_Twitter-@MythsLabs-000000?style=for-the-badge&logo=x&logoColor=white" alt="X (Twitter)" /></a>
+  <a href="https://linkedin.com/company/mythslabs/"><img src="https://img.shields.io/badge/LinkedIn-Myths_Labs-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" /></a>
+  <a href="https://x.com/SunshiningDay"><img src="https://img.shields.io/badge/Creator-@SunshiningDay-1DA1F2?style=for-the-badge&logo=x&logoColor=white" alt="Creator" /></a>
+</p>
+
+---
+
+> ### 🌐 **[prometheus.mythslabs.ai](https://prometheus.mythslabs.ai)** — Try the full experience: live avatar chat, marketplace, creator dashboard, and more.
 
 ---
 
@@ -47,7 +61,11 @@
 
 ## 🎬 Demo
 
-**[→ Try it live at prometheus.mythslabs.ai](https://prometheus.mythslabs.ai/)**
+<p align="center">
+  <a href="https://prometheus.mythslabs.ai">
+    <img src="https://img.shields.io/badge/▶_TRY_LIVE_DEMO-prometheus.mythslabs.ai-00d4aa?style=for-the-badge&labelColor=0a0f1a" alt="Try Live Demo" />
+  </a>
+</p>
 
 - Select an avatar (Haru, Shizuku, Koharu)
 - Switch to **⚡ Live** mode for real-time voice conversation
@@ -93,7 +111,7 @@ graph TB
         PA --> EA[EmotionAnalyzer]
     end
 
-    subgraph Demo["apps/demo"]
+    subgraph Platform["prometheus.mythslabs.ai"]
         NX[Next.js App] --> AC[AvatarCanvas]
         NX --> CP[ChatPanel]
         NX --> MP[Marketplace]
@@ -114,29 +132,19 @@ graph TB
 ```
 
 ```
-prometheus-avatar/
+prometheus-avatar/           ← This repo (open-source SDK)
 ├── packages/
-│   ├── sdk/                  # @prometheusavatar/core (npm)
+│   ├── sdk/                 # @prometheusavatar/core (npm)
 │   │   └── src/
-│   │       ├── avatar.ts     # PrometheusAvatar orchestrator
-│   │       ├── renderer.ts   # Live2D rendering via PIXI.js
-│   │       ├── tts.ts        # Pluggable TTS engine (ITTSEngine)
-│   │       ├── lip-sync.ts   # Audio → mouth shape mapping
-│   │       ├── emotion.ts    # Text → emotion detection
-│   │       └── types.ts      # TypeScript interfaces
-│   └── openclaw-plugin/      # OpenClaw marketplace integration
-├── apps/
-│   └── demo/                 # prometheus.mythslabs.ai
-│       └── src/
-│           ├── components/   # AvatarCanvas, ChatPanel, HomeClient
-│           ├── lib/
-│           │   └── useLiveVoice.ts  # Gemini Live API WebSocket hook
-│           └── app/
-│               ├── api/chat/       # LLM endpoint (Gemini/Groq SSE)
-│               ├── api/tts/        # TTS endpoint (Gemini TTS)
-│               ├── api/live-token/ # Ephemeral token for Live Voice
-│               ├── marketplace/    # Asset marketplace
-│               └── telegram/       # Telegram Mini App
+│   │       ├── avatar.ts    # PrometheusAvatar orchestrator
+│   │       ├── renderer.ts  # Live2D rendering via PIXI.js
+│   │       ├── tts.ts       # Pluggable TTS engine (ITTSEngine)
+│   │       ├── lip-sync.ts  # Audio → mouth shape mapping
+│   │       ├── emotion.ts   # Text → emotion detection
+│   │       └── types.ts     # TypeScript interfaces
+│   └── openclaw-plugin/     # OpenClaw marketplace integration
+├── examples/                # Ready-to-run examples
+├── docs/                    # API documentation
 └── README.md
 ```
 
@@ -161,6 +169,8 @@ The [Avatar Marketplace](https://prometheus.mythslabs.ai/marketplace) lets creat
 
 Creators earn **80–90%** of every sale. AI agents can also create and sell assets.
 
+> 🌐 **[Browse the Marketplace →](https://prometheus.mythslabs.ai/marketplace)**
+
 ## 📚 API Documentation
 
 Full TypeScript API reference generated with TypeDoc:
@@ -183,11 +193,19 @@ Key exports:
 | [`examples/multi-llm/`](examples/multi-llm/) | 9-provider configuration with auto-fallback |
 | [`examples/live-voice/`](examples/live-voice/) | Gemini Live API real-time voice via WebSocket |
 
-## 💬 Community
+## 💬 Community & Social
+
+<p align="center">
+  <a href="https://prometheus.mythslabs.ai"><img src="https://img.shields.io/badge/🌐_Official_Site-prometheus.mythslabs.ai-00d4aa?style=for-the-badge" alt="Official Site" /></a>
+  <a href="https://x.com/MythsLabs"><img src="https://img.shields.io/badge/𝕏-@MythsLabs-000000?style=for-the-badge&logo=x&logoColor=white" alt="X" /></a>
+  <a href="https://linkedin.com/company/mythslabs/"><img src="https://img.shields.io/badge/LinkedIn-Myths_Labs-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" /></a>
+</p>
 
 - 🐛 **Issues**: [GitHub Issues](https://github.com/myths-labs/prometheus-avatar/issues)
 - 💡 **Discussions**: [GitHub Discussions](https://github.com/myths-labs/prometheus-avatar/discussions)
-- 🐦 **Twitter**: [@MythsLabs](https://twitter.com/MythsLabs)
+- 🐦 **X (Twitter)**: [@MythsLabs](https://x.com/MythsLabs)
+- 💼 **LinkedIn**: [Myths Labs](https://linkedin.com/company/mythslabs/)
+- 👤 **Creator**: [@SunshiningDay](https://x.com/SunshiningDay) — Solo indie developer building Prometheus
 
 ## 🤝 Contributing
 
@@ -198,11 +216,6 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 git clone https://github.com/myths-labs/prometheus-avatar.git
 cd prometheus-avatar
 pnpm install
-
-# Run demo locally
-cd apps/demo
-cp .env.example .env.local  # Add your API keys
-pnpm dev
 
 # Run SDK tests
 cd packages/sdk
@@ -224,6 +237,14 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 **让你的 AI 拥有一个有表情、会说话的虚拟化身 —— 只需 3 行代码。**
 
 开源 SDK，用于驱动 Live2D 和 3D 虚拟形象。支持实时语音对话、唇形同步、表情识别、文字转语音（TTS）、多语言、以及数字资产市场。
+
+### 🌐 在线体验
+
+<p align="center">
+  <a href="https://prometheus.mythslabs.ai">
+    <img src="https://img.shields.io/badge/▶_在线体验-prometheus.mythslabs.ai-00d4aa?style=for-the-badge&labelColor=0a0f1a" alt="在线体验" />
+  </a>
+</p>
 
 ### ✨ 核心功能
 
@@ -255,10 +276,6 @@ const avatar = await createAvatar({
 await avatar.speak('你好！我是你的 AI 助手。😊');
 ```
 
-### 🌐 在线体验
-
-**[→ prometheus.mythslabs.ai](https://prometheus.mythslabs.ai/)**
-
 ### 🛒 数字市场
 
 [Avatar 数字市场](https://prometheus.mythslabs.ai/marketplace)支持创作者和 AI 代理出售：
@@ -270,6 +287,15 @@ await avatar.speak('你好！我是你的 AI 助手。😊');
 
 创作者获得 **80-90%** 的销售收入。
 
+> 🌐 **[浏览数字市场 →](https://prometheus.mythslabs.ai/marketplace)**
+
+### 💬 关注我们
+
+- 🌐 **官网**: [prometheus.mythslabs.ai](https://prometheus.mythslabs.ai)
+- 🐦 **X (Twitter)**: [@MythsLabs](https://x.com/MythsLabs)
+- 💼 **LinkedIn**: [Myths Labs](https://linkedin.com/company/mythslabs/)
+- 👤 **创始人**: [@SunshiningDay](https://x.com/SunshiningDay) — 独立开发者，一人全栈构建 Prometheus
+
 ### 📄 开源协议
 
 MIT © [Myths Labs](https://github.com/myths-labs)
@@ -277,5 +303,9 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 ---
 
 <p align="center">
-  Built with 🔥 by <a href="https://github.com/myths-labs">Myths Labs</a>
+  <sub>Built with 🔥 by <a href="https://github.com/myths-labs">Myths Labs</a> — Solo-developed by <a href="https://github.com/jj">JJ</a></sub>
+</p>
+
+<p align="center">
+  <a href="https://prometheus.mythslabs.ai"><strong>🌐 prometheus.mythslabs.ai</strong></a>
 </p>
