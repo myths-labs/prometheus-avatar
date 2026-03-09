@@ -14,7 +14,7 @@ export async function GET() {
     try {
         const ai = new GoogleGenAI({
             apiKey: GEMINI_API_KEY,
-            httpOptions: { apiVersion: "v1alpha" },
+            httpOptions: { apiVersion: "v1beta" },
         });
 
         const token = await ai.authTokens.create({

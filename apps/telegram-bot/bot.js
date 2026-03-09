@@ -25,8 +25,8 @@ bot.command("start", async (ctx) => {
 
     await ctx.reply(
         `Hey ${userName}! 👋\n\n` +
-        `I'm Prometheus — your AI avatar companion.\n` +
-        `Tap the button below to start chatting with me! 🚀`,
+        `Welcome to Prometheus — give your AI an embodied avatar with voice and expressions.\n` +
+        `Tap below to start talking! 🚀`,
         { reply_markup: keyboard }
     );
 });
@@ -34,11 +34,11 @@ bot.command("start", async (ctx) => {
 // ─── /help command ───
 bot.command("help", async (ctx) => {
     await ctx.reply(
-        "🎭 *Prometheus Avatar Bot*\n\n" +
+        "🎭 *Prometheus Avatar*\n\n" +
         "Commands:\n" +
-        "/start — Open the avatar chat\n" +
+        "/start — Open the avatar interface\n" +
         "/help — Show this help\n\n" +
-        "Just tap the button to chat with your AI avatar companion!",
+        "Tap the button to talk with your AI avatar!",
         { parse_mode: "Markdown" }
     );
 });

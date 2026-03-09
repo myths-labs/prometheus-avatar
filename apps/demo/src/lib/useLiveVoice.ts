@@ -199,10 +199,10 @@ export function useLiveVoice(
             audioContextRef.current = ctx;
             nextPlayTimeRef.current = 0;
 
-            // 3. Connect to Gemini Live API (v1alpha required for ephemeral tokens)
+            // 3. Connect to Gemini Live API (v1beta for live models)
             const ai = new GoogleGenAI({
                 apiKey: token,
-                httpOptions: { apiVersion: "v1alpha" },
+                httpOptions: { apiVersion: "v1beta" },
             });
 
             const systemInstruction = systemPrompt
@@ -287,7 +287,12 @@ export function useLiveVoice(
             console.log("[LiveVoice] 🎤 Session active — speak now");
         } catch (err: any) {
             console.error("[LiveVoice] Start error:", err);
-            setError(err.message || "Failed to start");
+            const msg = err.name === "NotFoundError"
+                ? "No microphone found. Please connect a mic and try again."
+                : err.name === "NotAllowedError"
+                    ? "Mic permission denied. Allow mic access and try again."
+                    : err.message || "Failed to start";
+            setError(msg);
             setIsConnecting(false);
             setIsLive(false);
         }
