@@ -11,8 +11,12 @@ const PLANS = [
         price: "$9.90",
         priceUSD: 9.9,
         period: "/mo",
-        points: "1,000 pts",
-        features: ["Lower commission rates", "Premium assets access", "Priority support"],
+        pointsLabel: "Or redeem 1,000 pts",
+        features: [
+            "Commission halved (20% → 10%)",
+            "Access member-only assets",
+            "Priority support",
+        ],
         popular: false,
     },
     {
@@ -21,10 +25,14 @@ const PLANS = [
         price: "$99",
         priceUSD: 99,
         period: "/yr",
-        points: "9,000 pts",
-        features: ["Everything in Monthly", "2 months free", "Early access to new features", "Exclusive yearly badge"],
+        pointsLabel: "Or redeem 9,000 pts",
+        features: [
+            "Everything in Monthly",
+            "Equivalent to $8.25/mo (save 17%)",
+            "Exclusive yearly badge",
+        ],
         popular: true,
-        savings: "Save $19.80",
+        savings: "Save $19.80 vs monthly",
     },
     {
         id: "lifetime",
@@ -32,8 +40,13 @@ const PLANS = [
         price: "$299",
         priceUSD: 299,
         period: "one-time",
-        points: "Or 10K $AIR",
-        features: ["Everything in Yearly", "Lifetime access", "Genesis NFT badge", "DAO governance eligibility", "USDC profit lottery access"],
+        pointsLabel: "Or redeem 10,000 $AIR",
+        features: [
+            "Everything in Yearly, forever",
+            "Commission halved permanently",
+            "Genesis badge",
+            "USDC profit lottery eligibility",
+        ],
         popular: false,
         limited: "100K slots only",
     },
@@ -113,7 +126,7 @@ export default function MembershipPage() {
                             {(p as any).savings && (
                                 <div className="text-xs text-[#00d4aa] font-semibold mb-3">{(p as any).savings}</div>
                             )}
-                            <div className="text-xs text-[#c9a84c] mb-3">Or redeemable for {p.points}</div>
+                            <div className="text-xs text-[#c9a84c] mb-3">{p.pointsLabel}</div>
                             <ul className="space-y-2">
                                 {p.features.map((f, i) => (
                                     <li key={i} className="flex items-center gap-2 text-xs text-[#a8b8d0]">
