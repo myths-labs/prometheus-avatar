@@ -57,6 +57,7 @@
 | 🎨 **Marketplace** | Browse, buy, and sell avatar skins, voices, effects, and personas |
 | 📷 **VTuber Mode** | Camera face tracking → real-time avatar head movement |
 | 🔌 **Multi-LLM** | 9 providers: Gemini, OpenAI, Anthropic, Groq, Grok, DeepSeek, Qwen, Kimi, MiniMax |
+| 🤖 **Connect Your Agent** | Plug in any OpenAI-compatible agent — [integration guide](docs/agent-integration.md) |
 | 📦 **SDK** | Drop-in `@prometheusavatar/core` for your own apps |
 
 ## 🎬 Demo
@@ -144,7 +145,7 @@ prometheus-avatar/           ← This repo (open-source SDK)
 │   │       └── types.ts     # TypeScript interfaces
 │   └── openclaw-plugin/     # OpenClaw marketplace integration
 ├── examples/                # Ready-to-run examples
-├── docs/                    # API documentation
+├── docs/                    # API documentation + agent integration guide
 └── README.md
 ```
 
@@ -263,6 +264,7 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 | 🛒 **数字市场** | 浏览/购买/出售虚拟形象皮肤、声音、特效 |
 | 📷 **VTuber 模式** | 摄像头面部跟踪 → 实时驱动 avatar 头部运动 |
 | 🔌 **多 LLM 支持** | Gemini 2.0 Flash (主) + Groq Llama 3.3 70B (备) |
+| 🤖 **接入你的 AI Agent** | 支持任何 OpenAI 兼容的 agent 端点 — [接入指南](docs/agent-integration.md) |
 
 ### 🚀 快速开始
 
