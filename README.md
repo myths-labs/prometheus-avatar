@@ -313,7 +313,7 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 ---
 
 <p align="center">
-  <sub>Built with 🔥 by <a href="https://github.com/myths-labs">Myths Labs</a> — Solo-developed by <a href="https://github.com/JC-Myths">JC</a></sub>
+  <sub>Built with 🔥 by <a href="https://github.com/myths-labs">Myths Labs</a> — Solo-developed by <a href="https://github.com/jc-myths">JC</a></sub>
 </p>
 
 <p align="center">
