@@ -38,7 +38,10 @@ yarn-error.log*
 CLAUDE.md
 STATUS.md
 MARKETING_STATUS.md
+STRATEGY_STATUS.md
 PRD.md
+GAMIFICATION_ECONOMICS.md
+PRODUCT_POSITIONING.md
 .agent/
 supabase/
 apps/
