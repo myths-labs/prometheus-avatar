@@ -34,15 +34,16 @@ yarn-error.log*
 # vercel
 .vercel
 
-# Internal project management (not for public)
+# MUSE private files (not for public repo)
+.muse/
+memory/
+convo/
 CLAUDE.md
-STATUS.md
-MARKETING_STATUS.md
-STRATEGY_STATUS.md
-PRD.md
-GAMIFICATION_ECONOMICS.md
-PRODUCT_POSITIONING.md
+USER.md
+MEMORIES.md
 .agent/
+docs/internal/
+
+# Project private
 supabase/
 apps/
-conversations/
