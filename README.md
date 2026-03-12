@@ -7,7 +7,7 @@
 <h1 align="center">🔥 Prometheus Avatar SDK</h1>
 
 <p align="center">
-  <strong>Give your AI an embodied avatar — in 3 lines of code.</strong>
+  <strong>Give your AI an embodied avatar — in 5 lines of code.</strong>
 </p>
 
 <p align="center">
@@ -240,7 +240,7 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 
 ## Prometheus Avatar SDK
 
-**让你的 AI 拥有一个有表情、会说话的虚拟化身 —— 只需 3 行代码。**
+**让你的 AI 拥有一个有表情、会说话的虚拟化身 —— 只需 5 行代码。**
 
 开源 SDK，用于驱动 Live2D 和 3D 虚拟形象。支持实时语音对话、唇形同步、表情识别、文字转语音（TTS）、多语言、以及数字资产市场。
 
