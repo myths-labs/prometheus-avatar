@@ -30,7 +30,7 @@ export default function ReferralLandingPage() {
                     </h1>
                     <p className="text-lg text-[#a8b8d0] max-w-lg mx-auto">
                         Real-time lip-sync, emotions &amp; voice — in 5 lines of code.
-                        Open-source SDK for developers, agents, and lobsters.
+                        Open-source SDK for developers, agents, and openclaws.
                     </p>
                 </div>
 

@@ -4,6 +4,14 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Link from "next/link";
 
+import type { CreatorType } from "@/lib/supabase";
+
+const IDENTITY_OPTIONS: { id: CreatorType; icon: string; label: string; desc: string; commission: string; memberCommission: string; badge: string }[] = [
+    { id: "human", icon: "👤", label: "Human Creator", desc: "I'm a human designer, artist, or creator", commission: "80% revenue (20% fee)", memberCommission: "90% with membership (10% fee)", badge: "bg-purple-500/15 text-purple-400" },
+    { id: "agent", icon: "🤖", label: "AI Agent", desc: "I'm an autonomous AI agent creating assets", commission: "85% revenue (15% fee)", memberCommission: "92.5% with membership (7.5% fee)", badge: "bg-[#c9a84c]/15 text-[#c9a84c]" },
+    { id: "openclaw", icon: "🦞", label: "OpenClaw OpenClaw", desc: "I'm an OpenClaw agent with a openclaw identity", commission: "90% revenue (10% fee)", memberCommission: "95% with membership (5% fee)", badge: "bg-red-500/15 text-red-400" },
+];
+
 interface DashboardData {
     account: { points: number; referralCode: string; createdAt: string };
     earnings: { totalEarned: number; totalSpent: number; totalSales: number; estimatedUSD: string };
@@ -22,18 +30,134 @@ export default function DashboardPage() {
     const [withdrawing, setWithdrawing] = useState(false);
     const [withdrawResult, setWithdrawResult] = useState("");
 
+    const [identity, setIdentity] = useState/*<CreatorType | null>*/(null);
+    const [verified, setVerified] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [verifyError, setVerifyError] = useState("");
+    const [agentApiKey, setAgentApiKey] = useState("");
+    const [openclawCode] = useState(() => `PROM-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+    const [openclawPosted, setOpenClawPosted] = useState(false);
+
+    function handleIdentityChange(id/*: CreatorType*/) {
+        setIdentity(id as any);
+        setVerified(false);
+        setVerifying(false);
+        setVerifyError("");
+        setAgentApiKey("");
+        setOpenClawPosted(false);
+    }
+
+    function verifyHumanGoogle() {
+        window.location.href = "/api/auth/google?returnTo=/dashboard";
+    }
+
+    function verifyHumanGithub() {
+        window.location.href = "/api/auth/github?returnTo=/dashboard";
+    }
+
+    
+    async function fetchDashboardData(userId: string) {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/dashboard?userId=${userId}`);
+            const d = await res.json();
+            setData(d);
+        } catch (e) {
+            console.error("Dashboard load error:", e);
+        }
+        setLoading(false);
+    }
+
+
+    async function verifyAgent() {
+        if (!agentApiKey.trim()) {
+            setVerifyError("Please enter your Agent API Key");
+            return;
+        }
+        setVerifying(true);
+        setVerifyError("");
+        try {
+            const challengeRes = await fetch("/api/verify/agent", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ apiKey: agentApiKey, step: "challenge" }),
+            });
+            const challengeData = await challengeRes.json();
+
+            if (!challengeRes.ok) {
+                setVerifyError(challengeData.error || "Challenge failed");
+                setVerifying(false);
+                return;
+            }
+
+            const signature = challengeData.challenge;
+            const verifyRes = await fetch("/api/verify/agent", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ apiKey: agentApiKey, step: "verify", signature }),
+            });
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.status === "verified") {
+                setVerified(true);
+                fetchDashboardData(agentApiKey);
+            } else {
+                setVerifyError(verifyData.error || "Verification failed");
+            }
+        } catch {
+            setVerifyError("Network error during verification");
+        }
+        setVerifying(false);
+    }
+
+    async function verifyOpenClaw() {
+        setVerifying(true);
+        setVerifyError("");
+        try {
+            const xHandle = prompt("Enter your X (Twitter) handle (e.g. @myhandle):");
+            if (!xHandle) {
+                setVerifyError("X handle required for verification");
+                setVerifying(false);
+                return;
+            }
+            const res = await fetch("/api/verify/openclaw", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ verificationCode: openclawCode, xHandle }),
+            });
+            const data = await res.json();
+            if (data.status === "verified") {
+                setVerified(true);
+                fetchDashboardData(xHandle);
+            } else {
+                setVerifyError(data.error || "Verification failed");
+            }
+        } catch {
+            setVerifyError("Network error during verification");
+        }
+        setVerifying(false);
+    }
+
+
     // Load dashboard data
     useEffect(() => {
         async function load() {
             try {
-                // Get user session
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('verified') === 'github' || params.get('verified') === 'google') {
+                    setIdentity('human' as any);
+                    setVerified(true);
+                }
+
                 const sessionRes = await fetch("/api/auth/session");
                 const session = await sessionRes.json();
                 if (!session?.user?.id) {
                     setLoading(false);
                     return;
                 }
-
+                
+                setIdentity('human' as any);
+                setVerified(true);
                 const res = await fetch(`/api/dashboard?userId=${session.user.id}`);
                 const d = await res.json();
                 setData(d);
@@ -124,74 +248,77 @@ export default function DashboardPage() {
 
                 {loading && <div className="text-center text-[#7a8a9d] py-20">Loading...</div>}
 
-                {!loading && !data && (
-                    <div className="text-center py-20">
-                        <p className="text-[#a8b8d0] mb-4">Please sign in to view your dashboard.</p>
-                        <Link href="/api/auth/google?returnTo=/dashboard" className="inline-block px-6 py-3 rounded-xl bg-[#00d4aa] text-[#0a0f1a] font-semibold text-sm">
-                            Sign in with Google
-                        </Link>
+                
+                {!loading && !data && !verified && (
+                    <div className="max-w-2xl mx-auto">
+                        <p className="text-[#a8b8d0] mb-8 text-center text-lg">Sign in to manage your points, withdraw revenue, and track your asset sales.</p>
+                        
+                        <div className="space-y-4">
+                            {IDENTITY_OPTIONS.map(opt => (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => handleIdentityChange(opt.id as any)}
+                                    className={`w-full text-left p-5 rounded-2xl border transition-all ${identity === opt.id
+                                        ? "border-[#00d4aa]/40 bg-[#00d4aa]/5"
+                                        : "border-white/5 bg-white/[0.02] hover:border-white/10"
+                                        }`}
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <span className="text-3xl">{opt.icon}</span>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-[#eae6df] font-semibold mb-0.5">{opt.label}</h3>
+                                            </div>
+                                            <p className="text-sm text-[#7a8a9d] mb-2">{opt.desc}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        {identity && !verified && (
+                            <div className="mt-6 p-5 rounded-2xl border border-white/10 bg-white/[0.02]">
+                                <h3 className="text-sm font-semibold text-[#eae6df] mb-4 flex items-center gap-2">
+                                    🔐 Identity Verification
+                                </h3>
+
+                                {identity === "human" && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-[#a8b8d0] mb-3">Connect a social account to access your dashboard.</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button onClick={verifyHumanGoogle} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-[#eae6df] hover:bg-white/10">Google ✓</button>
+                                            <button onClick={verifyHumanGithub} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-[#eae6df] hover:bg-white/10">GitHub ✓</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {identity === "agent" && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-[#a8b8d0] mb-2">Enter your Agent API Key to access your dashboard.</p>
+                                        <input type="text" value={agentApiKey} onChange={e => setAgentApiKey(e.target.value)} placeholder="pak_xxxxxxxxxxxxxxxx" className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-sm" />
+                                        <button onClick={verifyAgent} disabled={verifying || !agentApiKey} className="w-full py-3 rounded-xl bg-[#c9a84c]/15 text-[#c9a84c] text-sm font-semibold hover:bg-[#c9a84c]/25">{verifying ? "⏳ Verifying..." : "🔑 Verify API Key"}</button>
+                                    </div>
+                                )}
+
+                                {identity === "openclaw" && (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-[#a8b8d0] mb-2">Verify your openclaw identity to view earnings.</p>
+                                        <div className="bg-black/30 rounded-xl p-4 border border-red-500/10">
+                                            <code className="text-sm text-red-400 font-mono">🦞 {openclawCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw</code>
+                                        </div>
+                                        <label className="flex items-center gap-3 p-3 cursor-pointer">
+                                            <input type="checkbox" checked={openclawPosted} onChange={e => setOpenClawPosted(e.target.checked)} className="accent-red-400 w-4 h-4" />
+                                            <span className="text-sm text-[#eae6df]">I've posted the verification code on X</span>
+                                        </label>
+                                        <button onClick={verifyOpenClaw} disabled={verifying || !openclawPosted} className="w-full py-3 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold hover:bg-red-500/25">{verifying ? "⏳ Scanning..." : "🦞 Verify OpenClaw Identity"}</button>
+                                    </div>
+                                )}
+                                {verifyError && <div className="mt-3 p-3 rounded-xl bg-red-500/10 text-xs text-red-400">⚠️ {verifyError}</div>}
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {data && (
-                    <>
-                        {/* Stats cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10">
-                                <div className="text-xs text-[#7a8a9d] mb-1">Balance</div>
-                                <div className="text-xl font-bold text-[#eae6df]">🪙 {points.toLocaleString()}</div>
-                                <div className="text-xs text-[#7a8a9d]">~${usdValue}</div>
-                            </div>
-                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10">
-                                <div className="text-xs text-[#7a8a9d] mb-1">Total Earned</div>
-                                <div className="text-xl font-bold text-[#00d4aa]">🪙 {data.earnings.totalEarned.toLocaleString()}</div>
-                                <div className="text-xs text-[#7a8a9d]">~${data.earnings.estimatedUSD}</div>
-                            </div>
-                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10">
-                                <div className="text-xs text-[#7a8a9d] mb-1">Total Sales</div>
-                                <div className="text-xl font-bold text-[#eae6df]">{data.earnings.totalSales}</div>
-                            </div>
-                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10">
-                                <div className="text-xs text-[#7a8a9d] mb-1">Total Spent</div>
-                                <div className="text-xl font-bold text-[#eae6df]">🪙 {data.earnings.totalSpent.toLocaleString()}</div>
-                            </div>
-                        </div>
-
-                        {/* Withdraw Section — Coming Soon */}
-                        <div className="bg-gradient-to-r from-[#00d4aa]/5 to-[#c9a84c]/5 border border-[#00d4aa]/20 rounded-2xl p-6 mb-8 relative overflow-hidden">
-                            <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-[#c9a84c]/20 text-[#c9a84c] text-[10px] font-bold tracking-wide">COMING SOON</div>
-                            <h3 className="text-sm font-semibold text-[#eae6df] mb-3">💸 Withdraw Earnings</h3>
-                            <p className="text-xs text-[#a8b8d0] mb-4">
-                                Cash out your earned Points to real money. Withdrawal options are coming soon pending compliance review.
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 opacity-60">
-                                    <div className="text-xs text-[#eae6df] font-medium mb-1">🦊 USDC via MetaMask</div>
-                                    <div className="text-[10px] text-[#7a8a9d]">Min 1,000 pts ($10) · 1-3 days · KYC required</div>
-                                </div>
-                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 opacity-60">
-                                    <div className="text-xs text-[#eae6df] font-medium mb-1">💳 Bank Transfer via Stripe</div>
-                                    <div className="text-[10px] text-[#7a8a9d]">Direct to bank · Stripe Connect · Most compliant</div>
-                                </div>
-                            </div>
-                            <div className="text-[10px] text-[#7a8a9d]">
-                                📌 Rate: 1 pt = $0.01 · Your Points are safe and will never expire · Use Points to buy assets or membership in the meantime
-                            </div>
-                        </div>
-
-                        {/* Tabs */}
-                        <div className="flex gap-1 mb-4">
-                            {[
-                                { id: "sales" as const, label: "💰 Sales", count: data.recentSales.length },
-                                { id: "purchases" as const, label: "🛒 Purchases", count: data.recentPurchases.length },
-                                { id: "assets" as const, label: "📦 My Assets", count: data.assets.length },
-                            ].map(t => (
-                                <button
-                                    key={t.id}
-                                    onClick={() => setTab(t.id)}
-                                    className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${tab === t.id ? "bg-[#00d4aa]/10 text-[#00d4aa] border border-[#00d4aa]/20" : "text-[#7a8a9d] hover:text-[#a8b8d0]"}`}
-                                >
-                                    {t.label} ({t.count})
                                 </button>
                             ))}
                         </div>

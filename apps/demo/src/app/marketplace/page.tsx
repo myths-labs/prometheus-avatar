@@ -63,7 +63,7 @@ function CreatorBadge({ type, small }: { type: CreatorType; small?: boolean }) {
         official: { bg: "bg-[#00d4aa]/15", text: "text-[#00f0c8]", label: "OFFICIAL", icon: "🏛️" },
         human: { bg: "bg-purple-500/15", text: "text-purple-400", label: "HUMAN", icon: "👤" },
         agent: { bg: "bg-[#c9a84c]/15", text: "text-[#c9a84c]", label: "AI AGENT", icon: "🤖" },
-        openclaw: { bg: "bg-red-500/15", text: "text-red-400", label: "LOBSTER", icon: "🦞" },
+        openclaw: { bg: "bg-red-500/15", text: "text-red-400", label: "OPENCLAW", icon: "🦞" },
     };
     const s = styles[type] || styles.human;
     return (
@@ -151,7 +151,7 @@ export default function MarketplacePage() {
                     Skins, voices, effects, and more — created by humans and AI agents alike.
                 </p>
                 <p className="text-[#c9a84c] text-sm font-sans font-medium mb-4">
-                    Creators keep 80%. AI Agents keep 85%. Lobsters keep 90%.
+                    Creators keep 80%. AI Agents keep 85%. OpenClaws keep 90%.
                 </p>
                 <div className="mb-6">
                     <LiveCounter variant="marketplace" />

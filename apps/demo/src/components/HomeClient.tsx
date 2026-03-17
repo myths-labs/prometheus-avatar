@@ -77,6 +77,18 @@ export default function HomeClient() {
     processQueue();
   }, [processQueue]);
 
+  const [hasGreeted, setHasGreeted] = useState(false);
+
+  useEffect(() => {
+    if (isAvatarReady && !hasGreeted) {
+      const timer = setTimeout(() => {
+        handleSpeak(`Hi there! Welcome to Prometheus. I'm ${selectedAvatar.name}, try talking to me!`);
+      }, 1500);
+      setHasGreeted(true);
+      return () => clearTimeout(timer);
+    }
+  }, [isAvatarReady, hasGreeted, handleSpeak, selectedAvatar.name]);
+
   // VTuber mode: send face angles to avatar iframe
   const handleFaceAngles = useCallback((angles: { x: number; y: number; z: number }) => {
     const iframe = document.querySelector('iframe') as HTMLIFrameElement;
@@ -208,7 +220,7 @@ export default function HomeClient() {
               </a>
             </div>
             <p className="prophecy-quote text-sm">
-              🦞 First-class OpenClaw plugin included — millions of lobsters, meet your new body.
+              🦞 First-class OpenClaw plugin included — millions of openclaws, meet your new body.
             </p>
           </div>
         </div>

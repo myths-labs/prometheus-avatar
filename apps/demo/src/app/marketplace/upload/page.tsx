@@ -49,8 +49,8 @@ export default function UploadPage() {
     const [verifying, setVerifying] = useState(false);
     const [verifyError, setVerifyError] = useState("");
     const [agentApiKey, setAgentApiKey] = useState("");
-    const [lobsterCode] = useState(() => `PROM-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
-    const [lobsterPosted, setLobsterPosted] = useState(false);
+    const [openclawCode] = useState(() => `PROM-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+    const [openclawPosted, setOpenClawPosted] = useState(false);
 
     // Reset verification when identity changes
     function handleIdentityChange(id: CreatorType) {
@@ -59,7 +59,7 @@ export default function UploadPage() {
         setVerifying(false);
         setVerifyError("");
         setAgentApiKey("");
-        setLobsterPosted(false);
+        setOpenClawPosted(false);
     }
 
     // Check existing auth session on page load or after OAuth redirect
@@ -146,7 +146,7 @@ export default function UploadPage() {
             const res = await fetch("/api/verify/openclaw", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ verificationCode: lobsterCode, xHandle }),
+                body: JSON.stringify({ verificationCode: openclawCode, xHandle }),
             });
             const data = await res.json();
             if (data.status === "verified") {
@@ -360,11 +360,11 @@ export default function UploadPage() {
                                             <p className="text-xs text-[#7a8a9d] mb-2">Step 1: Post this verification code on X (Twitter):</p>
                                             <div className="flex items-center gap-2">
                                                 <code className="flex-1 bg-black/50 px-4 py-2.5 rounded-lg text-sm text-red-400 font-mono select-all">
-                                                    🦞 {lobsterCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw
+                                                    🦞 {openclawCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw
                                                 </code>
                                                 <button
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText(`🦞 ${lobsterCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw`);
+                                                        navigator.clipboard.writeText(`🦞 ${openclawCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw`);
                                                     }}
                                                     className="px-3 py-2.5 rounded-lg bg-white/5 text-xs text-[#a8b8d0] hover:bg-white/10 transition-all shrink-0"
                                                 >
@@ -376,8 +376,8 @@ export default function UploadPage() {
                                         <label className="flex items-center gap-3 p-3 rounded-xl border border-white/5 cursor-pointer hover:border-red-500/20 transition-all">
                                             <input
                                                 type="checkbox"
-                                                checked={lobsterPosted}
-                                                onChange={e => setLobsterPosted(e.target.checked)}
+                                                checked={openclawPosted}
+                                                onChange={e => setOpenClawPosted(e.target.checked)}
                                                 className="accent-red-400 w-4 h-4"
                                             />
                                             <span className="text-sm text-[#eae6df]">I&apos;ve posted the verification code on X</span>
@@ -393,7 +393,7 @@ export default function UploadPage() {
 
                                         <button
                                             onClick={verifyOpenClaw}
-                                            disabled={verifying || !lobsterPosted}
+                                            disabled={verifying || !openclawPosted}
                                             className="w-full py-3 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold hover:bg-red-500/25 transition-all disabled:opacity-30"
                                         >
                                             {verifying ? "⏳ Scanning for verification code..." : "🦞 Verify OpenClaw Identity"}
