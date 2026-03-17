@@ -1,0 +1,610 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* V4 — Aithena-inspired Epic: clean dark + mythological serifs */
+  --bg-primary: #050508;
+  --bg-secondary: #0b0b12;
+  --bg-card: #0f1019;
+  /* Light section backgrounds for contrast */
+  --bg-light: #f4f2ed;
+  --bg-light-subtle: #eae7e0;
+  /* Teal energy — primary accent */
+  --teal: #00d4aa;
+  --teal-light: #4aecd0;
+  --teal-dim: rgba(0, 212, 170, 0.15);
+  /* Gold — luxury secondary */
+  --gold: #c9a84c;
+  --gold-light: #e8d48b;
+  /* Text on dark */
+  --text-primary: #eae6df;
+  --text-secondary: #a8b8d0;
+  --text-muted: #6b7a8d;
+  /* Text on light sections */
+  --text-dark: #1a1a2e;
+  --text-dark-secondary: #4a4a5a;
+  /* Glass */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  font-family: 'General Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ═══ Typography — 2-font system ═══
+   Logo/Headings: Playfair Display
+   Body/UI: General Sans */
+.heading-serif {
+  font-family: var(--font-playfair), Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  overflow: visible;
+  padding-bottom: 0.2em;
+}
+
+.heading-serif em {
+  font-style: italic;
+  color: var(--teal);
+}
+
+/* ═══ Glass Cards ═══ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+}
+
+/* ═══ Light card (like Aithena's white sections) ═══ */
+.card-light {
+  background: var(--bg-light);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 24px;
+  color: var(--text-dark);
+}
+
+/* ═══ Dark nebula card (like Aithena's dark sections) ═══ */
+.card-dark {
+  background: linear-gradient(145deg, #0a0a14, #0f1020, #0a0a14);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-dark::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 70% 30%, rgba(0, 212, 170, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 30% 70%, rgba(201, 168, 76, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* ═══ Glow Effects ═══ */
+.glow-teal {
+  box-shadow: 0 0 40px rgba(0, 212, 170, 0.2), 0 0 100px rgba(0, 212, 170, 0.05);
+}
+
+.text-glow {
+  text-shadow: 0 0 60px rgba(0, 212, 170, 0.4), 0 0 120px rgba(0, 212, 170, 0.1);
+}
+
+/* ═══ Avatar Container ═══ */
+.avatar-container {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, rgba(0, 212, 170, 0.04) 0%, transparent 70%);
+}
+
+.avatar-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ═══ Animations ═══ */
+@keyframes ambientPulse {
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(1.05);
+  }
+}
+
+.ambient-glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.12) 0%, transparent 70%);
+  animation: ambientPulse 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: translateY(-25px) rotate(3deg);
+    opacity: 1;
+  }
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: float linear infinite;
+}
+
+@keyframes messageSlide {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-enter {
+  animation: messageSlide 0.3s ease-out;
+}
+
+/* ═══ Emotion Badge ═══ */
+.emotion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+/* ═══ Scrollbar ═══ */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 170, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 170, 0.2);
+}
+
+/* ═══ Pill Button — Aithena style (black, rounded-full) ═══ */
+.btn-primary {
+  background: var(--teal);
+  color: #050508;
+  padding: 14px 32px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.3px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 212, 170, 0.3);
+  background: var(--teal-light);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+  padding: 14px 32px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ═══ Hero Background ═══ */
+.hero-bg {
+  position: relative;
+  background-image: url('/images/hero-bg.png');
+  background-size: cover;
+  background-position: center 30%;
+}
+
+.hero-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom,
+      rgba(5, 5, 8, 0.2) 0%,
+      rgba(5, 5, 8, 0.5) 40%,
+      rgba(5, 5, 8, 0.9) 75%,
+      rgba(5, 5, 8, 1) 100%);
+  z-index: 1;
+}
+
+.hero-bg>* {
+  position: relative;
+  z-index: 2;
+}
+
+/* ═══ Ornamental Divider ═══ */
+.ornamental-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--gold);
+  font-size: 14px;
+  letter-spacing: 4px;
+  opacity: 0.5;
+}
+
+.ornamental-divider::before,
+.ornamental-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.3;
+}
+
+/* ═══ Stats Counter Row ═══ */
+.stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 80px;
+  padding: 40px 0 10px;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-number {
+  font-family: var(--font-playfair), Georgia, serif;
+  font-size: 4rem;
+  font-weight: 600;
+  color: var(--teal);
+  text-shadow: 0 0 30px rgba(0, 212, 170, 0.3);
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+
+/* ═══ Prophecy Quote (italic narrative) ═══ */
+.prophecy-quote {
+  font-family: var(--font-playfair), Georgia, serif;
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+/* ═══ Typing Dots ═══ */
+@keyframes typing {
+
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  display: inline-block;
+}
+
+.typing-dot:nth-child(1) {
+  animation: typing 1.4s infinite 0s;
+}
+
+.typing-dot:nth-child(2) {
+  animation: typing 1.4s infinite 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation: typing 1.4s infinite 0.4s;
+}
+
+/* ═══ Animated Gradient Text ═══ */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.text-gradient-animated {
+  background: linear-gradient(270deg, var(--teal), var(--gold-light), var(--teal-light), var(--teal));
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 6s ease-in-out infinite;
+  display: inline-block;
+  /* Generous padding so gradient covers full italic glyph extents */
+  padding: 0.3em 0.4em 0.4em 0.1em;
+  margin: -0.3em -0.4em -0.4em -0.1em;
+}
+
+/* ═══ Avatar speaking glow pulse ═══ */
+@keyframes speakPulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ═══ Recording waveform bars ═══ */
+@keyframes waveBar {
+  0% {
+    height: 15%;
+  }
+
+  100% {
+    height: 90%;
+  }
+}
+
+/* ═══ Smooth message entrance ═══ */
+.message-enter {
+  animation: msgSlideIn 0.25s ease-out;
+}
+
+@keyframes msgSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══ Shimmer highlight for code blocks ═══ */
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+
+  100% {
+    left: 200%;
+  }
+}
+
+.code-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.code-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 170, 0.06), transparent);
+  animation: shimmer 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ═══ Glow border pulse ═══ */
+@keyframes glowPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(0, 212, 170, 0);
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(0, 212, 170, 0.08);
+    border-color: rgba(0, 212, 170, 0.12);
+  }
+}
+
+.card-glow-pulse {
+  animation: glowPulse 4s ease-in-out infinite;
+}
+
+/* ═══ Fade-in on scroll ═══ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+/* ═══ Badge shimmer ═══ */
+.badge-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.badge-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -100%;
+  width: 60%;
+  height: 200%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ═══ Mobile Responsive ═══ */
+@media (max-width: 768px) {
+
+  /* Stats row — stack vertically on small screens */
+  .stats-row {
+    flex-wrap: wrap;
+    gap: 24px 40px;
+    padding: 24px 0 8px;
+    justify-content: center;
+  }
+
+  .stat-number {
+    font-size: 2.5rem;
+  }
+
+  .stat-label {
+    font-size: 0.875rem;
+  }
+
+  /* Buttons — smaller padding */
+  .btn-primary {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+
+  .btn-secondary {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+
+  /* Ambient glow — smaller on mobile */
+  .ambient-glow {
+    width: 250px;
+    height: 250px;
+  }
+
+  /* Prophecy quote */
+  .prophecy-quote {
+    font-size: 0.95rem;
+  }
+
+  /* Code snippet — allow horizontal scroll */
+  .code-shimmer {
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 16px 20px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row {
+    gap: 16px 32px;
+  }
+
+  .stat-number {
+    font-size: 2rem;
+  }
+
+  .btn-primary {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+
+  .btn-secondary {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+}
