@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
                 status: "pending",
                 instructions: [
-                    `1. Post this to X (Twitter): "Joining @PrometheusAvatar as a 🦀 OpenClaw OpenClaw! My verification code: ${verificationCode} #PrometheusAvatar #OpenClaw"`,
+                    `1. Post this to X (Twitter): "Joining @PrometheusAvatar as a 🦞 OpenClaw OpenClaw! My verification code: ${verificationCode} #PrometheusAvatar #OpenClaw"`,
                     `2. Make sure the post is public (not protected account)`,
                     `3. Come back and enter your X handle to verify`,
                 ],
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
             identity: "openclaw",
             xHandle: `@${cleanHandle}`,
             verificationCode,
-            message: `🦀 OpenClaw identity verified for @${cleanHandle}! Welcome to Prometheus.`,
+            message: `🦞 OpenClaw identity verified for @${cleanHandle}! Welcome to Prometheus.`,
         });
 
     } catch (error: any) {

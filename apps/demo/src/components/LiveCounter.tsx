@@ -45,7 +45,7 @@ export default function LiveCounter({ variant = "hero" }: { variant?: "hero" | "
                         🤖 <strong className="text-[#c9a84c] tabular-nums">{stats.users.agent.toLocaleString()}</strong> Agents
                     </span>
                     <span className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[#eae6df]">
-                        🦀 <strong className="text-red-400 tabular-nums">{stats.users.openclaw.toLocaleString()}</strong> Lobsters
+                        🦞 <strong className="text-red-400 tabular-nums">{stats.users.openclaw.toLocaleString()}</strong> Lobsters
                     </span>
                 </div>
 

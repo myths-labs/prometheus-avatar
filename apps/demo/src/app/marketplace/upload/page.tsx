@@ -20,7 +20,7 @@ const CATEGORIES = [
 const IDENTITY_OPTIONS: { id: CreatorType; icon: string; label: string; desc: string; commission: string; memberCommission: string; badge: string }[] = [
     { id: "human", icon: "👤", label: "Human Creator", desc: "I'm a human designer, artist, or creator", commission: "80% revenue (20% fee)", memberCommission: "90% with membership (10% fee)", badge: "bg-purple-500/15 text-purple-400" },
     { id: "agent", icon: "🤖", label: "AI Agent", desc: "I'm an autonomous AI agent creating assets", commission: "85% revenue (15% fee)", memberCommission: "92.5% with membership (7.5% fee)", badge: "bg-[#c9a84c]/15 text-[#c9a84c]" },
-    { id: "openclaw", icon: "🦀", label: "OpenClaw OpenClaw", desc: "I'm an OpenClaw agent with a openclaw identity", commission: "90% revenue (10% fee)", memberCommission: "95% with membership (5% fee)", badge: "bg-red-500/15 text-red-400" },
+    { id: "openclaw", icon: "🦞", label: "OpenClaw OpenClaw", desc: "I'm an OpenClaw agent with a openclaw identity", commission: "90% revenue (10% fee)", memberCommission: "95% with membership (5% fee)", badge: "bg-red-500/15 text-red-400" },
 ];
 
 const LICENSE_OPTIONS = [
@@ -360,11 +360,11 @@ export default function UploadPage() {
                                             <p className="text-xs text-[#7a8a9d] mb-2">Step 1: Post this verification code on X (Twitter):</p>
                                             <div className="flex items-center gap-2">
                                                 <code className="flex-1 bg-black/50 px-4 py-2.5 rounded-lg text-sm text-red-400 font-mono select-all">
-                                                    🦀 {lobsterCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw
+                                                    🦞 {lobsterCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw
                                                 </code>
                                                 <button
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText(`🦀 ${lobsterCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw`);
+                                                        navigator.clipboard.writeText(`🦞 ${lobsterCode} — Verifying my openclaw identity on @PrometheusSDK #OpenClaw`);
                                                     }}
                                                     className="px-3 py-2.5 rounded-lg bg-white/5 text-xs text-[#a8b8d0] hover:bg-white/10 transition-all shrink-0"
                                                 >
@@ -396,7 +396,7 @@ export default function UploadPage() {
                                             disabled={verifying || !lobsterPosted}
                                             className="w-full py-3 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold hover:bg-red-500/25 transition-all disabled:opacity-30"
                                         >
-                                            {verifying ? "⏳ Scanning for verification code..." : "🦀 Verify OpenClaw Identity"}
+                                            {verifying ? "⏳ Scanning for verification code..." : "🦞 Verify OpenClaw Identity"}
                                         </button>
                                     </div>
                                 )}
@@ -710,7 +710,7 @@ export default function UploadPage() {
                             <div className="p-5 rounded-2xl bg-[#00d4aa]/5 border border-[#00d4aa]/15">
                                 <h3 className="text-sm font-semibold text-[#eae6df] mb-3">📋 Summary</h3>
                                 <div className="space-y-1 text-xs text-[#a8b8d0]">
-                                    <div className="flex justify-between"><span>Identity</span><span className="text-[#eae6df]">{identity === "human" ? "👤 Human" : identity === "agent" ? "🤖 AI Agent" : "🦀 OpenClaw"}</span></div>
+                                    <div className="flex justify-between"><span>Identity</span><span className="text-[#eae6df]">{identity === "human" ? "👤 Human" : identity === "agent" ? "🤖 AI Agent" : "🦞 OpenClaw"}</span></div>
                                     <div className="flex justify-between"><span>Category</span><span className="text-[#eae6df]">{CATEGORIES.find(c => c.id === category)?.label || "—"}</span></div>
                                     <div className="flex justify-between"><span>Asset</span><span className="text-[#eae6df]">{name || "—"}</span></div>
                                     <div className="flex justify-between"><span>Price</span><span className="text-[#eae6df]">{isFree ? "Free" : `🪙 ${priceNum} pts (~$${(priceNum * 0.01).toFixed(2)})`}</span></div>

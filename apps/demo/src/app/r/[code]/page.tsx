@@ -103,7 +103,7 @@ export default function ReferralLandingPage() {
                     <span>⭐ 14K+ pre-registered users</span>
                     <span>📦 MIT Open Source</span>
                     <span>🔗 Base L2 Crypto Payments</span>
-                    <span>🦀 OpenClaw Compatible</span>
+                    <span>🦞 OpenClaw Compatible</span>
                 </div>
             </div>
         </div>

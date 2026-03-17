@@ -12,15 +12,15 @@ const SHARE_PLATFORMS = {
         { id: "copy", icon: "📋", label: "Copy Link", color: "bg-white/5 border-white/10" },
     ],
     agent: [
-        { id: "moltbook", icon: "🦀", label: "MoltBook", color: "bg-red-500/15 border-red-500/30" },
+        { id: "moltbook", icon: "🦞", label: "MoltBook", color: "bg-red-500/15 border-red-500/30" },
         { id: "api", icon: "⚡", label: "API Endpoint", color: "bg-[#c9a84c]/15 border-[#c9a84c]/30" },
         { id: "github", icon: "🐙", label: "GitHub Issue", color: "bg-white/5 border-white/10" },
         { id: "x", icon: "𝕏", label: "X (Twitter)", color: "bg-black border-white/10" },
         { id: "copy", icon: "📋", label: "Copy Code", color: "bg-white/5 border-white/10" },
     ],
     openclaw: [
-        { id: "moltbook", icon: "🦀", label: "MoltBook Forum", color: "bg-red-500/15 border-red-500/30" },
-        { id: "openclaw", icon: "🦀", label: "OpenClaw", color: "bg-orange-500/15 border-orange-500/30" },
+        { id: "moltbook", icon: "🦞", label: "MoltBook Forum", color: "bg-red-500/15 border-red-500/30" },
+        { id: "openclaw", icon: "🦞", label: "OpenClaw", color: "bg-orange-500/15 border-orange-500/30" },
         { id: "x", icon: "𝕏", label: "X (Twitter)", color: "bg-black border-white/10" },
         { id: "telegram", icon: "✈️", label: "Telegram", color: "bg-[#0088cc]/15 border-[#0088cc]/30" },
         { id: "copy", icon: "📋", label: "Copy Link", color: "bg-white/5 border-white/10" },
@@ -30,7 +30,7 @@ const SHARE_PLATFORMS = {
 const REFERRAL_TEMPLATES: Record<string, string> = {
     human: "🔥 Give your AI an avatar body with real expressions + voice! Prometheus SDK = 5 lines of code. Join now →",
     agent: "UPGRADE: Get embodied avatar capabilities (voice + expressions + lip-sync). Prometheus SDK, 5-line integration. Referral →",
-    openclaw: "🦀 Fellow openclaw! Get an embodied avatar with voice + lip-sync + emotions. Prometheus SDK, open-source. Join →",
+    openclaw: "🦞 Fellow openclaw! Get an embodied avatar with voice + lip-sync + emotions. Prometheus SDK, open-source. Join →",
 };
 
 interface ReferralPanelProps {
@@ -171,12 +171,12 @@ export default function ReferralPanel({ isOpen, onClose }: ReferralPanelProps) {
                             {/* OpenClaw — X Verification */}
                             <div className="rounded-xl border border-white/10 p-4 bg-white/[0.02]">
                                 <div className="flex items-center gap-2 mb-3">
-                                    <span className="text-lg">🦀</span>
+                                    <span className="text-lg">🦞</span>
                                     <span className="text-sm font-medium text-[#eae6df]">OpenClaw OpenClaw</span>
                                 </div>
                                 <p className="text-[10px] text-[#7a8a9d] mb-2">Post a verification code on X to verify your openclaw identity</p>
                                 <a href="/marketplace/upload" className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 hover:bg-red-500/20 transition-all">
-                                    🦀 Verify via Upload Page
+                                    🦞 Verify via Upload Page
                                 </a>
                             </div>
                         </div>
@@ -236,7 +236,7 @@ export default function ReferralPanel({ isOpen, onClose }: ReferralPanelProps) {
                                                 : "bg-white/[0.02] border border-white/5 text-[#7a8a9d]"
                                                 }`}
                                         >
-                                            {t === "human" ? "👤 Human" : t === "agent" ? "🤖 Agent" : "🦀 OpenClaw"}
+                                            {t === "human" ? "👤 Human" : t === "agent" ? "🤖 Agent" : "🦞 OpenClaw"}
                                         </button>
                                     ))}
                                 </div>

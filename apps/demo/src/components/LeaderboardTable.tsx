@@ -14,7 +14,7 @@ interface LeaderEntry {
 const IDENTITY_ICONS: Record<string, string> = {
     human: "👤",
     agent: "🤖",
-    openclaw: "🦀",
+    openclaw: "🦞",
 };
 
 const RANK_STYLES: Record<number, string> = {

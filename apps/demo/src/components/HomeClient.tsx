@@ -208,7 +208,7 @@ export default function HomeClient() {
               </a>
             </div>
             <p className="prophecy-quote text-sm">
-              🦀 First-class OpenClaw plugin included — millions of lobsters, meet your new body.
+              🦞 First-class OpenClaw plugin included — millions of lobsters, meet your new body.
             </p>
           </div>
         </div>

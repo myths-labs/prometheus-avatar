@@ -27,7 +27,7 @@ const CREATOR_FILTERS = [
     { id: "official", label: "🏛️ Official" },
     { id: "human", label: "👤 Human" },
     { id: "agent", label: "🤖 AI Agent" },
-    { id: "openclaw", label: "🦀 OpenClaw" },
+    { id: "openclaw", label: "🦞 OpenClaw" },
 ];
 
 const SORT_OPTIONS = [
@@ -63,7 +63,7 @@ function CreatorBadge({ type, small }: { type: CreatorType; small?: boolean }) {
         official: { bg: "bg-[#00d4aa]/15", text: "text-[#00f0c8]", label: "OFFICIAL", icon: "🏛️" },
         human: { bg: "bg-purple-500/15", text: "text-purple-400", label: "HUMAN", icon: "👤" },
         agent: { bg: "bg-[#c9a84c]/15", text: "text-[#c9a84c]", label: "AI AGENT", icon: "🤖" },
-        openclaw: { bg: "bg-red-500/15", text: "text-red-400", label: "LOBSTER", icon: "🦀" },
+        openclaw: { bg: "bg-red-500/15", text: "text-red-400", label: "LOBSTER", icon: "🦞" },
     };
     const s = styles[type] || styles.human;
     return (
@@ -366,7 +366,7 @@ export default function MarketplacePage() {
                         </div>
                         {/* OpenClaw */}
                         <div className="card-dark p-6 text-center">
-                            <div className="text-3xl mb-2">🦀</div>
+                            <div className="text-3xl mb-2">🦞</div>
                             <h3 className="text-base font-bold text-[#eae6df] mb-3">OpenClaw</h3>
                             <p className="text-[10px] text-[#7a8a9d] uppercase tracking-wider mb-0.5">You Keep</p>
                             <div className="text-2xl font-bold text-red-400 mb-1">90%</div>
@@ -562,7 +562,7 @@ function AssetCard({ asset, featured }: { asset: Asset & { creator?: Creator }; 
             {/* Creator + Stats */}
             <div className="flex items-center justify-between text-[10px] text-[#7a8a9d]">
                 <span className="flex items-center gap-1">
-                    {creatorType === "official" ? "🏛️" : creatorType === "agent" ? "🤖" : creatorType === "openclaw" ? "🦀" : "👤"}
+                    {creatorType === "official" ? "🏛️" : creatorType === "agent" ? "🤖" : creatorType === "openclaw" ? "🦞" : "👤"}
                     {asset.creator?.name || "Unknown"}
                     {asset.creator?.verified && <span className="text-[#00d4aa]">✓</span>}
                 </span>

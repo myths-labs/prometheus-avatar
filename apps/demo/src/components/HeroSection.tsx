@@ -96,9 +96,9 @@ export default function HeroSection({ onTryDemo }: HeroSectionProps) {
           </a>
         </div>
 
-        {/* 🦀 OpenClaw callout — cold start target audience */}
+        {/* 🦞 OpenClaw callout — cold start target audience */}
         <div className="inline-flex flex-wrap items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff6b35]/10 to-[#00d4aa]/10 border border-[#ff6b35]/20 text-xs sm:text-sm mb-8 hover:border-[#ff6b35]/40 transition-colors cursor-default max-w-full">
-          <span className="text-lg">🦀</span>
+          <span className="text-lg">🦞</span>
           <span className="text-[#e8d48b] font-medium">First-class OpenClaw plugin</span>
           <span className="text-[#a8b8d0] hidden sm:inline">— millions of lobsters, meet your new body.</span>
         </div>
