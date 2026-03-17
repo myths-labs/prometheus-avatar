@@ -22,14 +22,6 @@ export interface ImageGenerationOptions {
     height?: number;
 }
 
-export interface SkinGenerationOptions {
-    prompt: string;
-    base_model?: string;
-    name?: string;
-    description?: string;
-    tags?: string[];
-}
-
 export interface DeploymentResult {
     success: boolean;
     asset?: {
@@ -119,26 +111,5 @@ export class AssetCreator {
 
         console.log(`[Creator] Deploying asset: ${config.name}...`);
         return this.deployAsset(config, fileData, thumbB64);
-    }
-
-    /**
-     * Generate a full 0-to-1 Live2D Skin asset from a single prompt.
-     * This uses the Base Mesh Repainting backend pipeline to color-shift
-     * the texture, zip the model, and deploy it to the marketplace automatically.
-     */
-    async generateSkin(options: SkinGenerationOptions): Promise<DeploymentResult> {
-        console.log(`[Creator] Triggering Skin Generation for: "${options.prompt}"...`);
-        const res = await fetch(`${this.apiBaseUrl}/api/creator/generate-skin`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(options)
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-            throw new Error(`Skin generation failed: ${data.error || res.statusText}`);
-        }
-
-        return data;
     }
 }
