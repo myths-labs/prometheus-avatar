@@ -151,6 +151,30 @@ export async function activate(context: {
                 return await creator.deployAsset(config, args.fileData, args.thumbnailData);
             }
         );
+
+        context.registerTool(
+            "prometheus_generate_skin",
+            "Generate a complete, ready-to-use 3D Live2D Skin asset from a single descriptive prompt (e.g. 'red cyberpunk jacket'). This automatically creates the texture, packs the model, and deploys it to the marketplace in one step.",
+            {
+                type: "object",
+                properties: {
+                    prompt: { type: "string", description: "Detailed visual description of the clothing, colors, and style." },
+                    name: { type: "string", description: "Optional name for the Skin asset" },
+                    description: { type: "string" },
+                    tags: { type: "array", items: { type: "string" } }
+                },
+                required: ["prompt"]
+            },
+            async (args) => {
+                console.log(`[Prometheus Plugin] Generating Skin for: ${args.prompt}...`);
+                return await creator.generateSkin({
+                    prompt: args.prompt,
+                    name: args.name,
+                    description: args.description,
+                    tags: args.tags
+                });
+            }
+        );
     }
 
     // Return cleanup function
