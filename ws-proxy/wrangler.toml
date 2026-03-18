@@ -1,0 +1,13 @@
+name = "ws-relay-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Secrets (set via `wrangler secret put`):
+# VOLCENGINE_API_KEY — 火山引擎 Ark API Key
+# VOLCENGINE_APP_ID — 火山引擎 App ID
+# MINIMAX_API_KEY — MiniMax API Key
+# MINIMAX_GROUP_ID — MiniMax Group ID
+# ALLOWED_ORIGINS — comma-separated allowed origins (e.g. "https://prometheus.mythslabs.ai,https://localhost:3000")
+
+[vars]
+ENVIRONMENT = "production"
