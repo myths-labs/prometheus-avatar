@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
+import ParticleBackground from "@/components/ParticleBackground";
 import Link from "next/link";
 
 import type { CreatorType } from "@/lib/supabase";
@@ -55,7 +56,7 @@ export default function DashboardPage() {
         window.location.href = "/api/auth/github?returnTo=/dashboard";
     }
 
-    
+
     async function fetchDashboardData(userId: string) {
         setLoading(true);
         try {
@@ -155,7 +156,7 @@ export default function DashboardPage() {
                     setLoading(false);
                     return;
                 }
-                
+
                 setIdentity('human' as any);
                 setVerified(true);
                 const res = await fetch(`/api/dashboard?userId=${session.user.id}`);
@@ -239,7 +240,9 @@ export default function DashboardPage() {
     const withdrawNum = parseInt(withdrawAmount) || 0;
 
     return (
-        <div className="min-h-screen bg-[#0a0f1a]">
+        <div className="min-h-screen bg-[#0a0f1a] relative z-10">
+            {/* Scenario 1: Dashboard uses vortex particle effect (overrides global default) */}
+            <ParticleBackground mode="vortex" fixed={true} className="-z-10" />
             <Header />
             <main className="max-w-4xl mx-auto px-4 pt-24 pb-12">
                 <h1 className="text-3xl heading-serif text-[#eae6df] mb-8">
@@ -248,11 +251,11 @@ export default function DashboardPage() {
 
                 {loading && <div className="text-center text-[#7a8a9d] py-20">Loading...</div>}
 
-                
+
                 {!loading && !data && !verified && (
                     <div className="max-w-2xl mx-auto">
                         <p className="text-[#a8b8d0] mb-8 text-center text-lg">Sign in to manage your points, withdraw revenue, and track your asset sales.</p>
-                        
+
                         <div className="space-y-4">
                             {IDENTITY_OPTIONS.map(opt => (
                                 <button
@@ -319,96 +322,97 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                                </button>
+            </button>
                             ))}
-                        </div>
-
-                        {/* Content */}
-                        <div className="bg-[#0f1019] border border-white/10 rounded-2xl overflow-hidden">
-                            {tab === "sales" && (
-                                data.recentSales.length === 0 ? (
-                                    <div className="p-8 text-center text-[#7a8a9d] text-sm">No sales yet. <Link href="/marketplace/upload" className="text-[#00d4aa] hover:underline">Upload an asset</Link> to start earning!</div>
-                                ) : (
-                                    <table className="w-full text-xs">
-                                        <thead>
-                                            <tr className="border-b border-white/5 text-[#7a8a9d]">
-                                                <th className="text-left p-3">Date</th>
-                                                <th className="text-left p-3">Asset</th>
-                                                <th className="text-left p-3">Buyer</th>
-                                                <th className="text-right p-3">Amount</th>
-                                                <th className="text-right p-3">You Earned</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data.recentSales.map((s, i) => (
-                                                <tr key={i} className="border-b border-white/5">
-                                                    <td className="p-3 text-[#a8b8d0]">{new Date(s.created_at).toLocaleDateString()}</td>
-                                                    <td className="p-3 text-[#eae6df]">{s.asset_name}</td>
-                                                    <td className="p-3 text-[#a8b8d0]">{s.buyer_name}</td>
-                                                    <td className="p-3 text-right text-[#eae6df]">🪙 {s.amount_points}</td>
-                                                    <td className="p-3 text-right text-[#00d4aa] font-bold">🪙 {s.seller_payout_points}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )
-                            )}
-
-                            {tab === "purchases" && (
-                                data.recentPurchases.length === 0 ? (
-                                    <div className="p-8 text-center text-[#7a8a9d] text-sm">No purchases yet. <Link href="/marketplace" className="text-[#00d4aa] hover:underline">Browse the marketplace</Link>!</div>
-                                ) : (
-                                    <table className="w-full text-xs">
-                                        <thead>
-                                            <tr className="border-b border-white/5 text-[#7a8a9d]">
-                                                <th className="text-left p-3">Date</th>
-                                                <th className="text-left p-3">Asset</th>
-                                                <th className="text-right p-3">Points Spent</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data.recentPurchases.map((p, i) => (
-                                                <tr key={i} className="border-b border-white/5">
-                                                    <td className="p-3 text-[#a8b8d0]">{new Date(p.created_at).toLocaleDateString()}</td>
-                                                    <td className="p-3 text-[#eae6df]">{p.asset_name}</td>
-                                                    <td className="p-3 text-right text-[#eae6df]">🪙 {p.amount_points}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )
-                            )}
-
-                            {tab === "assets" && (
-                                data.assets.length === 0 ? (
-                                    <div className="p-8 text-center text-[#7a8a9d] text-sm">No assets uploaded. <Link href="/marketplace/upload" className="text-[#00d4aa] hover:underline">Upload your first asset</Link>!</div>
-                                ) : (
-                                    <table className="w-full text-xs">
-                                        <thead>
-                                            <tr className="border-b border-white/5 text-[#7a8a9d]">
-                                                <th className="text-left p-3">Asset</th>
-                                                <th className="text-right p-3">Price</th>
-                                                <th className="text-right p-3">Sales</th>
-                                                <th className="text-right p-3">Uploaded</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data.assets.map((a, i) => (
-                                                <tr key={i} className="border-b border-white/5">
-                                                    <td className="p-3 text-[#eae6df]">{a.name}</td>
-                                                    <td className="p-3 text-right text-[#eae6df]">🪙 {a.price_points || 0}</td>
-                                                    <td className="p-3 text-right text-[#00d4aa]">{a.sales_count || 0}</td>
-                                                    <td className="p-3 text-right text-[#a8b8d0]">{new Date(a.created_at).toLocaleDateString()}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )
-                            )}
-                        </div>
-                    </>
-                )}
-            </main>
         </div>
+
+                        {/* Content */ }
+    <div className="bg-[#0f1019] border border-white/10 rounded-2xl overflow-hidden">
+        {tab === "sales" && (
+            data.recentSales.length === 0 ? (
+                <div className="p-8 text-center text-[#7a8a9d] text-sm">No sales yet. <Link href="/marketplace/upload" className="text-[#00d4aa] hover:underline">Upload an asset</Link> to start earning!</div>
+            ) : (
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="border-b border-white/5 text-[#7a8a9d]">
+                            <th className="text-left p-3">Date</th>
+                            <th className="text-left p-3">Asset</th>
+                            <th className="text-left p-3">Buyer</th>
+                            <th className="text-right p-3">Amount</th>
+                            <th className="text-right p-3">You Earned</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.recentSales.map((s, i) => (
+                            <tr key={i} className="border-b border-white/5">
+                                <td className="p-3 text-[#a8b8d0]">{new Date(s.created_at).toLocaleDateString()}</td>
+                                <td className="p-3 text-[#eae6df]">{s.asset_name}</td>
+                                <td className="p-3 text-[#a8b8d0]">{s.buyer_name}</td>
+                                <td className="p-3 text-right text-[#eae6df]">🪙 {s.amount_points}</td>
+                                <td className="p-3 text-right text-[#00d4aa] font-bold">🪙 {s.seller_payout_points}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )
+        )}
+
+        {tab === "purchases" && (
+            data.recentPurchases.length === 0 ? (
+                <div className="p-8 text-center text-[#7a8a9d] text-sm">No purchases yet. <Link href="/marketplace" className="text-[#00d4aa] hover:underline">Browse the marketplace</Link>!</div>
+            ) : (
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="border-b border-white/5 text-[#7a8a9d]">
+                            <th className="text-left p-3">Date</th>
+                            <th className="text-left p-3">Asset</th>
+                            <th className="text-right p-3">Points Spent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.recentPurchases.map((p, i) => (
+                            <tr key={i} className="border-b border-white/5">
+                                <td className="p-3 text-[#a8b8d0]">{new Date(p.created_at).toLocaleDateString()}</td>
+                                <td className="p-3 text-[#eae6df]">{p.asset_name}</td>
+                                <td className="p-3 text-right text-[#eae6df]">🪙 {p.amount_points}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )
+        )}
+
+        {tab === "assets" && (
+            data.assets.length === 0 ? (
+                <div className="p-8 text-center text-[#7a8a9d] text-sm">No assets uploaded. <Link href="/marketplace/upload" className="text-[#00d4aa] hover:underline">Upload your first asset</Link>!</div>
+            ) : (
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="border-b border-white/5 text-[#7a8a9d]">
+                            <th className="text-left p-3">Asset</th>
+                            <th className="text-right p-3">Price</th>
+                            <th className="text-right p-3">Sales</th>
+                            <th className="text-right p-3">Uploaded</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.assets.map((a, i) => (
+                            <tr key={i} className="border-b border-white/5">
+                                <td className="p-3 text-[#eae6df]">{a.name}</td>
+                                <td className="p-3 text-right text-[#eae6df]">🪙 {a.price_points || 0}</td>
+                                <td className="p-3 text-right text-[#00d4aa]">{a.sales_count || 0}</td>
+                                <td className="p-3 text-right text-[#a8b8d0]">{new Date(a.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )
+        )}
+    </div>
+                    </>
+                )
+}
+            </main >
+        </div >
     );
 }

@@ -41,6 +41,7 @@ export const metadata: Metadata = {
   },
 };
 
+import ParticleBackground from "@/components/ParticleBackground";
 import StarfieldBackground from "@/components/StarfieldBackground";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="antialiased" suppressHydrationWarning>
         <StarfieldBackground />
+        <ParticleBackground mode="default" />
         {children}
         <PWAInstallPrompt />
         <script dangerouslySetInnerHTML={{
