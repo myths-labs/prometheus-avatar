@@ -1,6 +1,6 @@
 {
     "name": "@prometheusavatar/core",
-    "version": "0.8.1",
+    "version": "0.10.0",
     "description": "Give your AI agent an embodied avatar — Live2D rendering, TTS, lip-sync, and emotion analysis in one SDK",
     "type": "module",
     "main": "./dist/index.js",
@@ -26,9 +26,12 @@
     },
     "dependencies": {
         "pixi-live2d-display": "^0.4.0",
-        "pixi.js": "^6.5.10"
+        "pixi.js": "^6.5.10",
+        "ws": "^8.20.0"
     },
     "devDependencies": {
+        "@types/node": "^25.5.0",
+        "@types/ws": "^8.18.1",
         "tsup": "^8.0.0",
         "typedoc": "^0.28.17",
         "typescript": "^5.4.0",
