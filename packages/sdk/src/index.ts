@@ -11,7 +11,7 @@ export { WebSpeechTTS } from './tts';
 export { LipSyncEngine } from './lip-sync';
 export { EmotionAnalyzer } from './emotion';
 export { AssetManager } from './asset-manager';
-export { AssetCreator, type BYOKOptions } from './creator';
+export { AssetCreator } from './creator';
 export { MemoryBridge } from './memory-bridge';
 export type { MemoryBridgeOptions, ConversationMessage, MemoryBridgeMessage } from './memory-bridge';
 export type {
@@ -35,12 +35,5 @@ export type {
     AssetDeployConfig,
     ImageGenerationOptions,
     DeploymentResult,
-    AccessoryResult,
-    SceneResult,
-    SkinResult,
-    GeneratedMetadata,
-    BatchDeployItem,
-    BatchDeployResult,
-    MarketplaceAsset,
 } from './creator';
 
