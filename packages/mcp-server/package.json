@@ -1,0 +1,53 @@
+{
+    "name": "@prometheusavatar/mcp-server",
+    "version": "0.1.0",
+    "description": "MCP Server for Prometheus Avatar — Give any AI agent an embodied avatar via Model Context Protocol",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "bin": {
+        "prometheus-mcp": "./dist/index.js"
+    },
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "scripts": {
+        "build": "tsup src/index.ts --format esm --dts --clean",
+        "dev": "tsup src/index.ts --format esm --dts --watch",
+        "start": "node dist/index.js",
+        "clean": "rm -rf dist",
+        "lint": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.12.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "tsup": "^8.0.0",
+        "typescript": "^5.4.0"
+    },
+    "keywords": [
+        "mcp",
+        "model-context-protocol",
+        "avatar",
+        "ai",
+        "live2d",
+        "llm",
+        "tts",
+        "embodied-intelligence",
+        "prometheus"
+    ],
+    "license": "MIT",
+    "author": "Myths Labs (JC)",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/myths-labs/prometheus-avatar"
+    }
+}
