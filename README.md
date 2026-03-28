@@ -26,6 +26,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/badge/npm-v0.8.0-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm" /></a>
+  <a href="https://www.npmjs.com/package/@prometheusavatar/mcp-server"><img src="https://img.shields.io/badge/MCP_Server-v0.1.0-c9a84c?style=for-the-badge&logo=npm&logoColor=white" alt="MCP Server" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="Stars" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/myths-labs/prometheus-avatar/ci.yml?style=for-the-badge&logo=github-actions&logoColor=white&label=CI" alt="CI" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge" alt="License" />
@@ -58,6 +59,7 @@
 | 📷 **VTuber Mode** | Camera face tracking → real-time avatar head movement |
 | 🔌 **Multi-LLM** | 9 providers: Gemini, OpenAI, Anthropic, Groq, Grok, DeepSeek, Qwen, Kimi, MiniMax |
 | 🤖 **Connect Your Agent** | Plug in any OpenAI-compatible agent — [integration guide](docs/agent-integration.md) |
+| 🧩 **MCP Server** | `npx @prometheusavatar/mcp-server` — any MCP client (Claude, GPT, Gemini) gets an avatar |
 | 📦 **SDK** | Drop-in `@prometheusavatar/core` for your own apps |
 
 ## 🎬 Demo
@@ -100,6 +102,29 @@ avatar.on('emotion:change', ({ result }) => {
   console.log(`Emotion: ${result.emotion} (${result.confidence})`);
 });
 ```
+
+### MCP Server (for AI Agents)
+
+Any MCP-compatible AI client (Claude Desktop, Cursor, etc.) can connect:
+
+```bash
+npx @prometheusavatar/mcp-server
+```
+
+Or add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "prometheus": {
+      "command": "npx",
+      "args": ["-y", "@prometheusavatar/mcp-server"]
+    }
+  }
+}
+```
+
+7 tools available: `create_avatar`, `equip_asset`, `generate_asset`, `list_marketplace`, `get_avatar_status`, `share_avatar`, `speak`.
 
 ## 🏗️ Architecture
 
@@ -265,6 +290,7 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 | 📷 **VTuber 模式** | 摄像头面部跟踪 → 实时驱动 avatar 头部运动 |
 | 🔌 **多 LLM 支持** | Gemini 2.0 Flash (主) + Groq Llama 3.3 70B (备) |
 | 🤖 **接入你的 AI Agent** | 支持任何 OpenAI 兼容的 agent 端点 — [接入指南](docs/agent-integration.md) |
+| 🧩 **MCP 服务器** | `npx @prometheusavatar/mcp-server` — Claude/GPT/Gemini 等 AI 客户端一键接入 |
 
 ### 🚀 快速开始
 
