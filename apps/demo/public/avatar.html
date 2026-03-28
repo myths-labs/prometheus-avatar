@@ -21,10 +21,27 @@
 </head>
 
 <body>
-  <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
-  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js"></script>
+  <!-- Live2D scripts — self-hosted to avoid CDN blocks (cubism.live2d.com blocked in China) -->
+  <script>
+    var _scriptsLoaded = 0;
+    var _scriptsFailed = false;
+    function _onScriptLoad() {
+      _scriptsLoaded++;
+      // All 4 scripts loaded — proceed
+    }
+    function _onScriptError(name) {
+      if (!_scriptsFailed) {
+        _scriptsFailed = true;
+        console.error("[Avatar] Script load failed:", name);
+        window.parent.postMessage({ type: "live2d-error", error: "Script load failed: " + name }, "*");
+      }
+    }
+  </script>
+  <script src="/lib/live2d.min.js" onload="_onScriptLoad()" onerror="_onScriptError('live2d')"></script>
+  <script src="/lib/live2dcubismcore.min.js" onload="_onScriptLoad()" onerror="_onScriptError('cubismcore')"></script>
+  <script src="/lib/pixi.min.js" onload="_onScriptLoad()" onerror="_onScriptError('pixi')"></script>
+  <script src="/lib/pixi-live2d-display.min.js" onload="_onScriptLoad()"
+    onerror="_onScriptError('live2d-display')"></script>
 
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -37,6 +54,13 @@
     // Audio context for lip sync analysis
     let audioContext = null;
     let analyser = null;
+
+    // ═══ Expression Override System ═══
+    // Stores expression parameter overrides that persist across idle animation frames.
+    // Without this, idle animation (ParamEyeLOpen, ParamAngleX, etc.) would overwrite
+    // expression values every single frame, making expressions invisible.
+    window._expressionOverrides = {}; // { paramId: value }
+    window._expressionActive = false;
 
     function getAudioContext() {
       if (!audioContext) {
@@ -208,59 +232,82 @@
     }
 
     // Idle animation — breathing + eye blink
+    // ⚠️ IMPORTANT: This runs every frame. Expression overrides (window._expressionOverrides)
+    // are re-applied each frame AFTER idle updates, so expressions persist visually.
     function startIdleAnimation(model) {
       let frame;
       let nextBlink = Date.now() + 2000 + Math.random() * 4000;
       let blinkPhase = 0; // 0=open, 1=closing, 2=closed, 3=opening
       let blinkTimer = 0;
 
+      // Params that idle animation controls — expression overrides take priority
+      const IDLE_PARAMS = new Set([
+        'ParamBreath', 'ParamAngleX', 'ParamAngleY', 'ParamBodyAngleX',
+        'ParamEyeLOpen', 'ParamEyeROpen'
+      ]);
+
       function animate() {
         const t = Date.now();
+        const overrides = window._expressionOverrides || {};
+        const hasOverrides = window._expressionActive && Object.keys(overrides).length > 0;
 
         try {
-          // Breathing — smooth sine wave
-          const breathVal = Math.sin(t / 3000) * 0.5 + 0.5;
-          setParam(model, 'ParamBreath', breathVal);
+          // Breathing — smooth sine wave (only if not overridden)
+          if (!overrides.hasOwnProperty('ParamBreath')) {
+            const breathVal = Math.sin(t / 3000) * 0.5 + 0.5;
+            setParam(model, 'ParamBreath', breathVal);
+          }
 
-          // Subtle head sway — two overlapping sine waves for natural movement
+          // Subtle head sway (only if not overridden)
           const headX = Math.sin(t / 5000) * 3 + Math.sin(t / 7000) * 2;
           const headY = Math.sin(t / 6000) * 2 + Math.sin(t / 9000) * 1.5;
-          setParam(model, 'ParamAngleX', headX);
-          setParam(model, 'ParamAngleY', headY);
+          if (!overrides.hasOwnProperty('ParamAngleX')) setParam(model, 'ParamAngleX', headX);
+          if (!overrides.hasOwnProperty('ParamAngleY')) setParam(model, 'ParamAngleY', headY);
+          if (!overrides.hasOwnProperty('ParamBodyAngleX')) setParam(model, 'ParamBodyAngleX', headX * 0.3);
 
-          // Body follows head slightly
-          setParam(model, 'ParamBodyAngleX', headX * 0.3);
+          // Eye blinking — only if eye params are not overridden by expression
+          const eyeOverridden = overrides.hasOwnProperty('ParamEyeLOpen') ||
+            overrides.hasOwnProperty('ParamEyeROpen') ||
+            overrides.hasOwnProperty('ParamEyeLSmile') ||
+            overrides.hasOwnProperty('ParamEyeRSmile');
 
-          // Eye blinking — random intervals, natural close/open
-          if (t > nextBlink && blinkPhase === 0) {
-            blinkPhase = 1;
-            blinkTimer = t;
+          if (!eyeOverridden) {
+            if (t > nextBlink && blinkPhase === 0) {
+              blinkPhase = 1;
+              blinkTimer = t;
+            }
+            if (blinkPhase > 0) {
+              const elapsed = t - blinkTimer;
+              if (blinkPhase === 1 && elapsed < 80) {
+                const p = elapsed / 80;
+                setParam(model, 'ParamEyeLOpen', 1 - p);
+                setParam(model, 'ParamEyeROpen', 1 - p);
+              } else if (blinkPhase === 1) {
+                blinkPhase = 2;
+                blinkTimer = t;
+                setParam(model, 'ParamEyeLOpen', 0);
+                setParam(model, 'ParamEyeROpen', 0);
+              } else if (blinkPhase === 2 && elapsed > 50) {
+                blinkPhase = 3;
+                blinkTimer = t;
+              } else if (blinkPhase === 3 && elapsed < 120) {
+                const p = elapsed / 120;
+                setParam(model, 'ParamEyeLOpen', p);
+                setParam(model, 'ParamEyeROpen', p);
+              } else if (blinkPhase === 3) {
+                setParam(model, 'ParamEyeLOpen', 1);
+                setParam(model, 'ParamEyeROpen', 1);
+                blinkPhase = 0;
+                nextBlink = t + 2000 + Math.random() * 4000;
+              }
+            }
           }
-          if (blinkPhase > 0) {
-            const elapsed = t - blinkTimer;
-            if (blinkPhase === 1 && elapsed < 80) {
-              // Closing
-              const p = elapsed / 80;
-              setParam(model, 'ParamEyeLOpen', 1 - p);
-              setParam(model, 'ParamEyeROpen', 1 - p);
-            } else if (blinkPhase === 1) {
-              blinkPhase = 2;
-              blinkTimer = t;
-              setParam(model, 'ParamEyeLOpen', 0);
-              setParam(model, 'ParamEyeROpen', 0);
-            } else if (blinkPhase === 2 && elapsed > 50) {
-              blinkPhase = 3;
-              blinkTimer = t;
-            } else if (blinkPhase === 3 && elapsed < 120) {
-              // Opening
-              const p = elapsed / 120;
-              setParam(model, 'ParamEyeLOpen', p);
-              setParam(model, 'ParamEyeROpen', p);
-            } else if (blinkPhase === 3) {
-              setParam(model, 'ParamEyeLOpen', 1);
-              setParam(model, 'ParamEyeROpen', 1);
-              blinkPhase = 0;
-              nextBlink = t + 2000 + Math.random() * 4000;
+
+          // ═══ Re-apply expression overrides AFTER idle updates ═══
+          // This ensures expression params win over idle animation every frame
+          if (hasOverrides) {
+            for (const [paramId, value] of Object.entries(overrides)) {
+              setParam(model, paramId, value);
             }
           }
         } catch { }
@@ -319,6 +366,21 @@
         }
       } catch (e) {
         console.warn("[Avatar] setParam failed for", paramId, e);
+      }
+    }
+
+    // Debug: list all model parameters (called once on first expression apply)
+    function logModelParams(model) {
+      if (window._paramsLogged) return;
+      window._paramsLogged = true;
+      try {
+        const coreModel = model.internalModel.coreModel;
+        const ids = coreModel._model?.parameters?.ids;
+        if (ids) {
+          console.log("[Avatar] 📋 Model parameters (" + ids.length + "):", ids.join(', '));
+        }
+      } catch (e) {
+        console.warn("[Avatar] Could not list model parameters:", e);
       }
     }
 
@@ -549,34 +611,104 @@
           }
 
           // Expression: load and apply an expression preset
+          // Uses persistent override system — expression params stored in window._expressionOverrides
+          // and re-applied every frame by startIdleAnimation, preventing idle from overwriting them.
           if (e.data.type === "load-expression") {
             try {
               const url = e.data.url;
               console.log("[Avatar] Loading expression:", url);
 
-              // Try loading as Live2D exp3.json
+              // Log all model parameters on first expression apply (debug)
+              logModelParams(model);
+
+              // Try loading as JSON expression data
               const res = await fetch(url);
               const expData = await res.json();
 
-              // If it has Parameters array (exp3 format), apply each param
+              // Track which expression index we're on (for expression packs with multiple)
+              window._expressionPackIndex = (window._expressionPackIndex || 0);
+
+              let applied = false;
+              const collectedParams = {}; // Collect all params before applying
+
+              // Case 1: exp3 format — { Parameters: [{ Id, Value }] }
               if (expData.Parameters && Array.isArray(expData.Parameters)) {
                 for (const param of expData.Parameters) {
-                  setParam(model, param.Id, param.Value);
+                  collectedParams[param.Id] = param.Value;
                 }
+                applied = true;
+                console.log("[Avatar] ✅ Expression applied (exp3 format,", expData.Parameters.length, "params)");
               }
-              // If it's a simple key-value object, apply directly
-              else if (typeof expData === 'object') {
-                for (const [paramId, value] of Object.entries(expData)) {
-                  if (typeof value === 'number') {
-                    setParam(model, paramId, value);
+              // Case 2: Expression pack format from generate-expression API
+              // { expressions: [{ id, label, params: { ParamX: value } }] }
+              else if (expData.expressions && Array.isArray(expData.expressions) && expData.expressions.length > 0) {
+                const idx = window._expressionPackIndex % expData.expressions.length;
+                const expr = expData.expressions[idx];
+                if (expr?.params && typeof expr.params === 'object') {
+                  for (const [paramId, value] of Object.entries(expr.params)) {
+                    if (typeof value === 'number') {
+                      collectedParams[paramId] = value;
+                    }
+                  }
+                  applied = true;
+                  console.log("[Avatar] ✅ Expression applied (pack format, expr:", expr.label || expr.id, ",", Object.keys(collectedParams).length, "params)");
+                }
+                window._expressionPackIndex = idx + 1;
+              }
+              // Case 3: expression_config wrapper from API response
+              else if (expData.expression_config) {
+                const config = expData.expression_config;
+                if (config.expressions && Array.isArray(config.expressions)) {
+                  const expr = config.expressions[0];
+                  if (expr?.params) {
+                    for (const [paramId, value] of Object.entries(expr.params)) {
+                      if (typeof value === 'number') collectedParams[paramId] = value;
+                    }
+                    applied = true;
+                    console.log("[Avatar] ✅ Expression applied (config wrapper format)");
                   }
                 }
               }
+              // Case 4: Simple key-value object — { ParamEyeLSmile: 0.8, ParamMouthForm: 1.0 }
+              if (!applied && typeof expData === 'object') {
+                for (const [paramId, value] of Object.entries(expData)) {
+                  if (typeof value === 'number' && paramId.startsWith('Param')) {
+                    collectedParams[paramId] = value;
+                  }
+                }
+                if (Object.keys(collectedParams).length > 0) {
+                  applied = true;
+                  console.log("[Avatar] ✅ Expression applied (key-value format,", Object.keys(collectedParams).length, "params)");
+                }
+              }
+
+              if (applied) {
+                // Store as persistent overrides — idle animation will re-apply these each frame
+                window._expressionOverrides = collectedParams;
+                window._expressionActive = true;
+                // Apply immediately
+                for (const [paramId, value] of Object.entries(collectedParams)) {
+                  setParam(model, paramId, value);
+                }
+                console.log("[Avatar] 🔒 Expression overrides set:", JSON.stringify(collectedParams));
+              } else {
+                console.warn("[Avatar] ⚠️ Expression format not recognized:", Object.keys(expData));
+              }
+
               window.parent.postMessage({ type: "expression-loaded", url }, "*");
             } catch (err) {
               console.warn("[Avatar] Expression load failed:", err);
               window.parent.postMessage({ type: "expression-error", error: err.message }, "*");
             }
+          }
+
+          // Clear expression overrides (when unequipping expression)
+          if (e.data.type === "clear-expression") {
+            window._expressionOverrides = {};
+            window._expressionActive = false;
+            window._expressionPackIndex = 0;
+            console.log("[Avatar] 🔓 Expression overrides cleared");
+            window.parent.postMessage({ type: "expression-cleared" }, "*");
           }
 
           // VTuber mode: camera head tracking → set head angles
@@ -600,18 +732,38 @@
               const url = e.data.url;
               console.log("[Avatar] Adding accessory:", url);
 
-              if (url.match(/\.(png|jpg|webp|gif)$/i)) {
+              // Determine if URL is a Live2D model or an image
+              const isLive2DModel = url.includes("model3.json") || url.includes("model.json");
+
+              if (!isLive2DModel) {
+                // Treat as image overlay (PNG/JPG/WebP/GIF or Supabase Storage URL without extension)
                 const img = new Image();
                 img.crossOrigin = "anonymous";
                 img.src = url;
+
+                img.onerror = () => {
+                  console.warn("[Avatar] Accessory image failed to load:", url);
+                  window.parent.postMessage({ type: "accessory-error", error: "Image load failed: " + url }, "*");
+                };
+
                 img.onload = () => {
+                  console.log("[Avatar] ✅ Accessory image loaded:", img.width, "x", img.height);
+
+                  // Remove any existing accessory canvases before adding new one
+                  if (window._accessoryCanvases) {
+                    for (const c of window._accessoryCanvases) {
+                      try { c.remove(); } catch { }
+                    }
+                  }
+                  window._accessoryCanvases = [];
+
                   const canvas = document.createElement("canvas");
-                  canvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;";
+                  canvas.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;";
                   canvas.width = window.innerWidth;
                   canvas.height = window.innerHeight;
-                  const ctx = canvas.getContext("2d");
+                  // Use alpha-aware 2D context for PNG transparency
+                  const ctx = canvas.getContext("2d", { alpha: true });
                   document.body.appendChild(canvas);
-                  window._accessoryCanvases = window._accessoryCanvases || [];
                   window._accessoryCanvases.push(canvas);
 
                   // Track model head position each frame
@@ -636,19 +788,25 @@
                     }
 
                     // Position accessory relative to model center + head angle
-                    const scale = Math.min(canvas.width, canvas.height) * 0.2;
+                    // Use image aspect ratio to size properly
+                    const maxDim = Math.min(canvas.width, canvas.height) * 0.3;
+                    const aspectRatio = img.width / img.height;
+                    const drawW = aspectRatio >= 1 ? maxDim : maxDim * aspectRatio;
+                    const drawH = aspectRatio >= 1 ? maxDim / aspectRatio : maxDim;
                     const centerX = model.x || canvas.width / 2;
                     const headTopY = (model.y || canvas.height / 2) - (model.height * (model.scale?.y || 1) * 0.45);
-                    const offsetX = headX * scale * 0.3;
-                    const offsetY = headY * scale * 0.2;
+                    const offsetX = headX * drawW * 0.3;
+                    const offsetY = headY * drawH * 0.2;
 
-                    ctx.drawImage(img, centerX - scale / 2 + offsetX, headTopY + offsetY, scale, scale);
+                    ctx.drawImage(img, centerX - drawW / 2 + offsetX, headTopY + offsetY, drawW, drawH);
                     requestAnimationFrame(updateAccessory);
                   }
                   requestAnimationFrame(updateAccessory);
+                  window.parent.postMessage({ type: "accessory-added", url }, "*");
                 };
               }
-              else if (url.includes("model3.json") || url.includes("model.json")) {
+              else {
+                // Live2D model accessory
                 const { Live2DModel: L2D } = window;
                 if (L2D) {
                   const accessory = await L2D.from(url);
@@ -657,10 +815,10 @@
                   accessory.anchor.set(0.5, 0.5);
                   accessory.x = window.innerWidth / 2;
                   accessory.y = window.innerHeight * 0.25;
-                  window._live2dApp.stage.addChild(accessory);
+                  app.stage.addChild(accessory);
                 }
+                window.parent.postMessage({ type: "accessory-added", url }, "*");
               }
-              window.parent.postMessage({ type: "accessory-added", url }, "*");
             } catch (err) {
               console.warn("[Avatar] Accessory load failed:", err);
               window.parent.postMessage({ type: "accessory-error", error: err.message }, "*");
@@ -675,7 +833,27 @@
     }
 
     speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
-    loadModel();
+
+    // ═══ WebGL availability check ═══
+    function isWebGLAvailable() {
+      try {
+        const canvas = document.createElement('canvas');
+        return !!(canvas.getContext('webgl') || canvas.getContext('webgl2') || canvas.getContext('experimental-webgl'));
+      } catch { return false; }
+    }
+
+    if (_scriptsFailed) {
+      // Scripts already failed — error was sent in _onScriptError
+      console.error("[Avatar] CDN scripts failed, skipping loadModel");
+    } else if (!isWebGLAvailable()) {
+      console.error("[Avatar] WebGL not available in this environment");
+      window.parent.postMessage({ type: "live2d-error", error: "WebGL not supported in this browser" }, "*");
+    } else if (typeof PIXI === 'undefined' || !PIXI.live2d) {
+      console.error("[Avatar] PIXI or live2d-display not loaded");
+      window.parent.postMessage({ type: "live2d-error", error: "Live2D libraries not loaded" }, "*");
+    } else {
+      loadModel();
+    }
 
     window.addEventListener("resize", () => {
       const model = window._live2dModel;
