@@ -19,6 +19,8 @@ interface Env {
     MINIMAX_API_KEY: string;
     MINIMAX_GROUP_ID: string;
     ZHIPU_API_KEY: string;
+    OPENAI_API_KEY: string;
+    XAI_API_KEY: string;
     ALLOWED_ORIGINS: string;
     ENVIRONMENT: string;
 }
@@ -29,6 +31,10 @@ interface EngineConfig {
     upstreamUrl: (params: URLSearchParams, env: Env) => string;
     headers: (env: Env, params?: URLSearchParams) => Record<string, string>;
     validate: (env: Env) => string | null; // returns error message or null
+    /** If true, use subprotocol-based auth (OpenAI Realtime style) instead of header auth */
+    subprotocolAuth?: boolean;
+    /** Build upstream WebSocket subprotocols from client params */
+    subprotocols?: (params: URLSearchParams, env: Env) => string[];
 }
 
 const ENGINES: Record<string, EngineConfig> = {
@@ -100,6 +106,42 @@ const ENGINES: Record<string, EngineConfig> = {
             // Doubao gets credentials from query params, so env check is optional
             // But fall back to env if query params are missing
             return null;
+        },
+    },
+    // ═══ OpenAI Realtime — proxied for China GFW bypass ═══
+    openai: {
+        upstreamUrl: (params, _env) => {
+            const model = params.get("model") || "gpt-4o-realtime-preview";
+            return `wss://api.openai.com/v1/realtime?model=${model}`;
+        },
+        headers: (_env) => ({}), // Auth via subprotocols, not headers
+        validate: (_env) => null, // Token comes from client
+        subprotocolAuth: true,
+        subprotocols: (params, _env) => {
+            // Client passes ephemeral token + desired subprotocols via query params
+            const token = params.get("token") || "";
+            return [
+                "realtime",
+                `openai-insecure-api-key.${token}`,
+                "openai-beta.realtime-v1",
+            ];
+        },
+    },
+    // ═══ Grok/xAI Realtime — proxied for China GFW bypass ═══
+    grok: {
+        upstreamUrl: (_params, _env) => {
+            return `wss://api.x.ai/v1/realtime`;
+        },
+        headers: (_env) => ({}), // Auth via subprotocols, not headers
+        validate: (_env) => null, // Token comes from client
+        subprotocolAuth: true,
+        subprotocols: (params, _env) => {
+            const token = params.get("token") || "";
+            return [
+                "realtime",
+                `openai-insecure-api-key.${token}`,
+                "openai-beta.realtime-v1",
+            ];
         },
     },
 };
@@ -243,13 +285,24 @@ export default {
         console.log(`[WS-Relay] 🚀 ${engineName}: connecting to ${fetchUrl.split("?")[0]}...`);
 
         try {
-            // Connect to upstream with auth headers
-            const upstreamResponse = await fetch(fetchUrl, {
+            // Build fetch options — header auth vs subprotocol auth
+            const fetchOptions: RequestInit & { headers: Record<string, string> } = {
                 headers: {
                     "Upgrade": "websocket",
                     ...authHeaders,
                 },
-            });
+            };
+
+            // For subprotocol-based auth (OpenAI/Grok), pass subprotocols via
+            // Sec-WebSocket-Protocol header — CF Workers use this for WS upgrade
+            if (engine.subprotocolAuth && engine.subprotocols) {
+                const protocols = engine.subprotocols(url.searchParams, env);
+                fetchOptions.headers["Sec-WebSocket-Protocol"] = protocols.join(", ");
+                console.log(`[WS-Relay] 🔑 ${engineName}: using subprotocol auth (${protocols.length} protocols)`);
+            }
+
+            // Connect to upstream
+            const upstreamResponse = await fetch(fetchUrl, fetchOptions);
 
             const upstreamWs = upstreamResponse.webSocket;
             if (!upstreamWs) {
@@ -278,6 +331,8 @@ export default {
             // Create WebSocket pair for client
             const [clientWs, serverWs] = Object.values(new WebSocketPair());
 
+            // For subprotocol auth engines, mirror the upstream's accepted protocol
+            // so the browser client sees the correct Sec-WebSocket-Protocol in the response
             serverWs.accept();
 
             let clientClosed = false;
