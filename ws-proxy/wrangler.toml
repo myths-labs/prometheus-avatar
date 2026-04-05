@@ -13,6 +13,7 @@ compatibility_date = "2024-12-01"
 # MINIMAX_GROUP_ID — MiniMax Group ID
 # OPENAI_API_KEY — OpenAI API Key (not strictly needed, ephemeral tokens from client)
 # XAI_API_KEY — xAI/Grok API Key (not strictly needed, token from client)
+# FISH_AUDIO_API_KEY — Fish Audio TTS API Key (platform default, users can BYOK via ?token=)
 # ALLOWED_ORIGINS — comma-separated allowed origins (e.g. "https://prometheus.mythslabs.ai,https://localhost:3000")
 
 [vars]

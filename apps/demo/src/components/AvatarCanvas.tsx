@@ -9,8 +9,10 @@ export interface AvatarCanvasHandle {
     loadMotion: (url: string) => void;
     /** Load an expression preset from marketplace */
     loadExpression: (url: string) => void;
-    /** Add an accessory overlay */
-    addAccessory: (url: string) => void;
+    /** Add an accessory overlay anchored to model drawable (S106) */
+    addAccessory: (url: string, slotType?: string) => void;
+    /** Hot-swap skin texture without reloading model (S107a) */
+    swapSkinTexture: (textureUrl: string, textureIndex?: number) => void;
 }
 
 interface AvatarCanvasProps {
@@ -203,9 +205,15 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
                 }
             },
 
-            addAccessory: (url: string) => {
+            addAccessory: (url: string, slotType?: string) => {
                 if (iframeRef.current?.contentWindow) {
-                    iframeRef.current.contentWindow.postMessage({ type: "add-accessory", url }, "*");
+                    iframeRef.current.contentWindow.postMessage({ type: "add-accessory", url, slotType: slotType || "headwear" }, "*");
+                }
+            },
+
+            swapSkinTexture: (textureUrl: string, textureIndex?: number) => {
+                if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage({ type: "swap-skin-texture", textureUrl, textureIndex: textureIndex || 0 }, "*");
                 }
             },
         }), [onEmotionChange, modelUrl, voiceOverride]);
@@ -227,7 +235,7 @@ const AvatarCanvas = forwardRef<AvatarCanvasHandle, AvatarCanvasProps>(
             function onAccessory(e: Event) {
                 const detail = (e as CustomEvent).detail;
                 if (iframeRef.current?.contentWindow && detail?.url) {
-                    iframeRef.current.contentWindow.postMessage({ type: "add-accessory", url: detail.url }, "*");
+                    iframeRef.current.contentWindow.postMessage({ type: "add-accessory", url: detail.url, slotType: detail.slotType || "headwear" }, "*");
                 }
             }
 

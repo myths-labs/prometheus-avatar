@@ -395,6 +395,172 @@
         || voices.find(v => v.lang.startsWith("en")) || null;
     }
 
+    // ═══ S106: Drawable Vertex Tracking — Skeletal Anchoring for Accessories ═══
+
+    // Slot → drawable lookup config
+    const SLOT_DRAW_CONFIG = {
+      // offsetY: fraction of model.height to shift down (+) or up (-)
+      // Head drawable center maps to skull-top (vy≈0.7), not face center
+      // Need positive offsetY to shift accessories down onto face
+      headwear: { region: 'head', position: 'top', sizeRatio: 0.28, offsetY: 0.04 },
+      face_deco: { region: 'head', position: 'center', sizeRatio: 0.18, offsetY: 0.095 },
+      hair: { region: 'head', position: 'top', sizeRatio: 0.34, offsetY: 0.02 },
+      wings: { region: 'body', position: 'center', sizeRatio: 0.70, offsetY: 0, zBehind: true },
+      outfit: { region: 'body', position: 'center', sizeRatio: 0.55, offsetY: 0 },
+      held_item: { region: 'body', position: 'bottom', sizeRatio: 0.18, offsetY: 0.05 },
+    };
+
+    /**
+     * 3-layer fallback to find the right drawable index for a slot.
+     * Layer 1: HitArea lookup (Haru, Mao, Natori, Hiyori — 4/9 models)
+     * Layer 2: Drawable ID name matching (Koharu, Haruto, Mark, Chitose, Nito — 5/9)
+     * Layer 3: Bounding box heuristic (ultimate fallback)
+     */
+    function findDrawableForRegion(model, targetRegion) {
+      const coreModel = model.internalModel.coreModel;
+
+      // Layer 1: HitArea lookup
+      try {
+        const hitAreas = model.internalModel.settings.hitAreas;
+        if (hitAreas && hitAreas.length > 0) {
+          for (const area of hitAreas) {
+            const name = (area.Name || '').toLowerCase();
+            if (name.includes(targetRegion)) {
+              const idx = coreModel.getDrawableIndex(area.Id);
+              if (idx >= 0) {
+                console.log('[S106] ✅ Drawable via HitArea:', area.Id, '→', targetRegion);
+                return idx;
+              }
+            }
+          }
+        }
+      } catch (e) { /* HitArea unavailable */ }
+
+      // Layer 2: Drawable ID name matching
+      try {
+        const drawableCount = coreModel.getDrawableCount();
+        const keywords = targetRegion === 'head'
+          ? ['head', 'face', 'hair']
+          : ['body', 'torso', 'bust'];
+        for (const kw of keywords) {
+          for (let i = 0; i < drawableCount; i++) {
+            const id = coreModel.getDrawableId(i);
+            if (id && id.toLowerCase().includes(kw)) {
+              console.log('[S106] ✅ Drawable via name:', id, '→', targetRegion);
+              return i;
+            }
+          }
+        }
+      } catch (e) { /* Name matching unavailable */ }
+
+      // Layer 3: Bounding box heuristic
+      try {
+        const drawableCount = coreModel.getDrawableCount();
+        let bestIdx = -1;
+        if (targetRegion === 'head') {
+          let highestY = -Infinity;
+          for (let i = 0; i < drawableCount; i++) {
+            const verts = coreModel.getDrawableVertices(i);
+            if (!verts || verts.length < 6) continue;
+            let sumY = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (let j = 0; j < verts.length; j += 2) {
+              sumY += verts[j + 1];
+              minX = Math.min(minX, verts[j]); maxX = Math.max(maxX, verts[j]);
+              minY = Math.min(minY, verts[j + 1]); maxY = Math.max(maxY, verts[j + 1]);
+            }
+            const area = (maxX - minX) * (maxY - minY);
+            const centerY = sumY / (verts.length / 2);
+            if (area > 0.005 && area < 0.5 && centerY > highestY) {
+              highestY = centerY; bestIdx = i;
+            }
+          }
+        } else {
+          let largestArea = 0;
+          for (let i = 0; i < drawableCount; i++) {
+            const verts = coreModel.getDrawableVertices(i);
+            if (!verts || verts.length < 6) continue;
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (let j = 0; j < verts.length; j += 2) {
+              minX = Math.min(minX, verts[j]); maxX = Math.max(maxX, verts[j]);
+              minY = Math.min(minY, verts[j + 1]); maxY = Math.max(maxY, verts[j + 1]);
+            }
+            const area = (maxX - minX) * (maxY - minY);
+            if (area > largestArea) { largestArea = area; bestIdx = i; }
+          }
+        }
+        if (bestIdx >= 0) {
+          console.log('[S106] ✅ Drawable via heuristic:', bestIdx, '→', targetRegion);
+          return bestIdx;
+        }
+      } catch (e) { /* Heuristic unavailable */ }
+
+      console.warn('[S106] ⚠️ No drawable found for', targetRegion);
+      return -1;
+    }
+
+    /**
+     * Convert Cubism vertex coords to screen coords.
+     * Cubism: center=(0,0), Y-up. Screen: top-left=(0,0), Y-down.
+     * 
+     * Vertex coord range is [-canvasW/(2*PPU), +canvasW/(2*PPU)] per axis.
+     * For Haru: canvasW=2400, PPU=2400 → range [-0.5, 0.5] in X
+     *           canvasH=4500, PPU=2400 → range [-0.9375, 0.9375] in Y
+     */
+    function vertexToScreen(model, vx, vy) {
+      const mw = model.internalModel.originalWidth || model.width;
+      const mh = model.internalModel.originalHeight || model.height;
+      const sx = model.scale?.x || 1;
+      const sy = model.scale?.y || 1;
+      const ax = model.anchor?.x || 0.5;
+      const ay = model.anchor?.y || 0.5;
+
+      // Get actual Cubism canvas dimensions to compute vertex range
+      let rangeX = 1.0, rangeY = 1.875; // Defaults for 2400x4500 / PPU=2400
+      try {
+        const cm = model.internalModel.coreModel;
+        const ci = cm._model?.canvasinfo;
+        if (ci && ci.PixelsPerUnit > 0) {
+          rangeX = ci.CanvasWidth / ci.PixelsPerUnit;
+          rangeY = ci.CanvasHeight / ci.PixelsPerUnit;
+        }
+      } catch (e) { /* use defaults */ }
+
+      // Map vertex (-rangeX/2..rangeX/2) to PIXI local (0..mw)
+      const localX = (vx / rangeX + 0.5) * mw;
+      const localY = (0.5 - vy / rangeY) * mh; // Flip Y
+
+      return {
+        x: model.x + (localX - ax * mw) * sx,
+        y: model.y + (localY - ay * mh) * sy
+      };
+    }
+
+    /**
+     * Get screen position from drawable vertices with position mode.
+     * @param {string} positionMode — 'center', 'top', or 'bottom'
+     */
+    function getDrawableScreenPos(model, drawableIndex, positionMode) {
+      const coreModel = model.internalModel.coreModel;
+      const vertices = coreModel.getDrawableVertices(drawableIndex);
+      if (!vertices || vertices.length < 2) return null;
+      const count = vertices.length / 2;
+
+      if (positionMode === 'top' || positionMode === 'bottom') {
+        const pts = [];
+        for (let i = 0; i < vertices.length; i += 2) pts.push({ x: vertices[i], y: vertices[i + 1] });
+        pts.sort((a, b) => positionMode === 'top' ? b.y - a.y : a.y - b.y);
+        const n = Math.max(3, Math.ceil(count * 0.25));
+        let sx = 0, sy = 0;
+        for (let i = 0; i < n; i++) { sx += pts[i].x; sy += pts[i].y; }
+        return vertexToScreen(model, sx / n, sy / n);
+      }
+
+      // center
+      let sx = 0, sy = 0;
+      for (let i = 0; i < vertices.length; i += 2) { sx += vertices[i]; sy += vertices[i + 1]; }
+      return vertexToScreen(model, sx / count, sy / count);
+    }
+
     async function loadModel() {
       try {
         const model = await PIXI.live2d.Live2DModel.from(modelUrl, { autoInteract: true });
@@ -726,102 +892,253 @@
             }
           }
 
-          // Accessory: add a sprite/image overlay on the avatar
+          // ═══ S106 FIX: Accessory as PIXI.Sprite with worldTransform tracking ═══
+          // Strategy diagnosis (4/4 23:00): BUILD's original approach used an independent
+          // Canvas 2D overlay + manual vertexToScreen() — this is architecturally wrong.
+          // Correct approach: PIXI.Sprite on app.stage + model.worldTransform.apply()
           if (e.data.type === "add-accessory") {
             try {
               const url = e.data.url;
-              console.log("[Avatar] Adding accessory:", url);
+              const slotType = e.data.slotType || 'headwear';
+              console.log("[Avatar] 🎯 S106 Adding accessory:", url, "slot:", slotType);
 
-              // Determine if URL is a Live2D model or an image
+              // Clean up existing accessories
+              if (window._accessorySprites) {
+                for (const s of window._accessorySprites) {
+                  try { app.stage.removeChild(s); s.destroy(); } catch { }
+                }
+              }
+              window._accessorySprites = [];
+              if (window._accessoryTickerFn) {
+                app.ticker.remove(window._accessoryTickerFn);
+                window._accessoryTickerFn = null;
+              }
+              // Also clean up any legacy Canvas 2D overlays from old code
+              if (window._accessoryCanvases) {
+                for (const c of window._accessoryCanvases) { try { c.remove(); } catch { } }
+                window._accessoryCanvases = [];
+              }
+              if (window._accessoryFrameId) {
+                cancelAnimationFrame(window._accessoryFrameId);
+                window._accessoryFrameId = null;
+              }
+
+              const slotCfg = SLOT_DRAW_CONFIG[slotType] || SLOT_DRAW_CONFIG.headwear;
               const isLive2DModel = url.includes("model3.json") || url.includes("model.json");
 
               if (!isLive2DModel) {
-                // Treat as image overlay (PNG/JPG/WebP/GIF or Supabase Storage URL without extension)
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                img.src = url;
+                // Load accessory as PIXI.Sprite (correct approach)
+                const texture = PIXI.Texture.from(url);
+                const sprite = new PIXI.Sprite(texture);
+                sprite.anchor.set(0.5, 0.5);
 
-                img.onerror = () => {
-                  console.warn("[Avatar] Accessory image failed to load:", url);
-                  window.parent.postMessage({ type: "accessory-error", error: "Image load failed: " + url }, "*");
-                };
+                // z-order: wings behind model, others in front
+                if (slotCfg.zBehind) {
+                  const modelIdx = app.stage.getChildIndex(model);
+                  app.stage.addChildAt(sprite, Math.max(0, modelIdx));
+                } else {
+                  app.stage.addChild(sprite);
+                }
+                window._accessorySprites.push(sprite);
 
-                img.onload = () => {
-                  console.log("[Avatar] ✅ Accessory image loaded:", img.width, "x", img.height);
+                // Find drawable for this slot
+                const drawableIdx = findDrawableForRegion(model, slotCfg.region);
+                console.log('[S106] Drawable idx:', drawableIdx, 'for', slotCfg.region);
 
-                  // Remove any existing accessory canvases before adding new one
-                  if (window._accessoryCanvases) {
-                    for (const c of window._accessoryCanvases) {
-                      try { c.remove(); } catch { }
-                    }
-                  }
-                  window._accessoryCanvases = [];
+                // Per-frame update via PIXI ticker (synced with renderer)
+                const updateFn = () => {
+                  if (!model || !model.internalModel) return;
 
-                  const canvas = document.createElement("canvas");
-                  canvas.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;";
-                  canvas.width = window.innerWidth;
-                  canvas.height = window.innerHeight;
-                  // Use alpha-aware 2D context for PNG transparency
-                  const ctx = canvas.getContext("2d", { alpha: true });
-                  document.body.appendChild(canvas);
-                  window._accessoryCanvases.push(canvas);
+                  // Size: proportional to model rendered size
+                  const maxDim = model.height * slotCfg.sizeRatio;
+                  const texW = sprite.texture.width || 100;
+                  const texH = sprite.texture.height || 100;
+                  const aspectRatio = texW / texH;
+                  sprite.width = aspectRatio >= 1 ? maxDim : maxDim * aspectRatio;
+                  sprite.height = aspectRatio >= 1 ? maxDim / aspectRatio : maxDim;
 
-                  // Track model head position each frame
-                  function updateAccessory() {
-                    if (!ctx || !model || !model.internalModel) {
-                      requestAnimationFrame(updateAccessory);
-                      return;
-                    }
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                    // Read head angle parameters for offset
+                  // Position: use drawable vertex tracking via worldTransform
+                  let vx, vy;
+                  if (drawableIdx >= 0) {
                     const coreModel = model.internalModel.coreModel;
-                    let headX = 0, headY = 0;
                     try {
-                      headX = (coreModel.getParameterValueById?.("ParamAngleX") || 0) / 30;
-                      headY = (coreModel.getParameterValueById?.("ParamAngleY") || 0) / 30;
-                    } catch {
-                      try {
-                        headX = (coreModel.getParamFloat?.("PARAM_ANGLE_X") || 0) / 30;
-                        headY = (coreModel.getParamFloat?.("PARAM_ANGLE_Y") || 0) / 30;
-                      } catch { }
+                      const vertices = coreModel.getDrawableVertices(drawableIdx);
+                      if (vertices && vertices.length >= 2) {
+                        const count = vertices.length / 2;
+                        if (slotCfg.position === 'top') {
+                          // For headwear: average of top 25% vertices (highest Y in Cubism Y-up)
+                          const pts = [];
+                          for (let i = 0; i < vertices.length; i += 2) {
+                            pts.push({ x: vertices[i], y: vertices[i + 1] });
+                          }
+                          pts.sort((a, b) => b.y - a.y);
+                          const n = Math.max(3, Math.ceil(count * 0.25));
+                          let sx = 0, sy = 0;
+                          for (let i = 0; i < n; i++) { sx += pts[i].x; sy += pts[i].y; }
+                          vx = sx / n;
+                          vy = sy / n;
+                        } else {
+                          // Center of drawable
+                          let sx = 0, sy = 0;
+                          for (let i = 0; i < vertices.length; i += 2) {
+                            sx += vertices[i]; sy += vertices[i + 1];
+                          }
+                          vx = sx / count;
+                          vy = sy / count;
+                        }
+                      }
+                    } catch (e) { /* drawable read failed */ }
+                  }
+
+                  if (vx !== undefined) {
+                    // ═══ Coordinate Conversion: Cubism vertex → screen pixel ═══
+                    //
+                    // Cubism vertex space: center=(0,0), Y-up
+                    // PPU (PixelsPerUnit) maps vertex units to canvas pixels
+                    // Canvas pixel space: origin=center, Y-up 
+                    // Screen space: origin=top-left, Y-down
+                    //
+                    // Verified via debug logs:
+                    //   vertex vy=0.703 → head region
+                    //   PPU=2400, canvas=2400×4500
+                    //   model display: x=383, y=150, w=128, h=240
+
+                    let ppu = 2400, cw = 2400, ch = 4500;
+                    try {
+                      const ci = model.internalModel.coreModel._model?.canvasinfo;
+                      if (ci) {
+                        ppu = ci.PixelsPerUnit || 2400;
+                        cw = ci.CanvasWidth || 2400;
+                        ch = ci.CanvasHeight || 4500;
+                      }
+                    } catch (e) { }
+
+                    // Step 1: vertex → normalized position (0→1)
+                    // vx: -range/2 → +range/2, center = 0
+                    // rangeX = cw/ppu, rangeY = ch/ppu
+                    const normX = (vx * ppu / cw) + 0.5;     // 0 = left, 1 = right
+                    const normY = 0.5 - (vy * ppu / ch);     // 0 = top, 1 = bottom (flip Y)
+
+                    // Step 2: normalized → screen pixel
+                    // model.x/y is center of model (anchor 0.5), model.width/height is display size
+                    const screenX = model.x - model.width / 2 + normX * model.width;
+                    const screenY = model.y - model.height / 2 + normY * model.height;
+
+                    if (!sprite._debugDone) {
+                      sprite._debugDone = true;
+                      console.log('[S106] COORD:', {
+                        vertex: { vx: vx.toFixed(3), vy: vy.toFixed(3) },
+                        norm: { x: normX.toFixed(3), y: normY.toFixed(3) },
+                        screen: { x: screenX.toFixed(1), y: screenY.toFixed(1) },
+                        model: { x: model.x, y: model.y, w: model.width, h: model.height },
+                        canvas: { ppu, cw, ch }
+                      });
                     }
 
-                    // Position accessory relative to model center + head angle
-                    // Use image aspect ratio to size properly
-                    const maxDim = Math.min(canvas.width, canvas.height) * 0.3;
-                    const aspectRatio = img.width / img.height;
-                    const drawW = aspectRatio >= 1 ? maxDim : maxDim * aspectRatio;
-                    const drawH = aspectRatio >= 1 ? maxDim / aspectRatio : maxDim;
-                    const centerX = model.x || canvas.width / 2;
-                    const headTopY = (model.y || canvas.height / 2) - (model.height * (model.scale?.y || 1) * 0.45);
-                    const offsetX = headX * drawW * 0.3;
-                    const offsetY = headY * drawH * 0.2;
-
-                    ctx.drawImage(img, centerX - drawW / 2 + offsetX, headTopY + offsetY, drawW, drawH);
-                    requestAnimationFrame(updateAccessory);
+                    sprite.x = screenX;
+                    sprite.y = screenY + (slotCfg.offsetY || 0) * model.height;
+                  } else {
+                    // Fallback: position relative to model center
+                    sprite.x = model.x;
+                    sprite.y = model.y - model.height * 0.3;
                   }
-                  requestAnimationFrame(updateAccessory);
-                  window.parent.postMessage({ type: "accessory-added", url }, "*");
                 };
-              }
-              else {
-                // Live2D model accessory
-                const { Live2DModel: L2D } = window;
-                if (L2D) {
-                  const accessory = await L2D.from(url);
+
+                window._accessoryTickerFn = updateFn;
+                app.ticker.add(updateFn);
+
+                // Run once immediately if texture already loaded
+                if (texture.baseTexture.valid) {
+                  updateFn();
+                } else {
+                  texture.baseTexture.once('loaded', () => updateFn());
+                }
+
+                window.parent.postMessage({
+                  type: "accessory-added", url, slotType,
+                  drawableTracking: drawableIdx >= 0
+                }, "*");
+
+              } else {
+                // Live2D model as accessory — use PIXI stage
+                try {
+                  const accessory = await PIXI.live2d.Live2DModel.from(url);
                   const scale = Math.min(window.innerWidth / accessory.width, window.innerHeight / accessory.height) * 0.3;
                   accessory.scale.set(scale);
                   accessory.anchor.set(0.5, 0.5);
                   accessory.x = window.innerWidth / 2;
                   accessory.y = window.innerHeight * 0.25;
                   app.stage.addChild(accessory);
+                } catch (err) {
+                  console.warn("[Avatar] Live2D accessory load failed:", err);
                 }
                 window.parent.postMessage({ type: "accessory-added", url }, "*");
               }
             } catch (err) {
               console.warn("[Avatar] Accessory load failed:", err);
               window.parent.postMessage({ type: "accessory-error", error: err.message }, "*");
+            }
+          }
+
+          // ═══ S107a FIX: Skin Texture Hot-Swap with fallback chain ═══
+          if (e.data.type === "swap-skin-texture") {
+            try {
+              const textureUrl = e.data.textureUrl;
+              const textureIndex = e.data.textureIndex || 0;
+              console.log("[Avatar] 🎨 Hot-swapping skin:", textureUrl, "idx:", textureIndex);
+
+              // Load new texture via Image for cross-origin support
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.src = textureUrl;
+
+              img.onload = () => {
+                try {
+                  const renderer = app.renderer;
+
+                  // Method 1: pixi-live2d-display bindTexture API
+                  if (typeof model.internalModel.bindTexture === 'function') {
+                    const newTexture = PIXI.Texture.from(img);
+                    renderer.texture.bind(newTexture.baseTexture);
+                    const glTex = newTexture.baseTexture._glTextures[renderer.CONTEXT_UID];
+                    if (glTex) {
+                      model.internalModel.bindTexture(textureIndex, glTex.texture);
+                      console.log("[Avatar] ✅ Skin swapped via bindTexture!");
+                      window.parent.postMessage({ type: "skin-swapped", textureUrl }, "*");
+                      return;
+                    }
+                  }
+
+                  // Method 2: Direct texture array replacement
+                  const textures = model.internalModel.textureManager?.textures
+                    || model.internalModel.textures;
+                  if (textures && textures[textureIndex]) {
+                    const oldBaseTex = textures[textureIndex];
+                    const newTexture = PIXI.Texture.from(img);
+                    if (oldBaseTex.baseTexture) {
+                      oldBaseTex.baseTexture.resource = newTexture.baseTexture.resource;
+                      oldBaseTex.baseTexture.update();
+                      console.log("[Avatar] ✅ Skin swapped via texture replacement!");
+                      window.parent.postMessage({ type: "skin-swapped", textureUrl }, "*");
+                      return;
+                    }
+                  }
+
+                  // Method 3: Signal parent to reload model
+                  console.warn("[Avatar] bindTexture unavailable, requesting model reload...");
+                  window.parent.postMessage({ type: "skin-swap-reload", textureUrl }, "*");
+                } catch (err) {
+                  console.warn("[Avatar] ❌ Skin swap failed:", err);
+                  window.parent.postMessage({ type: "skin-swap-error", error: err.message }, "*");
+                }
+              };
+              img.onerror = () => {
+                console.warn("[Avatar] ❌ Texture load failed:", textureUrl);
+                window.parent.postMessage({ type: "skin-swap-error", error: "Image load failed" }, "*");
+              };
+            } catch (err) {
+              console.warn("[Avatar] Skin swap error:", err);
+              window.parent.postMessage({ type: "skin-swap-error", error: err.message }, "*");
             }
           }
         });

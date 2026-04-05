@@ -8,6 +8,7 @@
  * Routes:
  *   /volcengine  → wss://ai-gateway.vei.volces.com/v1/realtime
  *   /minimax     → wss://api.minimax.chat/v1/realtime
+ *   /fish        → wss://api.fish.audio/v1/tts/live
  *
  * The Worker adds the proper Authorization: Bearer header when
  * connecting to the upstream, then relays messages bidirectionally.
@@ -21,6 +22,7 @@ interface Env {
     ZHIPU_API_KEY: string;
     OPENAI_API_KEY: string;
     XAI_API_KEY: string;
+    FISH_AUDIO_API_KEY: string;
     ALLOWED_ORIGINS: string;
     ENVIRONMENT: string;
 }
@@ -142,6 +144,24 @@ const ENGINES: Record<string, EngineConfig> = {
                 `openai-insecure-api-key.${token}`,
                 "openai-beta.realtime-v1",
             ];
+        },
+    },
+    // ═══ Fish Audio TTS Live — WebSocket streaming for <1s voice latency ═══
+    fish: {
+        upstreamUrl: (_params: URLSearchParams, _env: Env) => {
+            return `wss://api.fish.audio/v1/tts/live`;
+        },
+        headers: (_env: Env, params?: URLSearchParams) => {
+            // BYOK: user can pass their own key via ?token= query param
+            // Otherwise fall back to platform key from env
+            const apiKey = params?.get("token")?.trim() || _env.FISH_AUDIO_API_KEY;
+            return {
+                "Authorization": `Bearer ${apiKey}`,
+            };
+        },
+        validate: (_env: Env) => {
+            // Token can come from query param (BYOK), so env key is optional
+            return null;
         },
     },
 };
