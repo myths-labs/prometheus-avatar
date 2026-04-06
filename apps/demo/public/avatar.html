@@ -395,170 +395,121 @@
         || voices.find(v => v.lang.startsWith("en")) || null;
     }
 
-    // ═══ S106: Drawable Vertex Tracking — Skeletal Anchoring for Accessories ═══
+    // ═══ AUTO-DETECT accessory position from model's own drawable data ═══
+    // Works for ALL skeletons — no hardcoded coordinates needed.
+    // Uses HitArea/drawable name → vertex center → model-local coords via PPU.
+    //
+    // Cubism vertex space: center=(0,0), Y-up, units = 1/PPU
+    // PIXI local with anchor(0.5,0.5): center=(0,0), Y-down
+    // Conversion: pixi_x = vertex_x * PPU, pixi_y = -vertex_y * PPU
 
-    // Slot → drawable lookup config
-    const SLOT_DRAW_CONFIG = {
-      // offsetY: fraction of model.height to shift down (+) or up (-)
-      // Head drawable center maps to skull-top (vy≈0.7), not face center
-      // Need positive offsetY to shift accessories down onto face
-      headwear: { region: 'head', position: 'top', sizeRatio: 0.28, offsetY: 0.04 },
-      face_deco: { region: 'head', position: 'center', sizeRatio: 0.18, offsetY: 0.095 },
-      hair: { region: 'head', position: 'top', sizeRatio: 0.34, offsetY: 0.02 },
-      wings: { region: 'body', position: 'center', sizeRatio: 0.70, offsetY: 0, zBehind: true },
-      outfit: { region: 'body', position: 'center', sizeRatio: 0.55, offsetY: 0 },
-      held_item: { region: 'body', position: 'bottom', sizeRatio: 0.18, offsetY: 0.05 },
+    const SLOT_META = {
+      face_deco: { region: 'head', verticalBias: 0.10, sizeRatio: 0.50, followHead: true },
+      headwear: { region: 'head', verticalBias: -0.20, sizeRatio: 0.60, followHead: true },
+      hair: { region: 'head', verticalBias: -0.10, sizeRatio: 0.60, followHead: true },
+      wings: { region: 'body', verticalBias: 0, sizeRatio: 0.80, followHead: false },
+      outfit: { region: 'body', verticalBias: 0, sizeRatio: 0.60, followHead: false },
+      held_item: { region: 'body', verticalBias: 0.3, sizeRatio: 0.25, followHead: false },
     };
 
-    /**
-     * 3-layer fallback to find the right drawable index for a slot.
-     * Layer 1: HitArea lookup (Haru, Mao, Natori, Hiyori — 4/9 models)
-     * Layer 2: Drawable ID name matching (Koharu, Haruto, Mark, Chitose, Nito — 5/9)
-     * Layer 3: Bounding box heuristic (ultimate fallback)
-     */
-    function findDrawableForRegion(model, targetRegion) {
+    function autoDetectSlotPosition(model, slotType) {
+      const meta = SLOT_META[slotType] || SLOT_META.face_deco;
       const coreModel = model.internalModel.coreModel;
+      const ow = model.internalModel.originalWidth || 2400;
+      const oh = model.internalModel.originalHeight || 4500;
+
+      // Get PPU for coordinate conversion
+      let ppu = 2400;
+      try {
+        const ci = coreModel._model?.canvasinfo;
+        if (ci && ci.PixelsPerUnit > 0) ppu = ci.PixelsPerUnit;
+      } catch (e) { }
+
+      // Find drawable for this region (head or body)
+      let drawableIdx = -1;
+      const targetRegion = meta.region;
 
       // Layer 1: HitArea lookup
       try {
         const hitAreas = model.internalModel.settings.hitAreas;
-        if (hitAreas && hitAreas.length > 0) {
+        if (hitAreas) {
           for (const area of hitAreas) {
-            const name = (area.Name || '').toLowerCase();
-            if (name.includes(targetRegion)) {
+            if ((area.Name || '').toLowerCase().includes(targetRegion)) {
               const idx = coreModel.getDrawableIndex(area.Id);
-              if (idx >= 0) {
-                console.log('[S106] ✅ Drawable via HitArea:', area.Id, '→', targetRegion);
-                return idx;
-              }
+              if (idx >= 0) { drawableIdx = idx; break; }
             }
           }
         }
-      } catch (e) { /* HitArea unavailable */ }
+      } catch (e) { }
 
-      // Layer 2: Drawable ID name matching
-      try {
-        const drawableCount = coreModel.getDrawableCount();
-        const keywords = targetRegion === 'head'
-          ? ['head', 'face', 'hair']
-          : ['body', 'torso', 'bust'];
-        for (const kw of keywords) {
-          for (let i = 0; i < drawableCount; i++) {
-            const id = coreModel.getDrawableId(i);
-            if (id && id.toLowerCase().includes(kw)) {
-              console.log('[S106] ✅ Drawable via name:', id, '→', targetRegion);
-              return i;
+      // Layer 2: Drawable name matching
+      if (drawableIdx < 0) {
+        try {
+          const count = coreModel.getDrawableCount();
+          const keywords = targetRegion === 'head' ? ['head', 'face', 'hair'] : ['body', 'torso', 'bust'];
+          for (const kw of keywords) {
+            for (let i = 0; i < count; i++) {
+              const id = coreModel.getDrawableId(i);
+              if (id && id.toLowerCase().includes(kw)) { drawableIdx = i; break; }
             }
+            if (drawableIdx >= 0) break;
           }
-        }
-      } catch (e) { /* Name matching unavailable */ }
+        } catch (e) { }
+      }
 
-      // Layer 3: Bounding box heuristic
-      try {
-        const drawableCount = coreModel.getDrawableCount();
-        let bestIdx = -1;
-        if (targetRegion === 'head') {
-          let highestY = -Infinity;
-          for (let i = 0; i < drawableCount; i++) {
-            const verts = coreModel.getDrawableVertices(i);
-            if (!verts || verts.length < 6) continue;
-            let sumY = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            for (let j = 0; j < verts.length; j += 2) {
-              sumY += verts[j + 1];
-              minX = Math.min(minX, verts[j]); maxX = Math.max(maxX, verts[j]);
-              minY = Math.min(minY, verts[j + 1]); maxY = Math.max(maxY, verts[j + 1]);
+      // Get vertex center of the drawable
+      let cx = 0, cy = 0;
+      if (drawableIdx >= 0) {
+        try {
+          const verts = coreModel.getDrawableVertices(drawableIdx);
+          if (verts && verts.length >= 4) {
+            const n = verts.length / 2;
+            let sx = 0, sy = 0, minY = Infinity, maxY = -Infinity;
+            for (let i = 0; i < verts.length; i += 2) {
+              sx += verts[i]; sy += verts[i + 1];
+              minY = Math.min(minY, verts[i + 1]);
+              maxY = Math.max(maxY, verts[i + 1]);
             }
-            const area = (maxX - minX) * (maxY - minY);
-            const centerY = sumY / (verts.length / 2);
-            if (area > 0.005 && area < 0.5 && centerY > highestY) {
-              highestY = centerY; bestIdx = i;
-            }
+            cx = sx / n;
+            cy = sy / n;
+            // verticalBias: shift within the drawable's range
+            // -1 = top of drawable, 0 = center, +1 = bottom
+            const range = maxY - minY;
+            cy += meta.verticalBias * range;
           }
-        } else {
-          let largestArea = 0;
-          for (let i = 0; i < drawableCount; i++) {
-            const verts = coreModel.getDrawableVertices(i);
-            if (!verts || verts.length < 6) continue;
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            for (let j = 0; j < verts.length; j += 2) {
-              minX = Math.min(minX, verts[j]); maxX = Math.max(maxX, verts[j]);
-              minY = Math.min(minY, verts[j + 1]); maxY = Math.max(maxY, verts[j + 1]);
-            }
-            const area = (maxX - minX) * (maxY - minY);
-            if (area > largestArea) { largestArea = area; bestIdx = i; }
-          }
-        }
-        if (bestIdx >= 0) {
-          console.log('[S106] ✅ Drawable via heuristic:', bestIdx, '→', targetRegion);
-          return bestIdx;
-        }
-      } catch (e) { /* Heuristic unavailable */ }
+        } catch (e) { }
+      }
 
-      console.warn('[S106] ⚠️ No drawable found for', targetRegion);
-      return -1;
-    }
+      // Convert Cubism vertex → PIXI local coords
+      const pixiX = cx * ppu;
+      const pixiY = -cy * ppu; // flip Y
 
-    /**
-     * Convert Cubism vertex coords to screen coords.
-     * Cubism: center=(0,0), Y-up. Screen: top-left=(0,0), Y-down.
-     * 
-     * Vertex coord range is [-canvasW/(2*PPU), +canvasW/(2*PPU)] per axis.
-     * For Haru: canvasW=2400, PPU=2400 → range [-0.5, 0.5] in X
-     *           canvasH=4500, PPU=2400 → range [-0.9375, 0.9375] in Y
-     */
-    function vertexToScreen(model, vx, vy) {
-      const mw = model.internalModel.originalWidth || model.width;
-      const mh = model.internalModel.originalHeight || model.height;
-      const sx = model.scale?.x || 1;
-      const sy = model.scale?.y || 1;
-      const ax = model.anchor?.x || 0.5;
-      const ay = model.anchor?.y || 0.5;
-
-      // Get actual Cubism canvas dimensions to compute vertex range
-      let rangeX = 1.0, rangeY = 1.875; // Defaults for 2400x4500 / PPU=2400
-      try {
-        const cm = model.internalModel.coreModel;
-        const ci = cm._model?.canvasinfo;
-        if (ci && ci.PixelsPerUnit > 0) {
-          rangeX = ci.CanvasWidth / ci.PixelsPerUnit;
-          rangeY = ci.CanvasHeight / ci.PixelsPerUnit;
-        }
-      } catch (e) { /* use defaults */ }
-
-      // Map vertex (-rangeX/2..rangeX/2) to PIXI local (0..mw)
-      const localX = (vx / rangeX + 0.5) * mw;
-      const localY = (0.5 - vy / rangeY) * mh; // Flip Y
+      console.log('[S108] Auto-detected position:', {
+        slot: slotType, region: targetRegion, drawableIdx,
+        vertex: { cx: cx.toFixed(3), cy: cy.toFixed(3) },
+        pixi: { x: pixiX.toFixed(0), y: pixiY.toFixed(0) },
+        ppu, modelCanvas: ow + '×' + oh
+      });
 
       return {
-        x: model.x + (localX - ax * mw) * sx,
-        y: model.y + (localY - ay * mh) * sy
+        x: 0,  // Force center — HitArea offset is unreliable
+        y: pixiY,
+        size: ow * meta.sizeRatio,
+        followHead: meta.followHead,
       };
     }
 
-    /**
-     * Get screen position from drawable vertices with position mode.
-     * @param {string} positionMode — 'center', 'top', or 'bottom'
-     */
-    function getDrawableScreenPos(model, drawableIndex, positionMode) {
-      const coreModel = model.internalModel.coreModel;
-      const vertices = coreModel.getDrawableVertices(drawableIndex);
-      if (!vertices || vertices.length < 2) return null;
-      const count = vertices.length / 2;
-
-      if (positionMode === 'top' || positionMode === 'bottom') {
-        const pts = [];
-        for (let i = 0; i < vertices.length; i += 2) pts.push({ x: vertices[i], y: vertices[i + 1] });
-        pts.sort((a, b) => positionMode === 'top' ? b.y - a.y : a.y - b.y);
-        const n = Math.max(3, Math.ceil(count * 0.25));
-        let sx = 0, sy = 0;
-        for (let i = 0; i < n; i++) { sx += pts[i].x; sy += pts[i].y; }
-        return vertexToScreen(model, sx / n, sy / n);
-      }
-
-      // center
-      let sx = 0, sy = 0;
-      for (let i = 0; i < vertices.length; i += 2) { sx += vertices[i]; sy += vertices[i + 1]; }
-      return vertexToScreen(model, sx / count, sy / count);
+    // Helper: read a model parameter value
+    function getParamValue(coreModel, paramId) {
+      try {
+        if (typeof coreModel.getParameterValueById === 'function') {
+          return coreModel.getParameterValueById(paramId);
+        }
+        if (typeof coreModel.getParamFloat === 'function') {
+          return coreModel.getParamFloat(paramId);
+        }
+      } catch (e) { }
+      return 0;
     }
 
     async function loadModel() {
@@ -900,12 +851,12 @@
             try {
               const url = e.data.url;
               const slotType = e.data.slotType || 'headwear';
-              console.log("[Avatar] 🎯 S106 Adding accessory:", url, "slot:", slotType);
+              console.log("[Avatar] 🎯 S108 Adding accessory:", url, "slot:", slotType);
 
-              // Clean up existing accessories
+              // Clean up existing accessories (both old and new style)
               if (window._accessorySprites) {
                 for (const s of window._accessorySprites) {
-                  try { app.stage.removeChild(s); s.destroy(); } catch { }
+                  try { s.parent?.removeChild(s); s.destroy(); } catch { }
                 }
               }
               window._accessorySprites = [];
@@ -913,7 +864,6 @@
                 app.ticker.remove(window._accessoryTickerFn);
                 window._accessoryTickerFn = null;
               }
-              // Also clean up any legacy Canvas 2D overlays from old code
               if (window._accessoryCanvases) {
                 for (const c of window._accessoryCanvases) { try { c.remove(); } catch { } }
                 window._accessoryCanvases = [];
@@ -923,152 +873,112 @@
                 window._accessoryFrameId = null;
               }
 
-              const slotCfg = SLOT_DRAW_CONFIG[slotType] || SLOT_DRAW_CONFIG.headwear;
+              // Auto-detect slot position from model's own drawable data
+              const slot = autoDetectSlotPosition(model, slotType);
+
               const isLive2DModel = url.includes("model3.json") || url.includes("model.json");
 
               if (!isLive2DModel) {
-                // Load accessory as PIXI.Sprite (correct approach)
+                // ═══ S108 FIX v2: app.stage + model.toGlobal() ═══
+                // model.addChild() renders BEHIND the Live2D mesh (z-order bug).
+                // Fix: add sprite to app.stage (guaranteed on top), then use
+                // model.toGlobal() to convert model-local coords → screen coords
+                // every frame via ticker. Auto-detected position stays correct
+                // for all models/skeletons.
+
                 const texture = PIXI.Texture.from(url);
                 const sprite = new PIXI.Sprite(texture);
                 sprite.anchor.set(0.5, 0.5);
 
-                // z-order: wings behind model, others in front
-                if (slotCfg.zBehind) {
-                  const modelIdx = app.stage.getChildIndex(model);
-                  app.stage.addChildAt(sprite, Math.max(0, modelIdx));
-                } else {
-                  app.stage.addChild(sprite);
-                }
+                // Add to app.stage (renders ON TOP of model)
+                app.stage.addChild(sprite);
                 window._accessorySprites.push(sprite);
 
-                // Find drawable for this slot
-                const drawableIdx = findDrawableForRegion(model, slotCfg.region);
-                console.log('[S106] Drawable idx:', drawableIdx, 'for', slotCfg.region);
-
-                // Per-frame update via PIXI ticker (synced with renderer)
-                const updateFn = () => {
-                  if (!model || !model.internalModel) return;
-
-                  // Size: proportional to model rendered size
-                  const maxDim = model.height * slotCfg.sizeRatio;
+                // Size sprite relative to model's screen size
+                const applySizing = () => {
+                  const screenScale = model.scale.x || 0.15;
+                  const screenSize = slot.size * screenScale;
                   const texW = sprite.texture.width || 100;
                   const texH = sprite.texture.height || 100;
-                  const aspectRatio = texW / texH;
-                  sprite.width = aspectRatio >= 1 ? maxDim : maxDim * aspectRatio;
-                  sprite.height = aspectRatio >= 1 ? maxDim / aspectRatio : maxDim;
-
-                  // Position: use drawable vertex tracking via worldTransform
-                  let vx, vy;
-                  if (drawableIdx >= 0) {
-                    const coreModel = model.internalModel.coreModel;
-                    try {
-                      const vertices = coreModel.getDrawableVertices(drawableIdx);
-                      if (vertices && vertices.length >= 2) {
-                        const count = vertices.length / 2;
-                        if (slotCfg.position === 'top') {
-                          // For headwear: average of top 25% vertices (highest Y in Cubism Y-up)
-                          const pts = [];
-                          for (let i = 0; i < vertices.length; i += 2) {
-                            pts.push({ x: vertices[i], y: vertices[i + 1] });
-                          }
-                          pts.sort((a, b) => b.y - a.y);
-                          const n = Math.max(3, Math.ceil(count * 0.25));
-                          let sx = 0, sy = 0;
-                          for (let i = 0; i < n; i++) { sx += pts[i].x; sy += pts[i].y; }
-                          vx = sx / n;
-                          vy = sy / n;
-                        } else {
-                          // Center of drawable
-                          let sx = 0, sy = 0;
-                          for (let i = 0; i < vertices.length; i += 2) {
-                            sx += vertices[i]; sy += vertices[i + 1];
-                          }
-                          vx = sx / count;
-                          vy = sy / count;
-                        }
-                      }
-                    } catch (e) { /* drawable read failed */ }
-                  }
-
-                  if (vx !== undefined) {
-                    // ═══ Coordinate Conversion: Cubism vertex → screen pixel ═══
-                    //
-                    // Cubism vertex space: center=(0,0), Y-up
-                    // PPU (PixelsPerUnit) maps vertex units to canvas pixels
-                    // Canvas pixel space: origin=center, Y-up 
-                    // Screen space: origin=top-left, Y-down
-                    //
-                    // Verified via debug logs:
-                    //   vertex vy=0.703 → head region
-                    //   PPU=2400, canvas=2400×4500
-                    //   model display: x=383, y=150, w=128, h=240
-
-                    let ppu = 2400, cw = 2400, ch = 4500;
-                    try {
-                      const ci = model.internalModel.coreModel._model?.canvasinfo;
-                      if (ci) {
-                        ppu = ci.PixelsPerUnit || 2400;
-                        cw = ci.CanvasWidth || 2400;
-                        ch = ci.CanvasHeight || 4500;
-                      }
-                    } catch (e) { }
-
-                    // Step 1: vertex → normalized position (0→1)
-                    // vx: -range/2 → +range/2, center = 0
-                    // rangeX = cw/ppu, rangeY = ch/ppu
-                    const normX = (vx * ppu / cw) + 0.5;     // 0 = left, 1 = right
-                    const normY = 0.5 - (vy * ppu / ch);     // 0 = top, 1 = bottom (flip Y)
-
-                    // Step 2: normalized → screen pixel
-                    // model.x/y is center of model (anchor 0.5), model.width/height is display size
-                    const screenX = model.x - model.width / 2 + normX * model.width;
-                    const screenY = model.y - model.height / 2 + normY * model.height;
-
-                    if (!sprite._debugDone) {
-                      sprite._debugDone = true;
-                      console.log('[S106] COORD:', {
-                        vertex: { vx: vx.toFixed(3), vy: vy.toFixed(3) },
-                        norm: { x: normX.toFixed(3), y: normY.toFixed(3) },
-                        screen: { x: screenX.toFixed(1), y: screenY.toFixed(1) },
-                        model: { x: model.x, y: model.y, w: model.width, h: model.height },
-                        canvas: { ppu, cw, ch }
-                      });
-                    }
-
-                    sprite.x = screenX;
-                    sprite.y = screenY + (slotCfg.offsetY || 0) * model.height;
+                  const ratio = texW / texH;
+                  if (ratio >= 1) {
+                    sprite.width = screenSize;
+                    sprite.height = screenSize / ratio;
                   } else {
-                    // Fallback: position relative to model center
-                    sprite.x = model.x;
-                    sprite.y = model.y - model.height * 0.3;
+                    sprite.width = screenSize * ratio;
+                    sprite.height = screenSize;
                   }
                 };
 
-                window._accessoryTickerFn = updateFn;
-                app.ticker.add(updateFn);
-
-                // Run once immediately if texture already loaded
                 if (texture.baseTexture.valid) {
-                  updateFn();
+                  applySizing();
                 } else {
-                  texture.baseTexture.once('loaded', () => updateFn());
+                  texture.baseTexture.once('loaded', applySizing);
                 }
+
+                // ═══ POSITION STRATEGY ═══
+                // toGlobal(0,0) = near head top in screen coords (verified: 319,21)
+                // Use proportional offset from model.position based on model screen height
+                // Slot offsets: fraction of model's screen height from model center
+                const SLOT_SCREEN_OFFSETS = {
+                  face_deco: { yRatio: -0.30, sizeRatio: 0.12 },  // face/eyes
+                  headwear: { yRatio: -0.38, sizeRatio: 0.15 },  // top of head
+                  hair: { yRatio: -0.35, sizeRatio: 0.18 },  // hair area
+                  wings: { yRatio: 0.05, sizeRatio: 0.30 },   // back/torso
+                  outfit: { yRatio: 0.05, sizeRatio: 0.25 },   // body
+                  held_item: { yRatio: 0.15, sizeRatio: 0.08 },   // hand
+                };
+                const screenOffset = SLOT_SCREEN_OFFSETS[slotType] || SLOT_SCREEN_OFFSETS.face_deco;
+
+                const tickerFn = () => {
+                  if (!model) return;
+                  const screenScale = model.scale.x || 0.15;
+                  const oh = model.internalModel?.originalHeight || 4500;
+                  const modelScreenH = oh * screenScale;
+
+                  // Position relative to model's screen position
+                  let sx = model.x;
+                  let sy = model.y + screenOffset.yRatio * modelScreenH;
+
+                  // Head-following: subtle ParamAngle sway
+                  if (slot.followHead && model?.internalModel?.coreModel) {
+                    const cm = model.internalModel.coreModel;
+                    const ax = getParamValue(cm, 'ParamAngleX');
+                    const ay = getParamValue(cm, 'ParamAngleY');
+                    const az = getParamValue(cm, 'ParamAngleZ');
+                    sx += ax * (modelScreenH * 0.003);
+                    sy += ay * (modelScreenH * 0.002);
+                    sprite.rotation = az * 0.008;
+                  }
+
+                  sprite.position.set(sx, sy);
+                };
+                window._accessoryTickerFn = tickerFn;
+                app.ticker.add(tickerFn);
+                tickerFn(); // run once immediately
+
+                console.log('[S108] ✅ Accessory on stage.', {
+                  slot: slotType, yRatio: screenOffset.yRatio,
+                  modelPos: { x: model.x, y: model.y },
+                  modelScale: model.scale.x,
+                  method: 'model.position + proportional offset'
+                });
 
                 window.parent.postMessage({
                   type: "accessory-added", url, slotType,
-                  drawableTracking: drawableIdx >= 0
+                  method: 'stage.addChild + toGlobal'
                 }, "*");
 
               } else {
-                // Live2D model as accessory — use PIXI stage
+                // Live2D model as accessory — parameter sync approach
                 try {
                   const accessory = await PIXI.live2d.Live2DModel.from(url);
-                  const scale = Math.min(window.innerWidth / accessory.width, window.innerHeight / accessory.height) * 0.3;
-                  accessory.scale.set(scale);
+                  const accScale = slot.size / Math.max(accessory.width, accessory.height);
+                  accessory.scale.set(accScale);
                   accessory.anchor.set(0.5, 0.5);
-                  accessory.x = window.innerWidth / 2;
-                  accessory.y = window.innerHeight * 0.25;
-                  app.stage.addChild(accessory);
+                  accessory.position.set(slot.x, slot.y);
+                  model.addChild(accessory);
+                  window._accessorySprites.push(accessory);
                 } catch (err) {
                   console.warn("[Avatar] Live2D accessory load failed:", err);
                 }

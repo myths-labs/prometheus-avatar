@@ -179,8 +179,8 @@ function corsHeaders(origin: string | null, env: Env): Record<string, string> {
 
     return {
         "Access-Control-Allow-Origin": effectiveOrigin,
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Upgrade, Connection",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Upgrade, Connection, Authorization",
     };
 }
 
@@ -201,10 +201,58 @@ export default {
             return new Response(JSON.stringify({
                 status: "ok",
                 engines: Object.keys(ENGINES),
+                rest_proxy: ["/fish-rest"],
                 timestamp: new Date().toISOString(),
             }), {
                 headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
             });
+        }
+
+        // ═══ LB-10: REST Proxy for Fish Audio TTS (China GFW bypass) ═══
+        // POST /fish-rest — proxies to https://api.fish.audio/v1/tts
+        // China users hit this CF Worker instead of Vercel serverless
+        // which may have latency issues from mainland China.
+        if (url.pathname === "/fish-rest" && request.method === "POST") {
+            const apiKey = url.searchParams.get("token")?.trim() || env.FISH_AUDIO_API_KEY;
+            if (!apiKey) {
+                return new Response(JSON.stringify({ error: "No Fish Audio API key" }), {
+                    status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+                });
+            }
+
+            try {
+                const body = await request.arrayBuffer();
+                const contentType = request.headers.get("Content-Type") || "application/json";
+
+                const fishRes = await fetch("https://api.fish.audio/v1/tts", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${apiKey}`,
+                        "Content-Type": contentType,
+                    },
+                    body,
+                });
+
+                // Stream the audio response back
+                const responseHeaders: Record<string, string> = {
+                    ...corsHeaders(origin, env),
+                };
+                fishRes.headers.forEach((value, key) => {
+                    if (key.toLowerCase() === "content-type" || key.toLowerCase() === "content-length") {
+                        responseHeaders[key] = value;
+                    }
+                });
+
+                return new Response(fishRes.body, {
+                    status: fishRes.status,
+                    headers: responseHeaders,
+                });
+            } catch (e: any) {
+                console.error(`[REST-Proxy] fish-rest error:`, e.message);
+                return new Response(JSON.stringify({ error: e.message }), {
+                    status: 502, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+                });
+            }
         }
 
         // Debug test endpoint: /test/{engine} — test upstream connection
