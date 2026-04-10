@@ -1,0 +1,12 @@
+{
+  "name": "ws-relay-cn",
+  "version": "1.0.0",
+  "description": "WebSocket relay for China users — Volcengine veFaaS deployment",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
