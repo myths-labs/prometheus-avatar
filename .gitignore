@@ -41,7 +41,8 @@ convo/
 CLAUDE.md
 USER.md
 MEMORIES.md
-.agent/
+.agent/skills/
+.claude/worktrees/
 docs/internal/
 
 # Project private
