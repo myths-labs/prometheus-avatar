@@ -282,7 +282,8 @@ export default {
                 if (!hasWebSocket) {
                     try { body = await testRes.text(); } catch { }
                 } else {
-                    testRes.webSocket!.close();
+                    testRes.webSocket!.accept();
+                    testRes.webSocket!.close(1000, "test complete");
                 }
                 return new Response(JSON.stringify({
                     engine: testEngine,
