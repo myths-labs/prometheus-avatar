@@ -163,16 +163,18 @@ server.tool(
 
 server.tool(
     "generate_asset",
-    "AI-generate a new marketplace asset using a text prompt. Supports: persona, expression, motion, effect, scene, accessory, voice.",
+    "AI-generate a new marketplace asset using a text prompt. Supports: persona, expression, motion, effect, scene, accessory, voice. Set pricing at creation time.",
     {
         category: z.enum(["persona", "expression", "motion", "effect", "scene", "accessory", "voice"])
             .describe("Type of asset to generate"),
         prompt: z.string().describe("Creative prompt describing the asset to generate"),
         name: z.string().optional().describe("Name for the generated asset"),
+        price: z.number().optional().describe("USD price (e.g. 2.99). Set 0 for free. Mutually exclusive with price_points."),
+        price_points: z.number().optional().describe("Points price (e.g. 200). Mutually exclusive with price."),
         auto_deploy: z.boolean().optional().describe("Automatically deploy to marketplace (default: true)"),
         api_key: z.string().optional().describe("Gemini API key for generation (or set GEMINI_API_KEY env var)"),
     },
-    async ({ category, prompt, name, auto_deploy, api_key }) => {
+    async ({ category, prompt, name, price, price_points, auto_deploy, api_key }) => {
         try {
             const apiKey = api_key || process.env.GEMINI_API_KEY;
             if (!apiKey) {
@@ -188,9 +190,69 @@ server.tool(
             const result = await apiCall(`/api/creator/generate-${category}`, "POST", {
                 prompt,
                 name: name || `AI ${category}: ${prompt.slice(0, 30)}`,
+                price: price || 0,
+                price_points: price_points || 0,
+                price_currency: price && price > 0 ? "USD" : (price_points && price_points > 0 ? "PTS" : "FREE"),
                 auto_deploy: auto_deploy !== false,
                 apiKey: apiKey,
             });
+
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error: ${errMsg}` }],
+                isError: true,
+            };
+        }
+    }
+);
+
+// ═══════════════════════════════════════════════════════════════
+// Tool 3b: update_asset
+// ═══════════════════════════════════════════════════════════════
+
+server.tool(
+    "update_asset",
+    "Update an existing marketplace asset — change price, name, description, tags, or license. Use this to adjust pricing after creation.",
+    {
+        asset_id: z.string().describe("The asset UUID to update"),
+        name: z.string().optional().describe("New name for the asset"),
+        description: z.string().optional().describe("New description"),
+        price: z.number().optional().describe("New USD price (sets price_currency to USD)"),
+        price_points: z.number().optional().describe("New points price (sets price_currency to PTS)"),
+        make_free: z.boolean().optional().describe("Set to true to make the asset free"),
+        tags: z.array(z.string()).optional().describe("New tags array"),
+        license: z.string().optional().describe("License type: mit, personal, commercial"),
+    },
+    async ({ asset_id, name, description, price, price_points, make_free, tags, license }) => {
+        try {
+            const updatePayload: Record<string, any> = { asset_id };
+            if (name !== undefined) updatePayload.name = name;
+            if (description !== undefined) updatePayload.description = description;
+            if (tags !== undefined) updatePayload.tags = tags;
+            if (license !== undefined) updatePayload.license = license;
+
+            if (make_free) {
+                updatePayload.price = 0;
+                updatePayload.price_points = 0;
+                updatePayload.price_currency = "FREE";
+            } else if (price !== undefined && price > 0) {
+                updatePayload.price = price;
+                updatePayload.price_points = 0;
+                updatePayload.price_currency = "USD";
+            } else if (price_points !== undefined && price_points > 0) {
+                updatePayload.price = 0;
+                updatePayload.price_points = price_points;
+                updatePayload.price_currency = "PTS";
+            }
+
+            const result = await apiCall("/api/marketplace/update", "PATCH", updatePayload);
 
             return {
                 content: [{
