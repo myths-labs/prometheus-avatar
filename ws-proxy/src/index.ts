@@ -110,26 +110,6 @@ const ENGINES: Record<string, EngineConfig> = {
             return null;
         },
     },
-    // ═══ Volcengine Streaming ASR — parallel real-time transcription ═══
-    asr: {
-        upstreamUrl: (_params, _env) => {
-            return `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel`;
-        },
-        headers: (env, params?: URLSearchParams) => {
-            const accessKey = params?.get("accessKey") || env.VOLCENGINE_API_KEY;
-            const appId = params?.get("appId") || env.VOLCENGINE_APP_ID;
-            const resourceId = params?.get("resourceId") || "volc.bigasr.sauc.duration";
-            const connectId = params?.get("connectId") || crypto.randomUUID();
-
-            return {
-                "X-Api-App-Key": appId,
-                "X-Api-Access-Key": accessKey,
-                "X-Api-Resource-Id": resourceId,
-                "X-Api-Connect-Id": connectId,
-            };
-        },
-        validate: (_env) => null,
-    },
     // ═══ OpenAI Realtime — proxied for China GFW bypass ═══
     openai: {
         upstreamUrl: (params, _env) => {
