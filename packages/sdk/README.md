@@ -87,6 +87,70 @@ const avatar = await createAvatar({
 });
 ```
 
+## What's New in v0.11 — Pro Image Generation
+
+`AssetCreator.createImage()` — AAA-grade image generation backed by **OpenAI GPT Image 2** (`gpt-image-1`) with automatic Gemini 3 Pro Image fallback. Game-store skin preview card tier output (Genshin / Overwatch / WoW quality). BYOK-friendly for zero-marginal-cost.
+
+```ts
+import { AssetCreator } from '@prometheusavatar/core';
+
+const creator = new AssetCreator();
+
+// Simple
+const img = await creator.createImage({
+  prompt: 'Anime shrine maiden with sakura petals, cel-shaded, Genshin Impact shop preview tier',
+  style: 'anime',
+});
+
+// AAA Skin Preview Card (recommend ≥100-word prompts with explicit AAA benchmark named)
+const skin = await creator.createImage({
+  prompt: `3D cel-shaded engine render, anime shrine maiden character, slight elevated 3/4 hero pose,
+glossy game-art materials, clean dark studio backdrop with subtle radial gradient, pink/peach gradient
+lighting, NOT flat 2D illustration. Genshin Impact / Overwatch shop preview tier. Production-ready
+AAA skin preview card.`,
+  style: 'anime',
+  taskType: 'aaa_skin',
+  size: '1024x1536',
+  quality: 'high',
+  apiKey: process.env.OPENAI_API_KEY, // BYOK = zero platform cost
+  upload: true,                       // upload to Supabase + return publicUrl
+});
+
+console.log(skin.publicUrl, skin.platformCostUsd);
+```
+
+### `AssetCreator.createImage(options): Promise<CreateImageResult>`
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `prompt` | `string` | required | Recommend ≥100 words with explicit AAA benchmark named for best quality. |
+| `style` | `ImageStyle` | none | `anime` / `cel-shade` / `cyberpunk` / `kawaii` / `fantasy` / `cartoon` / `realistic` / `photorealistic` / `pixar` |
+| `taskType` | `ImageTaskType` | `'character'` | Routes to optimal provider. `aaa_skin` / `poster` / `ui_mock` / `game_ui` → OpenAI · `thumbnail` / `batch_variants` → Gemini Flash. |
+| `size` | `'1024x1024'\|'1024x1536'\|'1536x1024'\|'auto'` | `'1024x1024'` | `1024x1536` for vertical (XHS / 9:16). `1536x1024` for landscape (X / LinkedIn / 16:9). |
+| `quality` | `'low'\|'medium'\|'high'\|'auto'` | `'high'` | $0.02 low → $0.07-0.19 high (gpt-image-1 pricing). |
+| `numVariants` | `number` | `1` | 1-4 variants. |
+| `referenceImages` | `string[]` | none | Data URLs or HTTPS URLs · character consistency chain across multiple calls. |
+| `provider` | `'openai'\|'gemini'\|'gemini-flash'` | auto | Override · default routes per `taskType`. |
+| `apiKey` | `string` | env | BYOK — your OpenAI or Gemini key · platform billing skipped. |
+| `upload` | `boolean` | `false` | Upload to Supabase Storage and return `publicUrl`. |
+
+Returns `CreateImageResult`:
+```ts
+{
+  provider: 'openai' | 'gemini' | 'gemini-flash';
+  taskId: string;
+  imageUrl: string;       // data URL OR https URL
+  publicUrl?: string;     // when upload: true
+  variants?: string[];
+  width: number;
+  height: number;
+  durationSec: number;
+  platformCostUsd?: number;
+}
+```
+
+**Forge UI live at** [prometheus.mythslabs.ai/marketplace/create](https://prometheus.mythslabs.ai/marketplace/create) — visual 7-style picker reference.
+
 ## Architecture
 
 ```
