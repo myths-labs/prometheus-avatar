@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
- * Prometheus Avatar MCP Server (S068)
- * 
- * Model Context Protocol server that exposes 7 tools for AI agents
+ * Prometheus Avatar MCP Server (S068 · v0.3.0 · Phase 11 Day 3)
+ *
+ * Model Context Protocol server that exposes 9 tools for AI agents
  * to interact with the Prometheus Avatar platform:
- * 
- *   1. create_avatar     — Initialize an avatar instance
- *   2. equip_asset       — Equip a marketplace asset to an avatar
- *   3. generate_asset    — AI-generate a new asset (skin, voice, etc.)
- *   4. list_marketplace  — Browse available marketplace assets
- *   5. get_avatar_status — Get current avatar state
- *   6. share_avatar      — Generate a shareable link for an avatar
- *   7. speak             — Make the avatar speak text with TTS
+ *
+ *   1. create_avatar       — Initialize an avatar instance
+ *   2. equip_asset         — Equip a marketplace asset to an avatar
+ *   3. generate_asset      — AI-generate a new asset (skin, voice, etc.)
+ *  3b. update_asset        — Edit price / metadata of an existing asset
+ *  3c. generate_image_pro  — AAA-quality images via gpt-image-1 (NEW v0.3 · Phase 11)
+ *   4. list_marketplace    — Browse available marketplace assets
+ *   5. get_avatar_status   — Get current avatar state
+ *   6. share_avatar        — Generate a shareable link for an avatar
+ *   7. speak               — Make the avatar speak text with TTS
  * 
  * Usage:
  *   npx @prometheusavatar/mcp-server
@@ -67,8 +69,8 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
 
 const server = new McpServer({
     name: "prometheus-avatar",
-    version: "0.1.0",
-    description: "Give any AI agent an embodied Live2D avatar with TTS, lip-sync, and emotion. Zero dependencies — just connect via MCP.",
+    version: "0.3.0",
+    description: "Give any AI agent an embodied Live2D avatar + AAA image generation (gpt-image-1) via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -253,6 +255,56 @@ server.tool(
             }
 
             const result = await apiCall("/api/marketplace/update", "PATCH", updatePayload);
+
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error: ${errMsg}` }],
+                isError: true,
+            };
+        }
+    }
+);
+
+// ═══════════════════════════════════════════════════════════════
+// Tool 3c: generate_image_pro  (Phase 11 Day 3 · v0.3.0)
+// ═══════════════════════════════════════════════════════════════
+
+server.tool(
+    "generate_image_pro",
+    "AAA-quality image generation via Prometheus image engine (gpt-image-1 backed by OpenAI GPT Image 2). Use for skin preview cards, XHS / social carousels, posters, UI mocks, game-store-tier character art. Supports BYOK OpenAI key, Free quota, or Pro Credits. Returns image URL (data URL or Supabase public URL when upload=true).",
+    {
+        prompt: z.string().min(8).describe("Image prompt. Recommend ≥100 words with explicit AAA benchmark named (e.g. 'Genshin Impact / Overwatch shop preview tier · 3D cel-shaded engine render · NOT flat 2D illustration · clean studio backdrop · slight elevated 3/4 hero pose'). Twin Prompt-Is-The-Ceiling rule applies — long detailed prompts produce AAA results, lazy short prompts produce mediocre output."),
+        style: z.enum(["anime", "cel-shade", "cyberpunk", "kawaii", "fantasy", "cartoon", "realistic", "photorealistic", "pixar"]).optional().describe("Style preset prepended to prompt server-side. Maps to Forge UI 7-style picker."),
+        task: z.enum(["aaa_skin", "character", "scene", "accessory", "poster", "ui_mock", "game_ui", "thumbnail", "auxiliary", "batch_variants", "complex_text"]).optional().describe("Task type — drives provider routing (aaa_skin → OpenAI gpt-image-1 high; thumbnail → Gemini Flash). Default: 'character'."),
+        size: z.enum(["1024x1024", "1024x1536", "1536x1024", "auto"]).optional().describe("Output dimensions. Default: 1024x1024. Use 1024x1536 for vertical XHS / 9:16 social, 1536x1024 for X / LinkedIn / 16:9."),
+        quality: z.enum(["low", "medium", "high", "auto"]).optional().describe("Quality tier — affects cost ($0.02 low → $0.07-0.19 high). Default: 'high'."),
+        numVariants: z.number().min(1).max(4).optional().describe("Variants 1-4. Default: 1."),
+        reference_images: z.array(z.string()).optional().describe("Reference image URLs (data URL or https://) for character consistency chain. e.g. pass slide 1 as ref when generating slide 2."),
+        provider: z.enum(["openai", "gemini", "gemini-flash"]).optional().describe("Override provider. Default: server picks per task."),
+        api_key: z.string().optional().describe("BYOK — your OpenAI or Gemini key. Bypasses platform billing. Get OpenAI key at platform.openai.com / Gemini at ai.google.dev."),
+        upload: z.boolean().optional().describe("Upload to Supabase Storage and return publicUrl. Default: false (return data URL only)."),
+    },
+    async ({ prompt, style, task, size, quality, numVariants, reference_images, provider, api_key, upload }) => {
+        try {
+            const result = await apiCall("/api/creator/generate-image-pro", "POST", {
+                prompt,
+                style,
+                task: task || "character",
+                size: size || "1024x1024",
+                quality: quality || "high",
+                numVariants: numVariants || 1,
+                referenceImages: reference_images,
+                provider,
+                apiKey: api_key,
+                upload: upload ?? false,
+            });
 
             return {
                 content: [{

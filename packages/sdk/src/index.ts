@@ -35,5 +35,7 @@ export type {
     AssetDeployConfig,
     ImageGenerationOptions,
     DeploymentResult,
+    CreateImageOptions,
+    CreateImageResult,
 } from './creator';
 
