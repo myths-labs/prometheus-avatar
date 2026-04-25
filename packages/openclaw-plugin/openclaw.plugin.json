@@ -1,8 +1,8 @@
 {
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
-    "version": "0.7.2",
-    "description": "Give your OpenClaw agent a Live2D avatar with real-time lip-sync, emotion expressions, and TTS",
+    "version": "0.9.0",
+    "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation (gpt-image-1) for marketplace skin previews. 3 agent tools.",
     "type": "tool",
     "author": "Myths Labs",
     "license": "MIT",

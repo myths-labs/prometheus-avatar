@@ -1,10 +1,35 @@
 {
-    "name": "@prometheus-avatar/openclaw-plugin",
-    "version": "0.7.2",
-    "description": "Prometheus Avatar plugin for OpenClaw — give your lobster a body",
+    "name": "@prometheusavatar/openclaw-plugin",
+    "version": "0.9.0",
+    "description": "Prometheus Avatar plugin for OpenClaw — Live2D body with TTS, lip-sync, emotion, plus AAA image generation (gpt-image-1) for marketplace skin previews",
     "type": "module",
     "main": "src/index.ts",
     "license": "MIT",
+    "files": [
+        "src",
+        "openclaw.plugin.json",
+        "README.md",
+        "tsconfig.json"
+    ],
+    "keywords": [
+        "openclaw",
+        "openclaw-plugin",
+        "live2d",
+        "avatar",
+        "lip-sync",
+        "tts",
+        "emotion",
+        "ai-agent",
+        "image-generation",
+        "gpt-image-2",
+        "marketplace"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/myths-labs/prometheus-avatar"
+    },
+    "author": "Myths Labs (JC)",
+    "homepage": "https://prometheus.mythslabs.ai",
     "dependencies": {
         "@prometheusavatar/core": "workspace:*"
     }
