@@ -28,11 +28,11 @@ The AI agent boom is here. Hundreds of millions of users are talking to AI every
 
 We set ourselves a simple-sounding goal: **"Any AI agent → AAA-game-tier 3D avatar in 5 minutes for under $5."**
 
-For context, a traditional AAA character pipeline (Riot, miHoYo, Epic) takes:
-- Concept artist 3-5 days · 3D modeler 1-2 weeks · texture artist 3-5 days · rigger 5 days · animator 2-3 weeks · VA 2-5 days
-- Total: **8-12 weeks · $20,000-50,000 USD**
+For context, a modern AAA character pipeline (Riot, miHoYo, Epic-tier studios using ZBrush + Substance + Maya/Blender + AI assist) takes:
+- Concept artist 3-5 days · 3D modeler 1-2 weeks · texture artist 3-5 days · rigger 3-5 days · animator 1-2 weeks · VA 2-5 days
+- Total: **4-6 weeks · $20,000-30,000 USD** (modern AI-assisted; non-AI pipelines still 8-12 weeks)
 
-We wanted **5 minutes · $1.50**. So a ~10,000× speedup and ~5,000× cost reduction.
+We wanted **5 minutes · $1.50**. So a ~**10,000× speedup** and ~**20,000× cost reduction** at the conservative end.
 
 Spoiler: we got there. But it took ~20 different technologies surveyed, prototyped, tested, rejected, integrated, or planned for the future.
 
@@ -157,7 +157,7 @@ If you're building an AI agent and want it to wear a body, we'd love to see what
 >
 > 最终集成 **5 大顶级 AI 引擎 + 8 个核心组件**，做出了 **Forge / 锻造**：**单次 API 调用、5 分钟、1.5 美元**，就能生成一个**游戏大作画质（3A 级）的 3D 数字化身**。
 >
-> 比传统 3A 游戏工作室 **8–12 周 + 2-5 万美元** 的角色生产流水线，**快 1,000–10,000 倍，便宜约 5,000 倍**。
+> 比现代 3A 游戏工作室（即使配齐 ZBrush + Substance + AI 辅助工具）**4-6 周 + 2-3 万美元** 的角色生产流水线，**快约 1 万倍、便宜约 2 万倍**（非 AI 辅助的传统流水线 8-12 周更慢）。
 >
 > 下面是诚实的「why + what we shipped instead」。
 
