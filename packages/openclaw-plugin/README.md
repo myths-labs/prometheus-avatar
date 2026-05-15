@@ -19,8 +19,9 @@ This plugin bridges OpenClaw agent events to the [Prometheus Avatar SDK](https:/
 - **🎭 Live2D Avatar** — Renders a Live2D model in your agent's UI
 - **🗣️ Text-to-Speech** — Agent messages spoken aloud with lip-sync
 - **😊 Emotion Detection** — Text sentiment drives expressions (happy / sad / angry / surprised / thinking)
-- **🎨 AAA Image Generation (NEW v0.9)** — Generate game-store-tier skin preview cards directly from your agent conversation, backed by OpenAI GPT Image 2 (`gpt-image-1`)
+- **🎨 AAA Image Generation (v0.9+)** — Generate game-store-tier skin preview cards directly from your agent conversation, backed by OpenAI GPT Image 2 (`gpt-image-1`)
 - **🛒 Marketplace Asset Pipeline** — Generate thumbnails + deploy assets without leaving the agent loop
+- **🎓 Bundled Skill (NEW v0.10)** — Plugin now ships with an AgentSkills-compatible `SKILL.md` at `skills/prometheus-avatar/` that teaches the agent when and how to use the 3 creator tools. Auto-loaded when the plugin is enabled. See [OpenClaw Skills docs](https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md).
 
 ## ⚙️ Configuration
 
@@ -43,10 +44,22 @@ Add to your `openclaw.config.json`:
 |--------|------|---------|-------------|
 | `avatarId` | `string` | — | Avatar model ID from Prometheus Marketplace |
 | `modelUrl` | `string` | Haru (default) | Direct URL to a `.model3.json` file |
-| `ttsProvider` | `string` | `"web-speech"` | TTS provider: `web-speech` / `elevenlabs` / `azure` / `sherpa-onnx` |
-| `ttsVoice` | `string` | — | Voice name or ID |
+| `ttsProvider` | `string` | — | **DEPRECATED in v0.10.0** — ignored. TTS is now delegated to the Prometheus SDK (Volcengine Voice Clone V3 backend). |
+| `ttsVoice` | `string` | — | Prometheus Marketplace voice ID (e.g. `saturn_zh_female_keainvsheng_tob`). Browse voices at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace) |
 | `enableLipSync` | `boolean` | `true` | Audio-driven lip synchronization |
 | `enableEmotion` | `boolean` | `true` | Emotion analysis from text |
+
+## 🎓 Bundled Skill (NEW v0.10)
+
+The plugin ships with a bundled OpenClaw Skill at `skills/prometheus-avatar/SKILL.md` so the agent knows **when** and **how** to use the 3 creator tools below without explicit user prompting. The Skill covers:
+
+- **When to use** — visible character / avatar mascot · real-time TTS with mouth movement · emotion reflection · AAA skin preview card · marketplace asset deploy
+- **When NOT to use** — plain audio TTS · low-fidelity thumbnails · deterministic image requirements
+- **Tool selection rules** — `prometheus_generate_image_pro` (AAA-tier · primary) vs `prometheus_generate_thumbnail` (legacy lighter) vs `prometheus_deploy_asset`
+- **Prompt-is-the-ceiling** — recommend ≥100-word prompts with explicit AAA benchmark (Genshin / Overwatch / WoW / Pixar / Studio Ghibli)
+- **Safety** — cost awareness · marketplace deploy confirmation · prompt sanitisation
+
+The Skill auto-loads when the plugin is enabled — no separate install step.
 
 ## 🛠️ Agent Tools (3)
 

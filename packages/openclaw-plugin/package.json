@@ -1,12 +1,13 @@
 {
     "name": "@prometheusavatar/openclaw-plugin",
-    "version": "0.9.0",
-    "description": "Prometheus Avatar plugin for OpenClaw — Live2D body with TTS, lip-sync, emotion, plus AAA image generation (gpt-image-1) for marketplace skin previews",
+    "version": "0.10.0",
+    "description": "Prometheus Avatar plugin for OpenClaw — Live2D body with TTS, lip-sync, emotion, plus AAA image generation (gpt-image-1) for marketplace skin previews. Now ships with bundled Skill that teaches the agent when and how to use the 3 creator tools.",
     "type": "module",
     "main": "src/index.ts",
     "license": "MIT",
     "files": [
         "src",
+        "skills",
         "openclaw.plugin.json",
         "README.md",
         "tsconfig.json"

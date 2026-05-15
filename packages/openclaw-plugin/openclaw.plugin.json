@@ -1,8 +1,11 @@
 {
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
-    "version": "0.9.0",
-    "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation (gpt-image-1) for marketplace skin previews. 3 agent tools.",
+    "version": "0.10.0",
+    "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation (gpt-image-1) for marketplace skin previews. 3 agent tools + bundled skill.",
+    "skills": [
+        "skills/prometheus-avatar"
+    ],
     "type": "tool",
     "author": "Myths Labs",
     "license": "MIT",
@@ -20,18 +23,12 @@
         },
         "ttsProvider": {
             "type": "string",
-            "enum": [
-                "web-speech",
-                "elevenlabs",
-                "azure",
-                "sherpa-onnx"
-            ],
-            "default": "web-speech",
-            "description": "Text-to-speech provider"
+            "deprecated": true,
+            "description": "DEPRECATED in v0.10.0 — this field is ignored. TTS is now delegated to the Prometheus SDK (@prometheusavatar/core) which uses the Prometheus backend (Volcengine Voice Clone V3 protocol). Kept for backward compat only."
         },
         "ttsVoice": {
             "type": "string",
-            "description": "Voice name or ID for TTS",
+            "description": "Prometheus Marketplace voice ID (e.g. saturn_zh_female_keainvsheng_tob). Browse available voices at prometheus.mythslabs.ai/marketplace.",
             "required": false
         },
         "enableLipSync": {
