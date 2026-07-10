@@ -98,39 +98,60 @@ registerTool(
         persona: z.string().optional().describe("Custom system prompt / personality for the avatar's conversation style"),
     },
     async ({ name, model, voice, persona }) => {
-        const avatarName = name || "My Avatar";
-        const modelId = model || "haru";
-        const voiceName = voice || "Kore";
+        if (!API_KEY) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: false,
+                        error: "PROMETHEUS_API_KEY required",
+                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Register for one at https://prometheus.mythslabs.ai (POST /api/agent/register with a name + email).",
+                    }, null, 2),
+                }],
+                isError: true,
+            };
+        }
 
-        // Build embed URL
-        const embedParams = new URLSearchParams({
-            name: avatarName,
-            model: modelId,
-            voice: voiceName,
-        });
-        if (persona) embedParams.set("persona", persona);
+        try {
+            // Persist the avatar to the account so it renders. POST /api/agent/avatar
+            // upserts the account's avatar and returns a real /embed/<id> URL.
+            const result = await apiCall("/api/agent/avatar", "POST", {
+                ...(model ? { model } : {}),
+                ...(voice ? { voice } : {}),
+                ...(persona ? { persona } : {}),
+            }) as {
+                avatarId: string;
+                model: string;
+                modelUrl: string;
+                voice: string;
+                persona: string | null;
+                embedUrl: string;
+                availableModels?: string[];
+                availableVoices?: string[];
+            };
 
-        const embedUrl = `${API_BASE}/embed/preview?${embedParams.toString()}`;
-        const appUrl = `${API_BASE}/app`;
-        const avatarId = `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-        return {
-            content: [
-                {
+            return {
+                content: [{
                     type: "text" as const,
                     text: JSON.stringify({
                         success: true,
-                        avatar_id: avatarId,
-                        name: avatarName,
-                        model: modelId,
-                        voice: voiceName,
-                        embed_url: embedUrl,
-                        app_url: appUrl,
-                        instructions: `Avatar "${avatarName}" is ready. Open the app URL to interact, or embed the iframe URL in any webpage. Use 'speak' tool to make it talk, or 'equip_asset' to customize its appearance.`,
+                        avatar_id: result.avatarId,
+                        name: name || "My Avatar",
+                        model: result.model,
+                        voice: result.voice,
+                        persona: result.persona,
+                        embed_url: result.embedUrl,
+                        instructions: `Avatar is live. Open embed_url in a browser (or embed it as an <iframe src="${result.embedUrl}">) to see it render. Use 'speak' to generate speech, 'equip_asset' to customize it, or 'share_avatar' for a shareable link.`,
                     }, null, 2),
-                },
-            ],
-        };
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error creating avatar: ${errMsg}` }],
+                isError: true,
+            };
+        }
     }
 );
 
@@ -410,30 +431,71 @@ registerTool(
 
 registerTool(
     "share_avatar",
-    "Generate a shareable link for the avatar. The link opens a full-screen interactive avatar page. Supports referral tracking.",
+    "Generate a shareable link and iframe embed code for an avatar. The link opens the interactive avatar page.",
     {
-        message: z.string().optional().describe("Welcome message the avatar will speak when the link is opened"),
-        referral_code: z.string().optional().describe("Referral code for tracking (earns credits)"),
+        avatar_id: z.string().optional().describe("Avatar ID from create_avatar. If omitted, uses the account's current avatar (requires PROMETHEUS_API_KEY)."),
+        message: z.string().optional().describe("Optional welcome message to deliver to iframe embedders via window.postMessage."),
+        referral_code: z.string().optional().describe("Referral code appended to the share link for tracking."),
     },
-    async ({ message, referral_code }) => {
-        const params = new URLSearchParams();
-        if (message) params.set("speak", message);
-        if (referral_code) params.set("ref", referral_code);
+    async ({ avatar_id, message, referral_code }) => {
+        try {
+            let avatarId = avatar_id;
 
-        const shareUrl = `${API_BASE}/app${params.toString() ? "?" + params.toString() : ""}`;
-        const embedUrl = `${API_BASE}/embed/preview${params.toString() ? "?" + params.toString() : ""}`;
+            // Resolve the account's current avatar if no id was supplied.
+            if (!avatarId) {
+                if (!API_KEY) {
+                    return {
+                        content: [{
+                            type: "text" as const,
+                            text: JSON.stringify({
+                                success: false,
+                                error: "avatar_id required",
+                                instructions: "Pass avatar_id (returned by create_avatar), or set PROMETHEUS_API_KEY so the account's current avatar can be looked up.",
+                            }, null, 2),
+                        }],
+                        isError: true,
+                    };
+                }
+                const current = await apiCall("/api/agent/avatar", "GET") as { avatarId?: string };
+                avatarId = current.avatarId;
+            }
 
-        return {
-            content: [{
-                type: "text" as const,
-                text: JSON.stringify({
-                    share_url: shareUrl,
-                    embed_url: embedUrl,
-                    embed_html: `<iframe src="${embedUrl}" width="400" height="600" style="border:none;border-radius:16px;" allow="microphone"></iframe>`,
-                    instructions: "Share the URL directly, or embed the iframe in any webpage. The avatar will auto-speak the welcome message when opened.",
-                }, null, 2),
-            }],
-        };
+            if (!avatarId) {
+                return {
+                    content: [{ type: "text" as const, text: "Error: no avatar found. Create one first with create_avatar." }],
+                    isError: true,
+                };
+            }
+
+            const qp = new URLSearchParams();
+            if (message) qp.set("speak", message);
+            if (referral_code) qp.set("ref", referral_code);
+            const query = qp.toString() ? `?${qp.toString()}` : "";
+            const shareUrl = `${API_BASE}/embed/${avatarId}${query}`;
+            const embedHtml = `<iframe src="${shareUrl}" width="400" height="600" style="border:none;border-radius:16px;" allow="microphone"></iframe>`;
+
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: true,
+                        avatar_id: avatarId,
+                        share_url: shareUrl,
+                        embed_url: shareUrl,
+                        embed_html: embedHtml,
+                        instructions: message
+                            ? "Share share_url — opening it renders the avatar and it auto-speaks your message. Or embed embed_html in any webpage."
+                            : "Share share_url (renders the interactive avatar), or embed embed_html in any webpage.",
+                    }, null, 2),
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error sharing avatar: ${errMsg}` }],
+                isError: true,
+            };
+        }
     }
 );
 
@@ -450,14 +512,29 @@ registerTool(
         emotion: z.string().optional().describe("Force emotion: happy, sad, angry, surprised, neutral"),
     },
     async ({ text, voice, emotion }) => {
+        if (!API_KEY) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: false,
+                        error: "PROMETHEUS_API_KEY required",
+                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Register at https://prometheus.mythslabs.ai (POST /api/agent/register).",
+                    }, null, 2),
+                }],
+                isError: true,
+            };
+        }
+
         try {
-            // Call the TTS API to generate audio
-            const result = await apiCall("/api/tts", "POST", {
+            // Generate TTS audio via the agent-authenticated speech endpoint.
+            const result = await apiCall("/api/agent/speak", "POST", {
                 text,
-                avatar: "default",
-                ...(voice ? { voiceOverride: { gemini: voice } } : {}),
-                ...(emotion ? { emotion } : {}),
-            });
+                ...(voice ? { voice } : {}),
+                format: "base64",
+            }) as { audio?: string; mimeType?: string; voice?: string; textLength?: number };
+
+            const audioBytes = result.audio ? Math.floor((result.audio.length * 3) / 4) : 0;
 
             return {
                 content: [{
@@ -465,26 +542,20 @@ registerTool(
                     text: JSON.stringify({
                         success: true,
                         text,
-                        voice: voice || "Kore",
+                        voice: result.voice || voice || "Kore",
                         emotion: emotion || "auto-detected",
-                        app_url: `${API_BASE}/app?speak=${encodeURIComponent(text)}`,
-                        instructions: `Open the app URL to hear the avatar speak: "${text.slice(0, 50)}..."`,
+                        audio_generated: !!result.audio,
+                        audio_format: result.mimeType || "audio/wav",
+                        audio_bytes: audioBytes,
+                        instructions: "Speech audio (base64 WAV) was generated. Play it in your client, or — to see an avatar lip-sync it in a browser — open the avatar's embed URL and post a { type: 'prometheus:speak', text } message to the iframe from the parent window.",
                     }, null, 2),
                 }],
             };
         } catch (error: unknown) {
-            // TTS might not return JSON — audio binary means success
+            const errMsg = error instanceof Error ? error.message : String(error);
             return {
-                content: [{
-                    type: "text" as const,
-                    text: JSON.stringify({
-                        success: true,
-                        text,
-                        voice: voice || "Kore",
-                        app_url: `${API_BASE}/app?speak=${encodeURIComponent(text)}`,
-                        instructions: "Audio generated. Open the app URL to hear the avatar speak.",
-                    }, null, 2),
-                }],
+                content: [{ type: "text" as const, text: `Error generating speech: ${errMsg}` }],
+                isError: true,
             };
         }
     }
