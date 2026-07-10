@@ -69,15 +69,26 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
 
 const server = new McpServer({
     name: "prometheus-avatar",
-    version: "0.3.0",
+    version: "0.3.2",
     description: "Give any AI agent an embodied Live2D avatar + AAA image generation (gpt-image-1) via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
 });
+
+// Count tool registrations so the startup banner reports the real number of
+// tools instead of a hand-maintained constant that silently drifts out of sync
+// (this banner once printed "7 tools" while 9 were registered). Every tool
+// below is registered through this wrapper instead of calling server.tool
+// directly, so the count can never be wrong again.
+let toolCount = 0;
+const registerTool = ((...args: unknown[]) => {
+    toolCount++;
+    return (server.tool as (...a: unknown[]) => unknown).apply(server, args);
+}) as typeof server.tool;
 
 // ═══════════════════════════════════════════════════════════════
 // Tool 1: create_avatar
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "create_avatar",
     "Create a new Prometheus Avatar instance. Returns an avatar ID and embed URL that can be used in a browser.",
     {
@@ -127,7 +138,7 @@ server.tool(
 // Tool 2: equip_asset
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "equip_asset",
     "Equip a marketplace asset to the avatar. Changes the avatar's skin, voice, expression, accessories, scene, or persona.",
     {
@@ -163,7 +174,7 @@ server.tool(
 // Tool 3: generate_asset
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "generate_asset",
     "AI-generate a new marketplace asset using a text prompt. Supports: persona, expression, motion, effect, scene, accessory, voice. Set pricing at creation time.",
     {
@@ -219,7 +230,7 @@ server.tool(
 // Tool 3b: update_asset
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "update_asset",
     "Update an existing marketplace asset — change price, name, description, tags, or license. Use this to adjust pricing after creation.",
     {
@@ -276,7 +287,7 @@ server.tool(
 // Tool 3c: generate_image_pro  (Phase 11 Day 3 · v0.3.0)
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "generate_image_pro",
     "AAA-quality image generation via Prometheus image engine (gpt-image-1 backed by OpenAI GPT Image 2). Use for skin preview cards, XHS / social carousels, posters, UI mocks, game-store-tier character art. Supports BYOK OpenAI key, Free quota, or Pro Credits. Returns image URL (data URL or Supabase public URL when upload=true).",
     {
@@ -326,7 +337,7 @@ server.tool(
 // Tool 4: list_marketplace
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "list_marketplace",
     "Browse the Prometheus Marketplace. Lists available assets by category with previews, prices, and ratings.",
     {
@@ -365,7 +376,7 @@ server.tool(
 // Tool 5: get_avatar_status
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "get_avatar_status",
     "Get the current status and equipped assets of the avatar.",
     {},
@@ -397,7 +408,7 @@ server.tool(
 // Tool 6: share_avatar
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "share_avatar",
     "Generate a shareable link for the avatar. The link opens a full-screen interactive avatar page. Supports referral tracking.",
     {
@@ -430,7 +441,7 @@ server.tool(
 // Tool 7: speak
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "speak",
     "Make the avatar speak text aloud. The text is synthesized to speech and played with lip-sync animation. Supports emotion detection.",
     {
@@ -534,7 +545,7 @@ MIT — Myths Labs
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("[Prometheus MCP] Server started — 7 tools available");
+    console.error(`[Prometheus MCP] Server started — ${toolCount} tools available`);
 }
 
 main().catch((error) => {
