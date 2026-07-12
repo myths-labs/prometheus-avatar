@@ -89,7 +89,7 @@ const avatar = await createAvatar({
 
 ## What's New in v0.11 — Pro Image Generation
 
-`AssetCreator.createImage()` — AAA-grade image generation backed by **OpenAI GPT Image 2** (`gpt-image-1`) with automatic Gemini 3 Pro Image fallback. Game-store skin preview card tier output (Genshin / Overwatch / WoW quality). BYOK-friendly for zero-marginal-cost.
+`AssetCreator.createImage()` — AAA-grade image generation with automatic multi-provider fallback. Game-store skin preview card tier output (Genshin / Overwatch / WoW quality). BYOK-friendly for zero-marginal-cost.
 
 ```ts
 import { AssetCreator } from '@prometheusavatar/core';
@@ -125,13 +125,13 @@ console.log(skin.publicUrl, skin.platformCostUsd);
 |--------|------|---------|-------------|
 | `prompt` | `string` | required | Recommend ≥100 words with explicit AAA benchmark named for best quality. |
 | `style` | `ImageStyle` | none | `anime` / `cel-shade` / `cyberpunk` / `kawaii` / `fantasy` / `cartoon` / `realistic` / `photorealistic` / `pixar` |
-| `taskType` | `ImageTaskType` | `'character'` | Routes to optimal provider. `aaa_skin` / `poster` / `ui_mock` / `game_ui` → OpenAI · `thumbnail` / `batch_variants` → Gemini Flash. |
+| `taskType` | `ImageTaskType` | `'character'` | Routes to the optimal provider per task. |
 | `size` | `'1024x1024'\|'1024x1536'\|'1536x1024'\|'auto'` | `'1024x1024'` | `1024x1536` for vertical (XHS / 9:16). `1536x1024` for landscape (X / LinkedIn / 16:9). |
-| `quality` | `'low'\|'medium'\|'high'\|'auto'` | `'high'` | $0.02 low → $0.07-0.19 high (gpt-image-1 pricing). |
+| `quality` | `'low'\|'medium'\|'high'\|'auto'` | `'high'` | $0.02 low → $0.07-0.19 high (per image). |
 | `numVariants` | `number` | `1` | 1-4 variants. |
 | `referenceImages` | `string[]` | none | Data URLs or HTTPS URLs · character consistency chain across multiple calls. |
 | `provider` | `'openai'\|'gemini'\|'gemini-flash'` | auto | Override · default routes per `taskType`. |
-| `apiKey` | `string` | env | BYOK — your OpenAI or Gemini key · platform billing skipped. |
+| `apiKey` | `string` | env | BYOK — your own image-provider key · platform billing skipped. |
 | `upload` | `boolean` | `false` | Upload to Supabase Storage and return `publicUrl`. |
 
 Returns `CreateImageResult`:

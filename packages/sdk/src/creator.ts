@@ -25,7 +25,7 @@ export interface ImageGenerationOptions {
 /**
  * Pro-grade image generation options — Phase 11 Day 3 (SDK v0.11+).
  *
- * Backed by gpt-image-1 (OpenAI GPT Image 2) primary + Nano Banana Pro fallback.
+ * AAA-grade generation with automatic multi-provider fallback.
  * Routes via the marketplace `/api/creator/generate-image-pro` endpoint.
  */
 export interface CreateImageOptions {
@@ -33,9 +33,9 @@ export interface CreateImageOptions {
     prompt: string;
     /** Style preset — prepended to prompt server-side via styleToPromptPrefix. */
     style?: 'anime' | 'cel-shade' | 'cyberpunk' | 'kawaii' | 'fantasy' | 'cartoon' | 'realistic' | 'photorealistic' | 'pixar';
-    /** Task semantic — drives provider routing (auto-pick OpenAI for AAA / Gemini-Flash for thumbnails). */
+    /** Task semantic — drives provider routing per task. */
     taskType?: 'aaa_skin' | 'character' | 'scene' | 'accessory' | 'poster' | 'ui_mock' | 'game_ui' | 'thumbnail' | 'auxiliary' | 'batch_variants' | 'complex_text';
-    /** Output size. `auto` lets gpt-image-1 pick. */
+    /** Output size. `auto` lets the provider pick. */
     size?: '1024x1024' | '1024x1536' | '1536x1024' | 'auto';
     /** Image quality tier. */
     quality?: 'low' | 'medium' | 'high' | 'auto';
@@ -162,11 +162,11 @@ export class AssetCreator {
     }
 
     /**
-     * Pro-grade image generation via Prometheus image engine (gpt-image-1 backed · Phase 11 Day 3).
+     * Pro-grade image generation via Prometheus image engine (Phase 11 Day 3).
      *
      * Routes through `/api/creator/generate-image-pro` which provides:
-     *   - Provider Adapter (OpenAI primary · Gemini fallback · BYOK aware)
-     *   - Task-type routing (aaa_skin → gpt-image-1 high · thumbnail → gemini-flash)
+     *   - Provider Adapter (multi-provider · BYOK aware)
+     *   - Task-type routing (per-task quality tiers)
      *   - Pro Credits / Free quota / BYOK 三档 billing handled server-side
      *   - Safety pre-check (NSFW / content policy)
      *

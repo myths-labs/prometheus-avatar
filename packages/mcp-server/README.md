@@ -14,7 +14,7 @@ npx @prometheusavatar/mcp-server
 | `equip_asset` | Equip/unequip marketplace assets (skins, voices, effects, etc.) |
 | `generate_asset` | AI-generate new assets from text prompts (persona, expression, scene, etc.) |
 | `update_asset` | Edit price, name, description, tags, or license of an existing marketplace asset |
-| `generate_image_pro` | **NEW v0.3** AAA-quality image gen via gpt-image-1 (skin preview cards / posters / UI mocks / XHS carousels) · BYOK OpenAI · Free quota · Pro Credits · Gemini fallback |
+| `generate_image_pro` | **NEW v0.3** AAA-quality image generation (skin preview cards / posters / UI mocks / XHS carousels) · BYOK · Free quota · Pro Credits |
 | `list_marketplace` | Browse available marketplace assets by category |
 | `get_avatar_status` | Get current avatar state and equipped assets |
 | `share_avatar` | Generate shareable links and embed codes |
@@ -53,8 +53,8 @@ Add to `claude_desktop_config.json`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GEMINI_API_KEY` | For `generate_asset` | Google AI API key ([free](https://ai.google.dev)) |
-| `OPENAI_API_KEY` | For `generate_image_pro` (BYOK) | OpenAI key with `gpt-image-1` access ([platform.openai.com](https://platform.openai.com)) — without this, platform Free quota / Pro Credits routes apply |
+| `GEMINI_API_KEY` | For `generate_asset` | API key for asset generation |
+| `OPENAI_API_KEY` | For `generate_image_pro` (BYOK) | Your image-provider API key for BYOK — without this, platform Free quota / Pro Credits routes apply |
 | `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`) |
 | `PROMETHEUS_API_KEY` | No | API key for authenticated operations |
 

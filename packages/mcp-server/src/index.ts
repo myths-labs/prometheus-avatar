@@ -9,7 +9,7 @@
  *   2. equip_asset         — Equip a marketplace asset to an avatar
  *   3. generate_asset      — AI-generate a new asset (skin, voice, etc.)
  *  3b. update_asset        — Edit price / metadata of an existing asset
- *  3c. generate_image_pro  — AAA-quality images via gpt-image-1 (NEW v0.3 · Phase 11)
+ *  3c. generate_image_pro  — AAA-quality image generation (NEW v0.3 · Phase 11)
  *   4. list_marketplace    — Browse available marketplace assets
  *   5. get_avatar_status   — Get current avatar state
  *   6. share_avatar        — Generate a shareable link for an avatar
@@ -70,7 +70,7 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
 const server = new McpServer({
     name: "prometheus-avatar",
     version: "0.3.2",
-    description: "Give any AI agent an embodied Live2D avatar + AAA image generation (gpt-image-1) via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
+    description: "Give any AI agent an embodied Live2D avatar + AAA image generation via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
 });
 
 // Count tool registrations so the startup banner reports the real number of
@@ -206,7 +206,7 @@ registerTool(
         price: z.number().optional().describe("USD price (e.g. 2.99). Set 0 for free. Mutually exclusive with price_points."),
         price_points: z.number().optional().describe("Points price (e.g. 200). Mutually exclusive with price."),
         auto_deploy: z.boolean().optional().describe("Automatically deploy to marketplace (default: true)"),
-        api_key: z.string().optional().describe("Gemini API key for generation (or set GEMINI_API_KEY env var)"),
+        api_key: z.string().optional().describe("API key for generation (or set GEMINI_API_KEY env var)"),
     },
     async ({ category, prompt, name, price, price_points, auto_deploy, api_key }) => {
         try {
@@ -215,7 +215,7 @@ registerTool(
                 return {
                     content: [{
                         type: "text" as const,
-                        text: "Error: Gemini API key required. Pass api_key parameter or set GEMINI_API_KEY environment variable. Get a free key at https://ai.google.dev/",
+                        text: "Error: API key required. Pass api_key parameter or set GEMINI_API_KEY environment variable.",
                     }],
                     isError: true,
                 };
@@ -310,17 +310,17 @@ registerTool(
 
 registerTool(
     "generate_image_pro",
-    "AAA-quality image generation via Prometheus image engine (gpt-image-1 backed by OpenAI GPT Image 2). Use for skin preview cards, XHS / social carousels, posters, UI mocks, game-store-tier character art. Supports BYOK OpenAI key, Free quota, or Pro Credits. Returns image URL (data URL or Supabase public URL when upload=true).",
+    "AAA-quality image generation via Prometheus image engine. Use for skin preview cards, XHS / social carousels, posters, UI mocks, game-store-tier character art. Supports BYOK, Free quota, or Pro Credits. Returns image URL (data URL or Supabase public URL when upload=true).",
     {
         prompt: z.string().min(8).describe("Image prompt. Recommend ≥100 words with explicit AAA benchmark named (e.g. 'Genshin Impact / Overwatch shop preview tier · 3D cel-shaded engine render · NOT flat 2D illustration · clean studio backdrop · slight elevated 3/4 hero pose'). Twin Prompt-Is-The-Ceiling rule applies — long detailed prompts produce AAA results, lazy short prompts produce mediocre output."),
         style: z.enum(["anime", "cel-shade", "cyberpunk", "kawaii", "fantasy", "cartoon", "realistic", "photorealistic", "pixar"]).optional().describe("Style preset prepended to prompt server-side. Maps to Forge UI 7-style picker."),
-        task: z.enum(["aaa_skin", "character", "scene", "accessory", "poster", "ui_mock", "game_ui", "thumbnail", "auxiliary", "batch_variants", "complex_text"]).optional().describe("Task type — drives provider routing (aaa_skin → OpenAI gpt-image-1 high; thumbnail → Gemini Flash). Default: 'character'."),
+        task: z.enum(["aaa_skin", "character", "scene", "accessory", "poster", "ui_mock", "game_ui", "thumbnail", "auxiliary", "batch_variants", "complex_text"]).optional().describe("Task type — drives internal generation routing per task. Default: 'character'."),
         size: z.enum(["1024x1024", "1024x1536", "1536x1024", "auto"]).optional().describe("Output dimensions. Default: 1024x1024. Use 1024x1536 for vertical XHS / 9:16 social, 1536x1024 for X / LinkedIn / 16:9."),
         quality: z.enum(["low", "medium", "high", "auto"]).optional().describe("Quality tier — affects cost ($0.02 low → $0.07-0.19 high). Default: 'high'."),
         numVariants: z.number().min(1).max(4).optional().describe("Variants 1-4. Default: 1."),
         reference_images: z.array(z.string()).optional().describe("Reference image URLs (data URL or https://) for character consistency chain. e.g. pass slide 1 as ref when generating slide 2."),
         provider: z.enum(["openai", "gemini", "gemini-flash"]).optional().describe("Override provider. Default: server picks per task."),
-        api_key: z.string().optional().describe("BYOK — your OpenAI or Gemini key. Bypasses platform billing. Get OpenAI key at platform.openai.com / Gemini at ai.google.dev."),
+        api_key: z.string().optional().describe("BYOK — your own image-provider API key. Bypasses platform billing."),
         upload: z.boolean().optional().describe("Upload to Supabase Storage and return publicUrl. Default: false (return data URL only)."),
     },
     async ({ prompt, style, task, size, quality, numVariants, reference_images, provider, api_key, upload }) => {
@@ -594,7 +594,7 @@ server.resource(
 - **Real-time Lip Sync**: Audio-driven mouth animation
 - **Emotion Detection**: Automatic expression from text sentiment
 - **9 Asset Categories**: Skins, Voices, Effects, Motions, Personas, Accessories, Expressions, Scenes, Bundles
-- **AI Asset Generation**: Create custom assets from text prompts (requires Gemini API key)
+- **AI Asset Generation**: Create custom assets from text prompts (requires \`GEMINI_API_KEY\`)
 - **Marketplace**: Browse, buy, and sell avatar assets
 
 ## Environment Variables
