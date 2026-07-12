@@ -107,7 +107,7 @@ export async function activate(context: {
 
         context.registerTool(
             "prometheus_generate_thumbnail",
-            "Generate an eye-catching thumbnail image for a marketplace asset (Live2D, Voice, Backdrop) using FLUX.1 AI.",
+            "Generate an eye-catching thumbnail image for a marketplace asset (Live2D, Voice, Backdrop).",
             {
                 type: "object",
                 properties: {
@@ -152,10 +152,10 @@ export async function activate(context: {
             }
         );
 
-        // ═══ NEW v0.9 — Phase 11 GPT Image 2 ═══
+        // ═══ NEW v0.9 — Phase 11 Pro Image Generation ═══
         context.registerTool(
             "prometheus_generate_image_pro",
-            "Generate AAA-quality images via Prometheus image engine (gpt-image-1, OpenAI GPT Image 2). Use for skin preview cards, posters, UI mocks, or game-store-tier character art at Genshin Impact / Overwatch / WoW shop card quality. Supports BYOK OpenAI key, Free quota, or Pro Credits. Recommend ≥100-word prompts with explicit AAA benchmark named — Twin Prompt-Is-The-Ceiling rule (lazy short prompts produce mediocre output).",
+            "Generate AAA-quality images via Prometheus image engine. Use for skin preview cards, posters, UI mocks, or game-store-tier character art at Genshin Impact / Overwatch / WoW shop card quality. Supports BYOK, Free quota, or Pro Credits. Recommend ≥100-word prompts with explicit AAA benchmark named — Twin Prompt-Is-The-Ceiling rule (lazy short prompts produce mediocre output).",
             {
                 type: "object",
                 properties: {
@@ -171,7 +171,7 @@ export async function activate(context: {
                     taskType: {
                         type: "string",
                         enum: ["aaa_skin", "character", "scene", "accessory", "poster", "ui_mock", "game_ui", "thumbnail", "auxiliary", "batch_variants"],
-                        description: "Routes to optimal provider — aaa_skin/poster/ui_mock/game_ui → OpenAI gpt-image-1; thumbnail/batch_variants → Gemini Flash."
+                        description: "Routes to the optimal provider per task."
                     },
                     size: {
                         type: "string",
@@ -181,7 +181,7 @@ export async function activate(context: {
                     quality: {
                         type: "string",
                         enum: ["low", "medium", "high", "auto"],
-                        description: "Default high. Cost: $0.02 low → $0.07-0.19 high (gpt-image-1 pricing)."
+                        description: "Default high. Cost: $0.02 low → $0.07-0.19 high (per image)."
                     },
                     numVariants: {
                         type: "number",
@@ -194,7 +194,7 @@ export async function activate(context: {
                     },
                     apiKey: {
                         type: "string",
-                        description: "BYOK OpenAI key — bypasses platform billing (zero-marginal-cost flow). Get one at platform.openai.com."
+                        description: "BYOK — your own image-provider API key. Bypasses platform billing (zero-marginal-cost flow)."
                     },
                     upload: {
                         type: "boolean",

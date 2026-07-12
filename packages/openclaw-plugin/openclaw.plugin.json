@@ -2,7 +2,7 @@
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
     "version": "0.10.0",
-    "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation (gpt-image-1) for marketplace skin previews. 3 agent tools + bundled skill.",
+    "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation for marketplace skin previews. 3 agent tools + bundled skill.",
     "skills": [
         "skills/prometheus-avatar"
     ],
@@ -24,7 +24,7 @@
         "ttsProvider": {
             "type": "string",
             "deprecated": true,
-            "description": "DEPRECATED in v0.10.0 — this field is ignored. TTS is now delegated to the Prometheus SDK (@prometheusavatar/core) which uses the Prometheus backend (Volcengine Voice Clone V3 protocol). Kept for backward compat only."
+            "description": "DEPRECATED in v0.10.0 — this field is ignored. TTS is now delegated to the Prometheus SDK (@prometheusavatar/core) which uses the Prometheus voice backend. Kept for backward compat only."
         },
         "ttsVoice": {
             "type": "string",

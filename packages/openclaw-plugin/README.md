@@ -1,6 +1,6 @@
 # 🔥 Prometheus Avatar — OpenClaw Plugin
 
-> Give your OpenClaw agent a Live2D avatar with real-time lip-sync, emotion, TTS — **plus AAA image generation** (`gpt-image-1` backed) for marketplace skin previews.
+> Give your OpenClaw agent a Live2D avatar with real-time lip-sync, emotion, TTS — **plus AAA image generation** for marketplace skin previews.
 
 [![npm](https://img.shields.io/badge/npm-%40prometheusavatar%2Fopenclaw--plugin-blue)](https://www.npmjs.com/package/@prometheusavatar/openclaw-plugin)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -19,7 +19,7 @@ This plugin bridges OpenClaw agent events to the [Prometheus Avatar SDK](https:/
 - **🎭 Live2D Avatar** — Renders a Live2D model in your agent's UI
 - **🗣️ Text-to-Speech** — Agent messages spoken aloud with lip-sync
 - **😊 Emotion Detection** — Text sentiment drives expressions (happy / sad / angry / surprised / thinking)
-- **🎨 AAA Image Generation (v0.9+)** — Generate game-store-tier skin preview cards directly from your agent conversation, backed by OpenAI GPT Image 2 (`gpt-image-1`)
+- **🎨 AAA Image Generation (v0.9+)** — Generate game-store-tier skin preview cards directly from your agent conversation
 - **🛒 Marketplace Asset Pipeline** — Generate thumbnails + deploy assets without leaving the agent loop
 - **🎓 Bundled Skill (NEW v0.10)** — Plugin now ships with an AgentSkills-compatible `SKILL.md` at `skills/prometheus-avatar/` that teaches the agent when and how to use the 3 creator tools. Auto-loaded when the plugin is enabled. See [OpenClaw Skills docs](https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md).
 
@@ -44,7 +44,7 @@ Add to your `openclaw.config.json`:
 |--------|------|---------|-------------|
 | `avatarId` | `string` | — | Avatar model ID from Prometheus Marketplace |
 | `modelUrl` | `string` | Haru (default) | Direct URL to a `.model3.json` file |
-| `ttsProvider` | `string` | — | **DEPRECATED in v0.10.0** — ignored. TTS is now delegated to the Prometheus SDK (Volcengine Voice Clone V3 backend). |
+| `ttsProvider` | `string` | — | **DEPRECATED in v0.10.0** — ignored. TTS is now delegated to the Prometheus SDK. |
 | `ttsVoice` | `string` | — | Prometheus Marketplace voice ID (e.g. `saturn_zh_female_keainvsheng_tob`). Browse voices at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace) |
 | `enableLipSync` | `boolean` | `true` | Audio-driven lip synchronization |
 | `enableEmotion` | `boolean` | `true` | Emotion analysis from text |
@@ -67,8 +67,8 @@ When your OpenClaw agent has tool-use enabled, the plugin registers 3 creator to
 
 | Tool | Description |
 |------|-------------|
-| `prometheus_generate_image_pro` | **NEW v0.9** Generate AAA-quality images via gpt-image-1 (skin preview cards, posters, UI mocks). Genshin / Overwatch / WoW shop card tier. 9 style presets · BYOK OpenAI · Free quota · Pro Credits. |
-| `prometheus_generate_thumbnail` | Generate marketplace asset thumbnails (legacy FLUX route — kept for backward compat) |
+| `prometheus_generate_image_pro` | **NEW v0.9** Generate AAA-quality images (skin preview cards, posters, UI mocks). Genshin / Overwatch / WoW shop card tier. 9 style presets · BYOK · Free quota · Pro Credits. |
+| `prometheus_generate_thumbnail` | Generate marketplace asset thumbnails (legacy route — kept for backward compat) |
 | `prometheus_deploy_asset` | Deploy new assets (voices, skins, effects) to the Marketplace |
 
 ### Example: Generate a skin preview card

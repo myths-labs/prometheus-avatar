@@ -1,6 +1,6 @@
 ---
 name: prometheus-avatar
-description: Render a complete Prometheus digital character (2.5D / 3D · Forge-generated with rig + skin + voice + expressions + motion + personality) inside the agent's UI · plus generate AAA marketplace skin previews via gpt-image-1.
+description: Render a complete Prometheus digital character (2.5D / 3D · Forge-generated with rig + skin + voice + expressions + motion + personality) inside the agent's UI · plus generate AAA marketplace skin previews via the Prometheus image engine.
 ---
 
 # Prometheus Avatar
@@ -37,13 +37,13 @@ Use this skill when the user asks for any of:
 
 - The user just wants plain audio TTS without a visible avatar — use system audio tools instead.
 - The user wants a quick low-fidelity thumbnail (not AAA-tier) — `prometheus_generate_thumbnail` is the lighter legacy route.
-- The image must be deterministic / reproducible across runs — `gpt-image-1` outputs are stochastic.
+- The image must be deterministic / reproducible across runs — the image engine's outputs are stochastic.
 
 ## Tools
 
 ### `prometheus_generate_image_pro` (primary creator tool)
 
-Generates AAA-quality images via OpenAI's `gpt-image-1`. Supports 14 style presets: `anime` · `cel-shade` · `cyberpunk` · `kawaii` · `fantasy` · `cartoon` · `realistic` · `photorealistic` · `pixar` · `chibi` · `gacha-aaa` · `guofeng` · `ghibli` · `pixel`.
+Generates AAA-quality images via the Prometheus image engine. Supports 14 style presets: `anime` · `cel-shade` · `cyberpunk` · `kawaii` · `fantasy` · `cartoon` · `realistic` · `photorealistic` · `pixar` · `chibi` · `gacha-aaa` · `guofeng` · `ghibli` · `pixel`.
 
 **Sizes**:
 - `1024x1024` — square (default)
@@ -106,15 +106,15 @@ Set via `openclaw.config.json`:
 
 Browse character bundles + voice IDs at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`) which routes to the Prometheus backend (Volcengine Voice Clone V3 protocol). No TTS API key needed — voices live on the Prometheus Marketplace and are referenced via `ttsVoice` (Marketplace voice ID).
+**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`) which routes to the Prometheus voice backend. No TTS API key needed — voices live on the Prometheus Marketplace and are referenced via `ttsVoice` (Marketplace voice ID).
 
 **BYOK for image generation** (zero-marginal-cost path):
-- `OPENAI_API_KEY` env var or `apiKey` argument → unlocks `gpt-image-1` for `prometheus_generate_image_pro` (bypasses platform billing). Get one at platform.openai.com.
+- `OPENAI_API_KEY` env var or `apiKey` argument → unlocks BYOK image generation for `prometheus_generate_image_pro` (bypasses platform billing).
 
 ## Safety
 
 - Do NOT pass untrusted user input directly into `prompt` without sanitisation. The model itself is safe but downstream UI rendering may not be.
-- AAA image generation incurs OpenAI cost ($0.07-0.19 per `high` quality image). Prefer `prometheus_generate_thumbnail` for previews / drafts.
+- AAA image generation incurs provider cost ($0.07-0.19 per `high` quality image). Prefer `prometheus_generate_thumbnail` for previews / drafts.
 - `prometheus_deploy_asset` is irreversible from the agent loop — the asset becomes visible on the public marketplace. Confirm with the user before deploying.
 
 ## Links
