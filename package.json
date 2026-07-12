@@ -2,6 +2,7 @@
     "name": "prometheus-avatar",
     "private": true,
     "description": "AI Avatar Embodied Intelligence Framework — Open Source SDK",
+    "license": "MIT",
     "scripts": {
         "build": "pnpm -r build",
         "lint": "pnpm -r lint",
