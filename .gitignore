@@ -42,6 +42,7 @@ CLAUDE.md
 USER.md
 MEMORIES.md
 .agent/skills/
+.agent/workflows/
 .claude/worktrees/
 docs/internal/
 
