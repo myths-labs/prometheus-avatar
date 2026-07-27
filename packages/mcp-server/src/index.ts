@@ -32,6 +32,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { createRequire } from "node:module";
+
+// Read the version from package.json at runtime. It used to be typed in by
+// hand in two places and both had drifted: serverInfo said 0.3.2 while the
+// package was 0.3.3, and the User-Agent still said 0.1.0. Anyone probing the
+// published server saw a version that did not match what they installed.
+const PKG_VERSION: string = createRequire(import.meta.url)("../package.json").version;
 
 const API_BASE = process.env.PROMETHEUS_API_URL || "https://prometheus.mythslabs.ai";
 const API_KEY = process.env.PROMETHEUS_API_KEY || "";
@@ -43,7 +50,7 @@ const API_KEY = process.env.PROMETHEUS_API_KEY || "";
 async function apiCall(path: string, method: string = "GET", body?: unknown): Promise<unknown> {
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "User-Agent": "PrometheusAvatar-MCP/0.1.0",
+        "User-Agent": `PrometheusAvatar-MCP/${PKG_VERSION}`,
     };
     if (API_KEY) {
         headers["Authorization"] = `Bearer ${API_KEY}`;
@@ -69,7 +76,7 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
 
 const server = new McpServer({
     name: "prometheus-avatar",
-    version: "0.3.2",
+    version: PKG_VERSION,
     description: "Give any AI agent an embodied Live2D avatar + AAA image generation via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
 });
 
