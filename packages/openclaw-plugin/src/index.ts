@@ -7,8 +7,8 @@
  * Installation: openclaw plugins install prometheus-avatar
  */
 
-import { createAvatar, PrometheusAvatar, AssetCreator } from '@prometheus-avatar/core';
-import type { PrometheusConfig, AssetDeployConfig } from '@prometheus-avatar/core';
+import { createAvatar, PrometheusAvatar, AssetCreator } from '@prometheusavatar/core';
+import type { PrometheusConfig, AssetDeployConfig } from '@prometheusavatar/core';
 
 interface OpenClawPluginConfig {
     avatarId?: string;
@@ -107,7 +107,7 @@ export async function activate(context: {
 
         context.registerTool(
             "prometheus_generate_thumbnail",
-            "Generate an eye-catching thumbnail image for a marketplace asset (Live2D, Voice, Backdrop) using FLUX.1 AI.",
+            "Generate an eye-catching thumbnail image for a marketplace asset (Live2D, Voice, Backdrop).",
             {
                 type: "object",
                 properties: {
@@ -149,6 +149,74 @@ export async function activate(context: {
                     tags: args.tags
                 };
                 return await creator.deployAsset(config, args.fileData, args.thumbnailData);
+            }
+        );
+
+        // ═══ NEW v0.9 — Phase 11 Pro Image Generation ═══
+        context.registerTool(
+            "prometheus_generate_image_pro",
+            "Generate AAA-quality images via Prometheus image engine. Use for skin preview cards, posters, UI mocks, or game-store-tier character art at Genshin Impact / Overwatch / WoW shop card quality. Supports BYOK, Free quota, or Pro Credits. Recommend ≥100-word prompts with explicit AAA benchmark named — Twin Prompt-Is-The-Ceiling rule (lazy short prompts produce mediocre output).",
+            {
+                type: "object",
+                properties: {
+                    prompt: {
+                        type: "string",
+                        description: "Image prompt. Recommend ≥100 words with explicit AAA benchmark (e.g. 'Genshin Impact / Overwatch shop preview tier · 3D cel-shaded engine render · NOT flat 2D illustration · clean studio backdrop · slight elevated 3/4 hero pose · production-ready')."
+                    },
+                    style: {
+                        type: "string",
+                        enum: ["anime", "cel-shade", "cyberpunk", "kawaii", "fantasy", "cartoon", "realistic", "photorealistic", "pixar"],
+                        description: "Visual style preset prepended to prompt server-side."
+                    },
+                    taskType: {
+                        type: "string",
+                        enum: ["aaa_skin", "character", "scene", "accessory", "poster", "ui_mock", "game_ui", "thumbnail", "auxiliary", "batch_variants"],
+                        description: "Routes to the optimal provider per task."
+                    },
+                    size: {
+                        type: "string",
+                        enum: ["1024x1024", "1024x1536", "1536x1024", "auto"],
+                        description: "Default 1024x1024. Use 1024x1536 for vertical (XHS / 9:16). 1536x1024 for landscape (X / LinkedIn / 16:9)."
+                    },
+                    quality: {
+                        type: "string",
+                        enum: ["low", "medium", "high", "auto"],
+                        description: "Default high. Cost: $0.02 low → $0.07-0.19 high (per image)."
+                    },
+                    numVariants: {
+                        type: "number",
+                        description: "1-4 variants. Default 1."
+                    },
+                    referenceImages: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Data URLs or HTTPS URLs · character consistency chain across multiple calls."
+                    },
+                    apiKey: {
+                        type: "string",
+                        description: "BYOK — your own image-provider API key. Bypasses platform billing (zero-marginal-cost flow)."
+                    },
+                    upload: {
+                        type: "boolean",
+                        description: "Upload to Supabase Storage and return publicUrl alongside data URL."
+                    }
+                },
+                required: ["prompt"]
+            },
+            async (args) => {
+                console.log(`[Prometheus Plugin] Generating ${args.taskType ?? 'character'} image (style: ${args.style ?? 'none'})...`);
+                const result = await creator.createImage({
+                    prompt: args.prompt,
+                    style: args.style,
+                    taskType: args.taskType,
+                    size: args.size,
+                    quality: args.quality,
+                    numVariants: args.numVariants,
+                    referenceImages: args.referenceImages,
+                    apiKey: args.apiKey,
+                    upload: args.upload,
+                });
+                return { success: true, ...result };
             }
         );
     }

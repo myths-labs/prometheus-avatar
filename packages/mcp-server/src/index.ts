@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
- * Prometheus Avatar MCP Server (S068)
- * 
- * Model Context Protocol server that exposes 7 tools for AI agents
+ * Prometheus Avatar MCP Server (S068 · v0.3.0 · Phase 11 Day 3)
+ *
+ * Model Context Protocol server that exposes 9 tools for AI agents
  * to interact with the Prometheus Avatar platform:
- * 
- *   1. create_avatar     — Initialize an avatar instance
- *   2. equip_asset       — Equip a marketplace asset to an avatar
- *   3. generate_asset    — AI-generate a new asset (skin, voice, etc.)
- *   4. list_marketplace  — Browse available marketplace assets
- *   5. get_avatar_status — Get current avatar state
- *   6. share_avatar      — Generate a shareable link for an avatar
- *   7. speak             — Make the avatar speak text with TTS
+ *
+ *   1. create_avatar       — Initialize an avatar instance
+ *   2. equip_asset         — Equip a marketplace asset to an avatar
+ *   3. generate_asset      — AI-generate a new asset (skin, voice, etc.)
+ *  3b. update_asset        — Edit price / metadata of an existing asset
+ *  3c. generate_image_pro  — AAA-quality image generation (NEW v0.3 · Phase 11)
+ *   4. list_marketplace    — Browse available marketplace assets
+ *   5. get_avatar_status   — Get current avatar state
+ *   6. share_avatar        — Generate a shareable link for an avatar
+ *   7. speak               — Make the avatar speak text with TTS
  * 
  * Usage:
  *   npx @prometheusavatar/mcp-server
@@ -67,15 +69,26 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
 
 const server = new McpServer({
     name: "prometheus-avatar",
-    version: "0.1.0",
-    description: "Give any AI agent an embodied Live2D avatar with TTS, lip-sync, and emotion. Zero dependencies — just connect via MCP.",
+    version: "0.3.2",
+    description: "Give any AI agent an embodied Live2D avatar + AAA image generation via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
 });
+
+// Count tool registrations so the startup banner reports the real number of
+// tools instead of a hand-maintained constant that silently drifts out of sync
+// (this banner once printed "7 tools" while 9 were registered). Every tool
+// below is registered through this wrapper instead of calling server.tool
+// directly, so the count can never be wrong again.
+let toolCount = 0;
+const registerTool = ((...args: unknown[]) => {
+    toolCount++;
+    return (server.tool as (...a: unknown[]) => unknown).apply(server, args);
+}) as typeof server.tool;
 
 // ═══════════════════════════════════════════════════════════════
 // Tool 1: create_avatar
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "create_avatar",
     "Create a new Prometheus Avatar instance. Returns an avatar ID and embed URL that can be used in a browser.",
     {
@@ -85,39 +98,60 @@ server.tool(
         persona: z.string().optional().describe("Custom system prompt / personality for the avatar's conversation style"),
     },
     async ({ name, model, voice, persona }) => {
-        const avatarName = name || "My Avatar";
-        const modelId = model || "haru";
-        const voiceName = voice || "Kore";
+        if (!API_KEY) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: false,
+                        error: "PROMETHEUS_API_KEY required",
+                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Register for one at https://prometheus.mythslabs.ai (POST /api/agent/register with a name + email).",
+                    }, null, 2),
+                }],
+                isError: true,
+            };
+        }
 
-        // Build embed URL
-        const embedParams = new URLSearchParams({
-            name: avatarName,
-            model: modelId,
-            voice: voiceName,
-        });
-        if (persona) embedParams.set("persona", persona);
+        try {
+            // Persist the avatar to the account so it renders. POST /api/agent/avatar
+            // upserts the account's avatar and returns a real /embed/<id> URL.
+            const result = await apiCall("/api/agent/avatar", "POST", {
+                ...(model ? { model } : {}),
+                ...(voice ? { voice } : {}),
+                ...(persona ? { persona } : {}),
+            }) as {
+                avatarId: string;
+                model: string;
+                modelUrl: string;
+                voice: string;
+                persona: string | null;
+                embedUrl: string;
+                availableModels?: string[];
+                availableVoices?: string[];
+            };
 
-        const embedUrl = `${API_BASE}/embed/preview?${embedParams.toString()}`;
-        const appUrl = `${API_BASE}/app`;
-        const avatarId = `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-        return {
-            content: [
-                {
+            return {
+                content: [{
                     type: "text" as const,
                     text: JSON.stringify({
                         success: true,
-                        avatar_id: avatarId,
-                        name: avatarName,
-                        model: modelId,
-                        voice: voiceName,
-                        embed_url: embedUrl,
-                        app_url: appUrl,
-                        instructions: `Avatar "${avatarName}" is ready. Open the app URL to interact, or embed the iframe URL in any webpage. Use 'speak' tool to make it talk, or 'equip_asset' to customize its appearance.`,
+                        avatar_id: result.avatarId,
+                        name: name || "My Avatar",
+                        model: result.model,
+                        voice: result.voice,
+                        persona: result.persona,
+                        embed_url: result.embedUrl,
+                        instructions: `Avatar is live. Open embed_url in a browser (or embed it as an <iframe src="${result.embedUrl}">) to see it render. Use 'speak' to generate speech, 'equip_asset' to customize it, or 'share_avatar' for a shareable link.`,
                     }, null, 2),
-                },
-            ],
-        };
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error creating avatar: ${errMsg}` }],
+                isError: true,
+            };
+        }
     }
 );
 
@@ -125,7 +159,7 @@ server.tool(
 // Tool 2: equip_asset
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "equip_asset",
     "Equip a marketplace asset to the avatar. Changes the avatar's skin, voice, expression, accessories, scene, or persona.",
     {
@@ -161,7 +195,7 @@ server.tool(
 // Tool 3: generate_asset
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "generate_asset",
     "AI-generate a new marketplace asset using a text prompt. Supports: persona, expression, motion, effect, scene, accessory, voice. Set pricing at creation time.",
     {
@@ -172,7 +206,7 @@ server.tool(
         price: z.number().optional().describe("USD price (e.g. 2.99). Set 0 for free. Mutually exclusive with price_points."),
         price_points: z.number().optional().describe("Points price (e.g. 200). Mutually exclusive with price."),
         auto_deploy: z.boolean().optional().describe("Automatically deploy to marketplace (default: true)"),
-        api_key: z.string().optional().describe("Gemini API key for generation (or set GEMINI_API_KEY env var)"),
+        api_key: z.string().optional().describe("API key for generation (or set GEMINI_API_KEY env var)"),
     },
     async ({ category, prompt, name, price, price_points, auto_deploy, api_key }) => {
         try {
@@ -181,7 +215,7 @@ server.tool(
                 return {
                     content: [{
                         type: "text" as const,
-                        text: "Error: Gemini API key required. Pass api_key parameter or set GEMINI_API_KEY environment variable. Get a free key at https://ai.google.dev/",
+                        text: "Error: API key required. Pass api_key parameter or set GEMINI_API_KEY environment variable.",
                     }],
                     isError: true,
                 };
@@ -217,7 +251,7 @@ server.tool(
 // Tool 3b: update_asset
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "update_asset",
     "Update an existing marketplace asset — change price, name, description, tags, or license. Use this to adjust pricing after creation.",
     {
@@ -271,10 +305,60 @@ server.tool(
 );
 
 // ═══════════════════════════════════════════════════════════════
+// Tool 3c: generate_image_pro  (Phase 11 Day 3 · v0.3.0)
+// ═══════════════════════════════════════════════════════════════
+
+registerTool(
+    "generate_image_pro",
+    "AAA-quality image generation via Prometheus image engine. Use for skin preview cards, XHS / social carousels, posters, UI mocks, game-store-tier character art. Supports BYOK, Free quota, or Pro Credits. Returns image URL (data URL or Supabase public URL when upload=true).",
+    {
+        prompt: z.string().min(8).describe("Image prompt. Recommend ≥100 words with explicit AAA benchmark named (e.g. 'Genshin Impact / Overwatch shop preview tier · 3D cel-shaded engine render · NOT flat 2D illustration · clean studio backdrop · slight elevated 3/4 hero pose'). Twin Prompt-Is-The-Ceiling rule applies — long detailed prompts produce AAA results, lazy short prompts produce mediocre output."),
+        style: z.enum(["anime", "cel-shade", "cyberpunk", "kawaii", "fantasy", "cartoon", "realistic", "photorealistic", "pixar"]).optional().describe("Style preset prepended to prompt server-side. Maps to Forge UI 7-style picker."),
+        task: z.enum(["aaa_skin", "character", "scene", "accessory", "poster", "ui_mock", "game_ui", "thumbnail", "auxiliary", "batch_variants", "complex_text"]).optional().describe("Task type — drives internal generation routing per task. Default: 'character'."),
+        size: z.enum(["1024x1024", "1024x1536", "1536x1024", "auto"]).optional().describe("Output dimensions. Default: 1024x1024. Use 1024x1536 for vertical XHS / 9:16 social, 1536x1024 for X / LinkedIn / 16:9."),
+        quality: z.enum(["low", "medium", "high", "auto"]).optional().describe("Quality tier — affects cost ($0.02 low → $0.07-0.19 high). Default: 'high'."),
+        numVariants: z.number().min(1).max(4).optional().describe("Variants 1-4. Default: 1."),
+        reference_images: z.array(z.string()).optional().describe("Reference image URLs (data URL or https://) for character consistency chain. e.g. pass slide 1 as ref when generating slide 2."),
+        provider: z.enum(["openai", "gemini", "gemini-flash"]).optional().describe("Override provider. Default: server picks per task."),
+        api_key: z.string().optional().describe("BYOK — your own image-provider API key. Bypasses platform billing."),
+        upload: z.boolean().optional().describe("Upload to Supabase Storage and return publicUrl. Default: false (return data URL only)."),
+    },
+    async ({ prompt, style, task, size, quality, numVariants, reference_images, provider, api_key, upload }) => {
+        try {
+            const result = await apiCall("/api/creator/generate-image-pro", "POST", {
+                prompt,
+                style,
+                task: task || "character",
+                size: size || "1024x1024",
+                quality: quality || "high",
+                numVariants: numVariants || 1,
+                referenceImages: reference_images,
+                provider,
+                apiKey: api_key,
+                upload: upload ?? false,
+            });
+
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error: ${errMsg}` }],
+                isError: true,
+            };
+        }
+    }
+);
+
+// ═══════════════════════════════════════════════════════════════
 // Tool 4: list_marketplace
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "list_marketplace",
     "Browse the Prometheus Marketplace. Lists available assets by category with previews, prices, and ratings.",
     {
@@ -313,7 +397,7 @@ server.tool(
 // Tool 5: get_avatar_status
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "get_avatar_status",
     "Get the current status and equipped assets of the avatar.",
     {},
@@ -345,32 +429,73 @@ server.tool(
 // Tool 6: share_avatar
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "share_avatar",
-    "Generate a shareable link for the avatar. The link opens a full-screen interactive avatar page. Supports referral tracking.",
+    "Generate a shareable link and iframe embed code for an avatar. The link opens the interactive avatar page.",
     {
-        message: z.string().optional().describe("Welcome message the avatar will speak when the link is opened"),
-        referral_code: z.string().optional().describe("Referral code for tracking (earns credits)"),
+        avatar_id: z.string().optional().describe("Avatar ID from create_avatar. If omitted, uses the account's current avatar (requires PROMETHEUS_API_KEY)."),
+        message: z.string().optional().describe("Optional welcome message to deliver to iframe embedders via window.postMessage."),
+        referral_code: z.string().optional().describe("Referral code appended to the share link for tracking."),
     },
-    async ({ message, referral_code }) => {
-        const params = new URLSearchParams();
-        if (message) params.set("speak", message);
-        if (referral_code) params.set("ref", referral_code);
+    async ({ avatar_id, message, referral_code }) => {
+        try {
+            let avatarId = avatar_id;
 
-        const shareUrl = `${API_BASE}/app${params.toString() ? "?" + params.toString() : ""}`;
-        const embedUrl = `${API_BASE}/embed/preview${params.toString() ? "?" + params.toString() : ""}`;
+            // Resolve the account's current avatar if no id was supplied.
+            if (!avatarId) {
+                if (!API_KEY) {
+                    return {
+                        content: [{
+                            type: "text" as const,
+                            text: JSON.stringify({
+                                success: false,
+                                error: "avatar_id required",
+                                instructions: "Pass avatar_id (returned by create_avatar), or set PROMETHEUS_API_KEY so the account's current avatar can be looked up.",
+                            }, null, 2),
+                        }],
+                        isError: true,
+                    };
+                }
+                const current = await apiCall("/api/agent/avatar", "GET") as { avatarId?: string };
+                avatarId = current.avatarId;
+            }
 
-        return {
-            content: [{
-                type: "text" as const,
-                text: JSON.stringify({
-                    share_url: shareUrl,
-                    embed_url: embedUrl,
-                    embed_html: `<iframe src="${embedUrl}" width="400" height="600" style="border:none;border-radius:16px;" allow="microphone"></iframe>`,
-                    instructions: "Share the URL directly, or embed the iframe in any webpage. The avatar will auto-speak the welcome message when opened.",
-                }, null, 2),
-            }],
-        };
+            if (!avatarId) {
+                return {
+                    content: [{ type: "text" as const, text: "Error: no avatar found. Create one first with create_avatar." }],
+                    isError: true,
+                };
+            }
+
+            const qp = new URLSearchParams();
+            if (message) qp.set("speak", message);
+            if (referral_code) qp.set("ref", referral_code);
+            const query = qp.toString() ? `?${qp.toString()}` : "";
+            const shareUrl = `${API_BASE}/embed/${avatarId}${query}`;
+            const embedHtml = `<iframe src="${shareUrl}" width="400" height="600" style="border:none;border-radius:16px;" allow="microphone"></iframe>`;
+
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: true,
+                        avatar_id: avatarId,
+                        share_url: shareUrl,
+                        embed_url: shareUrl,
+                        embed_html: embedHtml,
+                        instructions: message
+                            ? "Share share_url — opening it renders the avatar and it auto-speaks your message. Or embed embed_html in any webpage."
+                            : "Share share_url (renders the interactive avatar), or embed embed_html in any webpage.",
+                    }, null, 2),
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error sharing avatar: ${errMsg}` }],
+                isError: true,
+            };
+        }
     }
 );
 
@@ -378,7 +503,7 @@ server.tool(
 // Tool 7: speak
 // ═══════════════════════════════════════════════════════════════
 
-server.tool(
+registerTool(
     "speak",
     "Make the avatar speak text aloud. The text is synthesized to speech and played with lip-sync animation. Supports emotion detection.",
     {
@@ -387,14 +512,29 @@ server.tool(
         emotion: z.string().optional().describe("Force emotion: happy, sad, angry, surprised, neutral"),
     },
     async ({ text, voice, emotion }) => {
+        if (!API_KEY) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: false,
+                        error: "PROMETHEUS_API_KEY required",
+                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Register at https://prometheus.mythslabs.ai (POST /api/agent/register).",
+                    }, null, 2),
+                }],
+                isError: true,
+            };
+        }
+
         try {
-            // Call the TTS API to generate audio
-            const result = await apiCall("/api/tts", "POST", {
+            // Generate TTS audio via the agent-authenticated speech endpoint.
+            const result = await apiCall("/api/agent/speak", "POST", {
                 text,
-                avatar: "default",
-                ...(voice ? { voiceOverride: { gemini: voice } } : {}),
-                ...(emotion ? { emotion } : {}),
-            });
+                ...(voice ? { voice } : {}),
+                format: "base64",
+            }) as { audio?: string; mimeType?: string; voice?: string; textLength?: number };
+
+            const audioBytes = result.audio ? Math.floor((result.audio.length * 3) / 4) : 0;
 
             return {
                 content: [{
@@ -402,26 +542,20 @@ server.tool(
                     text: JSON.stringify({
                         success: true,
                         text,
-                        voice: voice || "Kore",
+                        voice: result.voice || voice || "Kore",
                         emotion: emotion || "auto-detected",
-                        app_url: `${API_BASE}/app?speak=${encodeURIComponent(text)}`,
-                        instructions: `Open the app URL to hear the avatar speak: "${text.slice(0, 50)}..."`,
+                        audio_generated: !!result.audio,
+                        audio_format: result.mimeType || "audio/wav",
+                        audio_bytes: audioBytes,
+                        instructions: "Speech audio (base64 WAV) was generated. Play it in your client, or — to see an avatar lip-sync it in a browser — open the avatar's embed URL and post a { type: 'prometheus:speak', text } message to the iframe from the parent window.",
                     }, null, 2),
                 }],
             };
         } catch (error: unknown) {
-            // TTS might not return JSON — audio binary means success
+            const errMsg = error instanceof Error ? error.message : String(error);
             return {
-                content: [{
-                    type: "text" as const,
-                    text: JSON.stringify({
-                        success: true,
-                        text,
-                        voice: voice || "Kore",
-                        app_url: `${API_BASE}/app?speak=${encodeURIComponent(text)}`,
-                        instructions: "Audio generated. Open the app URL to hear the avatar speak.",
-                    }, null, 2),
-                }],
+                content: [{ type: "text" as const, text: `Error generating speech: ${errMsg}` }],
+                isError: true,
             };
         }
     }
@@ -460,7 +594,7 @@ server.resource(
 - **Real-time Lip Sync**: Audio-driven mouth animation
 - **Emotion Detection**: Automatic expression from text sentiment
 - **9 Asset Categories**: Skins, Voices, Effects, Motions, Personas, Accessories, Expressions, Scenes, Bundles
-- **AI Asset Generation**: Create custom assets from text prompts (requires Gemini API key)
+- **AI Asset Generation**: Create custom assets from text prompts (requires \`GEMINI_API_KEY\`)
 - **Marketplace**: Browse, buy, and sell avatar assets
 
 ## Environment Variables
@@ -482,7 +616,7 @@ MIT — Myths Labs
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("[Prometheus MCP] Server started — 7 tools available");
+    console.error(`[Prometheus MCP] Server started — ${toolCount} tools available`);
 }
 
 main().catch((error) => {
