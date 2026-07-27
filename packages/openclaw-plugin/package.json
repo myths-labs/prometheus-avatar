@@ -31,6 +31,6 @@
     "author": "Myths Labs (JC)",
     "homepage": "https://prometheus.mythslabs.ai",
     "dependencies": {
-        "@prometheusavatar/core": "workspace:*"
+        "@prometheusavatar/core": "^0.11.1"
     }
 }
