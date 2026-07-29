@@ -17,6 +17,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.12.1
         version: 1.28.0(zod@4.3.6)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -31,8 +34,8 @@ importers:
   packages/openclaw-plugin:
     dependencies:
       '@prometheusavatar/core':
-        specifier: workspace:*
-        version: link:../sdk
+        specifier: ^0.11.1
+        version: 0.11.2(76g3zz2nt7dtjnktvdvk76m2oe)
 
   packages/sdk:
     dependencies:
@@ -515,6 +518,9 @@ packages:
     peerDependencies:
       '@pixi/constants': 6.5.10
       '@pixi/settings': 6.5.10
+
+  '@prometheusavatar/core@0.11.2':
+    resolution: {integrity: sha512-wFtVbzuN73L5Sa2y93UgbTBoukWvKCA6aWNgRJqqzmH1lxHEnL5NK4rQjw5xkVit36ZcCXP1yPDbhqKajcxVCA==}
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
     resolution: {integrity: sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg==}
@@ -2032,6 +2038,21 @@ snapshots:
       earcut: 2.2.4
       eventemitter3: 3.1.2
       url: 0.11.4
+
+  '@prometheusavatar/core@0.11.2(76g3zz2nt7dtjnktvdvk76m2oe)':
+    dependencies:
+      pixi-live2d-display: 0.4.0(76g3zz2nt7dtjnktvdvk76m2oe)
+      pixi.js: 6.5.10
+      ws: 8.20.0
+    transitivePeerDependencies:
+      - '@pixi/core'
+      - '@pixi/display'
+      - '@pixi/loaders'
+      - '@pixi/math'
+      - '@pixi/sprite'
+      - '@pixi/utils'
+      - bufferutil
+      - utf-8-validate
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
     optional: true

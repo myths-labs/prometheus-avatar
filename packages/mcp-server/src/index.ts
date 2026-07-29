@@ -163,6 +163,65 @@ registerTool(
 );
 
 // ═══════════════════════════════════════════════════════════════
+// Tool 1.5: set_avatar_state (S304-A1 batch 2)
+// ═══════════════════════════════════════════════════════════════
+
+registerTool(
+    "set_avatar_state",
+    "Push a companion task state (or a direct emotion) onto your avatar. Any ALREADY-OPEN embed page follows within ~3 seconds — the avatar's expression and motion change live. Use this to make the avatar accompany real work: set 'listening' when waiting for user input, 'thinking' while working, 'acting' while executing, 'done' on completion.",
+    {
+        state: z.enum(["listening", "thinking", "acting", "done"]).optional()
+            .describe("Agent task state. listening: attentive idle · thinking: pondering · acting: focused work · done: celebrate"),
+        emotion: z.enum(["happy", "sad", "angry", "surprised", "thinking", "neutral"]).optional()
+            .describe("Direct emotion override (takes effect when no state is given, or alongside it)"),
+    },
+    async ({ state, emotion }) => {
+        if (!API_KEY) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: false,
+                        error: "PROMETHEUS_API_KEY required",
+                        instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...).",
+                    }, null, 2),
+                }],
+                isError: true,
+            };
+        }
+        if (!state && !emotion) {
+            return {
+                content: [{ type: "text" as const, text: "Provide state and/or emotion." }],
+                isError: true,
+            };
+        }
+        try {
+            const result = await apiCall("/api/agent/avatar/state", "POST", {
+                ...(state ? { state } : {}),
+                ...(emotion ? { emotion } : {}),
+            }) as { avatarId: string; companionState: Record<string, string> };
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: true,
+                        avatar_id: result.avatarId,
+                        companion_state: result.companionState,
+                        instructions: "Open embed pages for this avatar pick the state up within ~3 seconds.",
+                    }, null, 2),
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error setting avatar state: ${errMsg}` }],
+                isError: true,
+            };
+        }
+    }
+);
+
+// ═══════════════════════════════════════════════════════════════
 // Tool 2: equip_asset
 // ═══════════════════════════════════════════════════════════════
 
