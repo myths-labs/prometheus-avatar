@@ -56,7 +56,7 @@ Add to `claude_desktop_config.json`:
 | `GEMINI_API_KEY` | For `generate_asset` | API key for asset generation |
 | `OPENAI_API_KEY` | For `generate_image_pro` (BYOK) | Your image-provider API key for BYOK — without this, platform Free quota / Pro Credits routes apply |
 | `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`) |
-| `PROMETHEUS_API_KEY` | No | API key for authenticated operations |
+| `PROMETHEUS_API_KEY` | For `create_avatar` / `set_avatar_state` / `speak` | Your `pak_` agent key — sign in at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) and click Generate key (shown once) |
 
 ## Example Conversation
 

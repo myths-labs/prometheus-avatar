@@ -112,7 +112,7 @@ registerTool(
                     text: JSON.stringify({
                         success: false,
                         error: "PROMETHEUS_API_KEY required",
-                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Register for one at https://prometheus.mythslabs.ai (POST /api/agent/register with a name + email).",
+                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
                     }, null, 2),
                 }],
                 isError: true,
@@ -183,7 +183,7 @@ registerTool(
                     text: JSON.stringify({
                         success: false,
                         error: "PROMETHEUS_API_KEY required",
-                        instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...).",
+                        instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
                     }, null, 2),
                 }],
                 isError: true,
@@ -585,7 +585,7 @@ registerTool(
                     text: JSON.stringify({
                         success: false,
                         error: "PROMETHEUS_API_KEY required",
-                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Register at https://prometheus.mythslabs.ai (POST /api/agent/register).",
+                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
                     }, null, 2),
                 }],
                 isError: true,
