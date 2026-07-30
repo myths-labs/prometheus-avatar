@@ -32,5 +32,13 @@
     "homepage": "https://prometheus.mythslabs.ai",
     "dependencies": {
         "@prometheusavatar/core": "^0.11.3"
+    },
+    "openclaw": {
+        "compat": {
+            "pluginApi": ">=2026.3.23-1"
+        },
+        "build": {
+            "openclawVersion": "2026.7.2"
+        }
     }
 }

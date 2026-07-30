@@ -53,3 +53,17 @@ apps/
 
 # npm per-user/per-project config can carry registry _authToken values — never commit it.
 .npmrc
+
+# 2026-07-29 Lane A · 公开仓暴露面收口（独立审计 R-7）
+# 根因：这些目录未跟踪但也未被忽略，一次 `git add -A` 即把约 14.5 万个文件推上公开仓。
+# 内容为内部工作产物（PAY-01 封存证据 / 并行 worktree / 竞品研究 / 外部贡献草稿），
+# 精确长度密钥扫描为 0 真命中（5 处 sk- 均为 rigmask-/headmask-/risk- 词根误报）。
+overhaul-2026-07/
+marketplace-app-*/
+nat-contribution/
+research/
+.agents/
+docs/plans/
+docs/growth/
+.agent/skills
+docs/公司背景总览_for_Codex.md
