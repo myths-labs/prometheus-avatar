@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * Prometheus Avatar MCP Server (S068 · v0.3.0 · Phase 11 Day 3)
+ * Prometheus Avatar MCP Server (S068 · Phase 11 Day 3 — version lives in package.json only, see PKG_VERSION below)
  *
- * Model Context Protocol server that exposes 9 tools for AI agents
+ * Model Context Protocol server that exposes 10 tools for AI agents
  * to interact with the Prometheus Avatar platform:
  *
  *   1. create_avatar       — Initialize an avatar instance
+ *  1b. set_avatar_state    — Push companion state (thinking/acting/…) to live embeds
  *   2. equip_asset         — Equip a marketplace asset to an avatar
  *   3. generate_asset      — AI-generate a new asset (skin, voice, etc.)
  *  3b. update_asset        — Edit price / metadata of an existing asset
@@ -230,13 +231,44 @@ registerTool(
     "Equip a marketplace asset to the avatar. Changes the avatar's skin, voice, expression, accessories, scene, or persona.",
     {
         asset_id: z.string().describe("The asset ID from the marketplace (UUID format)"),
-        action: z.enum(["equip", "unequip"]).optional().describe("Action to perform (default: 'equip')"),
+        action: z.enum(["equip", "unequip"]).optional().describe("Action to perform (default: 'equip'). NOTE: 'unequip' is NOT supported for agent accounts yet and always fails — to swap, equip another asset of the same category and it replaces the current one."),
     },
     async ({ asset_id, action }) => {
         try {
-            const result = await apiCall("/api/user/inventory", "POST", {
+            if (!API_KEY) {
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: JSON.stringify({
+                            success: false,
+                            error: "PROMETHEUS_API_KEY required",
+                            instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                        }, null, 2),
+                    }],
+                    isError: true,
+                };
+            }
+
+            // The agent equip route has no unequip operation. Say so instead of
+            // silently calling a human-only route that 403s every agent key.
+            if (action === "unequip") {
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: JSON.stringify({
+                            success: false,
+                            error: "unequip is not supported for agent accounts yet",
+                            instructions: "Equipping another asset of the same category replaces the current one, which covers most swap use-cases.",
+                        }, null, 2),
+                    }],
+                    isError: true,
+                };
+            }
+
+            // Agent-key route. The previous target (/api/user/inventory) is
+            // human-session-only and rejects every agent key with 403.
+            const result = await apiCall("/api/agent/equip", "POST", {
                 assetId: asset_id,
-                action: action || "equip",
             });
 
             return {
@@ -469,7 +501,24 @@ registerTool(
     {},
     async () => {
         try {
-            const result = await apiCall("/api/user/inventory");
+            if (!API_KEY) {
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: JSON.stringify({
+                            success: false,
+                            error: "PROMETHEUS_API_KEY required",
+                            instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                        }, null, 2),
+                    }],
+                    isError: true,
+                };
+            }
+
+            // Agent-key route: returns the account avatar, its equipped assets and
+            // embed URL. The previous target (/api/user/inventory) is
+            // human-session-only and rejects every agent key with 403.
+            const result = await apiCall("/api/agent/avatar", "GET");
 
             return {
                 content: [{
