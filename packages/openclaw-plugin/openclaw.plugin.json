@@ -1,7 +1,7 @@
 {
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
-    "version": "0.10.0",
+    "version": "0.10.2",
     "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation for marketplace skin previews. 3 agent tools + bundled skill.",
     "skills": [
         "skills/prometheus-avatar"
@@ -9,11 +9,16 @@
     "type": "tool",
     "author": "Myths Labs",
     "license": "MIT",
-    "repository": "https://github.com/myths-labs/prometheus",
+    "repository": "https://github.com/myths-labs/prometheus-avatar",
     "configSchema": {
         "avatarId": {
             "type": "string",
-            "description": "Avatar model ID from Prometheus Marketplace (or URL to a .model3.json file)",
+            "description": "Reserved: marketplace avatar ID. ID-based model resolution is not available yet — use modelUrl (a .model3.json URL) to pick a model; when only avatarId is set the default model is used.",
+            "required": false
+        },
+        "apiKey": {
+            "type": "string",
+            "description": "Prometheus agent API key (pak_...) used for marketplace deploys. Falls back to the PROMETHEUS_API_KEY environment variable. Get one at prometheus.mythslabs.ai/settings/agent-keys.",
             "required": false
         },
         "modelUrl": {

@@ -7,7 +7,11 @@
 
 export interface AssetDeployConfig {
     name: string;
-    category: 'avatar' | 'voice' | 'backdrop' | 'wearable' | 'animation' | 'personality';
+    /** Marketplace category — must be one of the server's accepted values.
+     *  ("bundles" also exists server-side but needs a bundle_items list this
+     *  payload cannot express, so it is not offered here. "personas" requires
+     *  `description`.) */
+    category: 'skins' | 'voices' | 'effects' | 'motions' | 'accessories' | 'scenes' | 'personas' | 'expressions';
     description?: string;
     price?: number;
     tags?: string[];
@@ -83,13 +87,41 @@ export interface DeploymentResult {
 }
 
 export class AssetCreator {
+    private static readonly DEFAULT_BASE_URL = "https://prometheus.mythslabs.ai";
     private apiBaseUrl: string;
+    private apiKey: string;
 
     /**
      * @param apiBaseUrl Base URL of the Prometheus Marketplace (e.g. "https://prometheus.mythslabs.ai")
+     * @param apiKey     Prometheus agent API key (pak_...). Falls back to the
+     *                   PROMETHEUS_API_KEY environment variable when running in Node —
+     *                   but the env fallback only applies when talking to the default
+     *                   production host, so a caller-supplied apiBaseUrl can never
+     *                   siphon an env credential to another server.
+     *                   Sent as `Authorization: Bearer <key>` on every marketplace call —
+     *                   the live deploy gate rejects unauthenticated writes, so deploys
+     *                   without a key fail with 401.
+     *                   Browser note: when an Authorization header is present the server
+     *                   authenticates the agent account exclusively (it does not fall
+     *                   back to the session cookie), so passing an invalid key fails
+     *                   with 401 even inside a logged-in browser session, and a valid
+     *                   key attributes writes to the agent account, not the human one.
      */
-    constructor(apiBaseUrl: string = "https://prometheus.mythslabs.ai") {
+    constructor(apiBaseUrl: string = AssetCreator.DEFAULT_BASE_URL, apiKey?: string) {
         this.apiBaseUrl = apiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
+        // globalThis guard: this SDK also runs in browsers, where `process` does not exist.
+        const envKey = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PROMETHEUS_API_KEY;
+        this.apiKey = apiKey
+            ?? (this.apiBaseUrl === AssetCreator.DEFAULT_BASE_URL ? envKey : undefined)
+            ?? '';
+    }
+
+    /** JSON headers with Authorization attached when an API key is configured. */
+    private headers(): Record<string, string> {
+        return {
+            'Content-Type': 'application/json',
+            ...(this.apiKey ? { 'Authorization': `Bearer ${this.apiKey}` } : {}),
+        };
     }
 
     /**
@@ -114,7 +146,7 @@ export class AssetCreator {
 
         const res = await fetch(`${this.apiBaseUrl}/api/marketplace/deploy`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.headers(),
             body: JSON.stringify(payload)
         });
 
@@ -134,7 +166,7 @@ export class AssetCreator {
     async generateThumbnail(options: ImageGenerationOptions): Promise<string> {
         const res = await fetch(`${this.apiBaseUrl}/api/creator/generate-image`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.headers(),
             body: JSON.stringify(options)
         });
 
@@ -194,7 +226,7 @@ export class AssetCreator {
 
         const res = await fetch(`${this.apiBaseUrl}/api/creator/generate-image-pro`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this.headers(),
             body: JSON.stringify({
                 prompt: options.prompt,
                 style: options.style,

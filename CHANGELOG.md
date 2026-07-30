@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
+
+### ⚠️ Release order (hard dependency — do not publish out of order)
+
+1. **Backend first**: the Prometheus platform must be running a build that includes
+   `POST /api/agent/avatar/state` (used by the new `set_avatar_state` tool) and the
+   `/settings/agent-keys` self-serve key page (linked from every key-guidance message).
+   Publishing the packages before that deploy makes the flagship tool 404 and every
+   key link a dead link.
+2. **`@prometheusavatar/core@0.11.3`** — must reach npm **before** the plugin:
+   `openclaw-plugin@0.10.2` declares `^0.11.3`, so publishing the plugin first makes
+   every fresh install fail with ETARGET.
+3. **`@prometheusavatar/mcp-server@0.3.5`**, then **`@prometheusavatar/openclaw-plugin@0.10.2`**.
+
+### Added
+- **core**: `AssetCreator` accepts an agent API key (2nd constructor arg, falls back to
+  `PROMETHEUS_API_KEY` env var on the default production host only) and sends
+  `Authorization: Bearer` on deploy / thumbnail / image calls — the live marketplace
+  gate rejects unauthenticated writes, so deploys without this always failed with 401.
+- **mcp-server**: `set_avatar_state` tool (10 tools total) — pushes companion state
+  (thinking/acting/listening/done) + emotion to live embeds.
+- **openclaw-plugin**: `apiKey` config option; creator tools now register in headless
+  (no-container) environments instead of being silently dropped.
+
+### Fixed
+- **mcp-server**: `equip_asset` and `get_avatar_status` now call the agent-key routes
+  (`/api/agent/equip`, `GET /api/agent/avatar`) instead of a human-session-only route
+  that rejected every agent key with 403.
+- **core / openclaw-plugin**: marketplace deploy categories now match the server's
+  accepted values (`skins`/`voices`/`effects`/`motions`/`accessories`/`scenes`/`personas`/`expressions`) —
+  the previous enum had zero overlap with the server and every deploy failed with 400.
+- Stale version carriers aligned (plugin manifest 0.10.0→0.10.2, root README badge and
+  tool count, per-package npm lockfiles removed in favor of `pnpm-lock.yaml`).
+
+---
+
 ## [1.0.0] — 2026-03-09
 
 ### 🎉 First Public Release

@@ -31,8 +31,8 @@ Add to your `openclaw.config.json`:
 {
   "plugins": {
     "prometheus-avatar": {
-      "avatarId": "haru",
-      "ttsProvider": "web-speech",
+      "modelUrl": "https://your-cdn.example/models/your-model.model3.json",
+      "apiKey": "pak_...",
       "enableLipSync": true,
       "enableEmotion": true
     }
@@ -42,7 +42,8 @@ Add to your `openclaw.config.json`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `avatarId` | `string` | — | Avatar model ID from Prometheus Marketplace |
+| `avatarId` | `string` | — | Reserved — ID-based model resolution is not available yet; use `modelUrl` (when only `avatarId` is set the default model is used) |
+| `apiKey` | `string` | `PROMETHEUS_API_KEY` env var | Prometheus agent API key (`pak_...`) — required for marketplace deploys (the live gate rejects unauthenticated writes). Get one at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) |
 | `modelUrl` | `string` | Haru (default) | Direct URL to a `.model3.json` file |
 | `ttsProvider` | `string` | — | **DEPRECATED in v0.10.0** — ignored. TTS is now delegated to the Prometheus SDK. |
 | `ttsVoice` | `string` | — | Prometheus Marketplace voice ID (e.g. `saturn_zh_female_keainvsheng_tob`). Browse voices at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace) |
@@ -101,8 +102,8 @@ Returns 1024×1536 base64 image (or `publicUrl` when `upload: true`) — ready t
 ## 🌍 Ecosystem
 
 - **OpenClaw** — Merged into the official [community plugin registry](https://github.com/openclaw/openclaw/pull/52752) (4/21/2026, by Peter Steinberger)
-- **Hermes Agent** — Plugin PR in queue at [`NousResearch/hermes-agent#9773`](https://github.com/NousResearch/hermes-agent/pull/9773)
-- **Cursor / Claude Code / Any MCP Client** — Use the [`@prometheusavatar/mcp-server`](https://www.npmjs.com/package/@prometheusavatar/mcp-server) (9 tools) for direct MCP access to the same image engine
+- **Hermes Agent** — Avatar skill PR submitted at [`NousResearch/hermes-agent#9754`](https://github.com/NousResearch/hermes-agent/pull/9754)
+- **Cursor / Claude Code / Any MCP Client** — Use the [`@prometheusavatar/mcp-server`](https://www.npmjs.com/package/@prometheusavatar/mcp-server) (10 tools) for direct MCP access to the same image engine
 
 ## 🔗 Links
 
