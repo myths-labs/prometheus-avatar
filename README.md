@@ -126,6 +126,14 @@ Or add to `claude_desktop_config.json`:
 
 10 tools available: `create_avatar`, `set_avatar_state`, `equip_asset`, `generate_asset`, `update_asset`, `generate_image_pro`, `list_marketplace`, `get_avatar_status`, `share_avatar`, `speak`.
 
+### 🧚 Agent Skill — summon a companion in one sentence
+
+No MCP server? Any coding agent that reads skills (Claude Code, Codex, and other AgentSkills-compatible agents) can drive an avatar over plain HTTP with the bundled [`prometheus-companion` skill](skills/prometheus-companion/SKILL.md) — your agent creates an avatar, hands you the embed link, and pushes its real task state (thinking / acting / done) to it while it works.
+
+```bash
+mkdir -p ~/.claude/skills/prometheus-companion && curl -fsSL https://raw.githubusercontent.com/myths-labs/prometheus-avatar/main/skills/prometheus-companion/SKILL.md -o ~/.claude/skills/prometheus-companion/SKILL.md
+```
+
 ## 🏗️ Architecture
 
 ```mermaid
