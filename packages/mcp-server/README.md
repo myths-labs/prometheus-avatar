@@ -6,12 +6,13 @@ Give any AI agent an embodied Live2D avatar via [Model Context Protocol](https:/
 npx @prometheusavatar/mcp-server
 ```
 
-## 9 Tools
+## 10 Tools
 
 | Tool | Description |
 |------|-------------|
 | `create_avatar` | Initialize a new avatar instance with model, voice, and persona |
-| `equip_asset` | Equip/unequip marketplace assets (skins, voices, effects, etc.) |
+| `set_avatar_state` | **NEW v0.3.5** Push companion state (thinking/acting/listening/done) + emotion to live embeds — open embed pages pick it up within ~3s |
+| `equip_asset` | Equip a purchased marketplace asset (skins, voices, effects, etc.) — unequip is not supported for agent accounts yet; equipping in the same category replaces |
 | `generate_asset` | AI-generate new assets from text prompts (persona, expression, scene, etc.) |
 | `update_asset` | Edit price, name, description, tags, or license of an existing marketplace asset |
 | `generate_image_pro` | **NEW v0.3** AAA-quality image generation (skin preview cards / posters / UI mocks / XHS carousels) · BYOK · Free quota · Pro Credits |
@@ -33,6 +34,7 @@ Add to `claude_desktop_config.json`:
       "command": "npx",
       "args": ["-y", "@prometheusavatar/mcp-server"],
       "env": {
+        "PROMETHEUS_API_KEY": "pak_your-agent-key",
         "GEMINI_API_KEY": "your-key-here"
       }
     }
@@ -56,7 +58,7 @@ Add to `claude_desktop_config.json`:
 | `GEMINI_API_KEY` | For `generate_asset` | API key for asset generation |
 | `OPENAI_API_KEY` | For `generate_image_pro` (BYOK) | Your image-provider API key for BYOK — without this, platform Free quota / Pro Credits routes apply |
 | `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`) |
-| `PROMETHEUS_API_KEY` | No | API key for authenticated operations |
+| `PROMETHEUS_API_KEY` | For `create_avatar` / `set_avatar_state` / `equip_asset` / `get_avatar_status` / `speak` | Your `pak_` agent key — sign in at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) and click Generate key (shown once) |
 
 ## Example Conversation
 

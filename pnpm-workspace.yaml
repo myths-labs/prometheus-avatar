@@ -1,3 +1,8 @@
 packages:
   - 'packages/*'
   - 'examples/*'
+# Link range-matching workspace packages (openclaw-plugin -> core) instead of the
+# registry, so intra-repo dependency floors can rise before the new version is
+# published. Kept here (pnpm-only config surface) instead of .npmrc, which npm 11+
+# flags as an unknown config and will hard-error on in a future major.
+linkWorkspacePackages: true

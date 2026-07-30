@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * Prometheus Avatar MCP Server (S068 · v0.3.0 · Phase 11 Day 3)
+ * Prometheus Avatar MCP Server (S068 · Phase 11 Day 3 — version lives in package.json only, see PKG_VERSION below)
  *
- * Model Context Protocol server that exposes 9 tools for AI agents
+ * Model Context Protocol server that exposes 10 tools for AI agents
  * to interact with the Prometheus Avatar platform:
  *
  *   1. create_avatar       — Initialize an avatar instance
+ *  1b. set_avatar_state    — Push companion state (thinking/acting/…) to live embeds
  *   2. equip_asset         — Equip a marketplace asset to an avatar
  *   3. generate_asset      — AI-generate a new asset (skin, voice, etc.)
  *  3b. update_asset        — Edit price / metadata of an existing asset
@@ -112,7 +113,7 @@ registerTool(
                     text: JSON.stringify({
                         success: false,
                         error: "PROMETHEUS_API_KEY required",
-                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Register for one at https://prometheus.mythslabs.ai (POST /api/agent/register with a name + email).",
+                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
                     }, null, 2),
                 }],
                 isError: true,
@@ -163,6 +164,65 @@ registerTool(
 );
 
 // ═══════════════════════════════════════════════════════════════
+// Tool 1.5: set_avatar_state (S304-A1 batch 2)
+// ═══════════════════════════════════════════════════════════════
+
+registerTool(
+    "set_avatar_state",
+    "Push a companion task state (or a direct emotion) onto your avatar. Any ALREADY-OPEN embed page follows within ~3 seconds — the avatar's expression and motion change live. Use this to make the avatar accompany real work: set 'listening' when waiting for user input, 'thinking' while working, 'acting' while executing, 'done' on completion.",
+    {
+        state: z.enum(["listening", "thinking", "acting", "done"]).optional()
+            .describe("Agent task state. listening: attentive idle · thinking: pondering · acting: focused work · done: celebrate"),
+        emotion: z.enum(["happy", "sad", "angry", "surprised", "thinking", "neutral"]).optional()
+            .describe("Direct emotion override (takes effect when no state is given, or alongside it)"),
+    },
+    async ({ state, emotion }) => {
+        if (!API_KEY) {
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: false,
+                        error: "PROMETHEUS_API_KEY required",
+                        instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                    }, null, 2),
+                }],
+                isError: true,
+            };
+        }
+        if (!state && !emotion) {
+            return {
+                content: [{ type: "text" as const, text: "Provide state and/or emotion." }],
+                isError: true,
+            };
+        }
+        try {
+            const result = await apiCall("/api/agent/avatar/state", "POST", {
+                ...(state ? { state } : {}),
+                ...(emotion ? { emotion } : {}),
+            }) as { avatarId: string; companionState: Record<string, string> };
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        success: true,
+                        avatar_id: result.avatarId,
+                        companion_state: result.companionState,
+                        instructions: "Open embed pages for this avatar pick the state up within ~3 seconds.",
+                    }, null, 2),
+                }],
+            };
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            return {
+                content: [{ type: "text" as const, text: `Error setting avatar state: ${errMsg}` }],
+                isError: true,
+            };
+        }
+    }
+);
+
+// ═══════════════════════════════════════════════════════════════
 // Tool 2: equip_asset
 // ═══════════════════════════════════════════════════════════════
 
@@ -171,13 +231,44 @@ registerTool(
     "Equip a marketplace asset to the avatar. Changes the avatar's skin, voice, expression, accessories, scene, or persona.",
     {
         asset_id: z.string().describe("The asset ID from the marketplace (UUID format)"),
-        action: z.enum(["equip", "unequip"]).optional().describe("Action to perform (default: 'equip')"),
+        action: z.enum(["equip", "unequip"]).optional().describe("Action to perform (default: 'equip'). NOTE: 'unequip' is NOT supported for agent accounts yet and always fails — to swap, equip another asset of the same category and it replaces the current one."),
     },
     async ({ asset_id, action }) => {
         try {
-            const result = await apiCall("/api/user/inventory", "POST", {
+            if (!API_KEY) {
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: JSON.stringify({
+                            success: false,
+                            error: "PROMETHEUS_API_KEY required",
+                            instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                        }, null, 2),
+                    }],
+                    isError: true,
+                };
+            }
+
+            // The agent equip route has no unequip operation. Say so instead of
+            // silently calling a human-only route that 403s every agent key.
+            if (action === "unequip") {
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: JSON.stringify({
+                            success: false,
+                            error: "unequip is not supported for agent accounts yet",
+                            instructions: "Equipping another asset of the same category replaces the current one, which covers most swap use-cases.",
+                        }, null, 2),
+                    }],
+                    isError: true,
+                };
+            }
+
+            // Agent-key route. The previous target (/api/user/inventory) is
+            // human-session-only and rejects every agent key with 403.
+            const result = await apiCall("/api/agent/equip", "POST", {
                 assetId: asset_id,
-                action: action || "equip",
             });
 
             return {
@@ -410,7 +501,24 @@ registerTool(
     {},
     async () => {
         try {
-            const result = await apiCall("/api/user/inventory");
+            if (!API_KEY) {
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: JSON.stringify({
+                            success: false,
+                            error: "PROMETHEUS_API_KEY required",
+                            instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                        }, null, 2),
+                    }],
+                    isError: true,
+                };
+            }
+
+            // Agent-key route: returns the account avatar, its equipped assets and
+            // embed URL. The previous target (/api/user/inventory) is
+            // human-session-only and rejects every agent key with 403.
+            const result = await apiCall("/api/agent/avatar", "GET");
 
             return {
                 content: [{
@@ -526,7 +634,7 @@ registerTool(
                     text: JSON.stringify({
                         success: false,
                         error: "PROMETHEUS_API_KEY required",
-                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Register at https://prometheus.mythslabs.ai (POST /api/agent/register).",
+                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
                     }, null, 2),
                 }],
                 isError: true,

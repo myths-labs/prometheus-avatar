@@ -50,3 +50,6 @@ docs/internal/
 supabase/
 apps/
 .env*
+
+# npm per-user/per-project config can carry registry _authToken values — never commit it.
+.npmrc

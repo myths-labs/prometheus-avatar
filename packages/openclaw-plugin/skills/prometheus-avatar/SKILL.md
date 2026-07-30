@@ -73,7 +73,7 @@ Lighter thumbnails for non-AAA contexts. Faster and cheaper than `prometheus_gen
 
 ### `prometheus_deploy_asset`
 
-Push a generated asset (voice / skin / effect) to the Prometheus Marketplace catalog. Requires `name`, `category`, `description`, `fileData` (URL or base64), and `thumbnailData` (use `prometheus_generate_thumbnail` first if no thumbnail exists).
+Push a generated asset to the Prometheus Marketplace catalog. Category must be one of `skins` / `voices` / `effects` / `motions` / `accessories` / `scenes` / `personas` / `expressions`. Requires `name`, `category`, and `fileData` (URL or base64); `description` and `thumbnailData` are optional but recommended (`description` is mandatory for `personas`; use `prometheus_generate_thumbnail` first if no thumbnail exists). Deploying requires a Prometheus agent API key — set the `apiKey` plugin config or the `PROMETHEUS_API_KEY` environment variable.
 
 ## Avatar events (automatic · no tool call needed)
 

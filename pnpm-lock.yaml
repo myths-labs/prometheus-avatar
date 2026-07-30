@@ -17,6 +17,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.12.1
         version: 1.28.0(zod@4.3.6)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -31,7 +34,7 @@ importers:
   packages/openclaw-plugin:
     dependencies:
       '@prometheusavatar/core':
-        specifier: workspace:*
+        specifier: ^0.11.3
         version: link:../sdk
 
   packages/sdk:

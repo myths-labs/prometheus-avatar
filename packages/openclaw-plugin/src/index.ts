@@ -13,6 +13,9 @@ import type { PrometheusConfig, AssetDeployConfig } from '@prometheusavatar/core
 interface OpenClawPluginConfig {
     avatarId?: string;
     modelUrl?: string;
+    /** Prometheus agent API key (pak_...). Required for marketplace deploys — the live
+     *  gate rejects unauthenticated writes. Falls back to PROMETHEUS_API_KEY env var. */
+    apiKey?: string;
     ttsProvider?: string;
     ttsVoice?: string;
     enableLipSync?: boolean;
@@ -41,69 +44,22 @@ export async function activate(context: {
 }) {
     const { config, container, on, emit } = context;
 
-    // Resolve model URL
-    const modelUrl = config.modelUrl
-        || (config.avatarId
-            ? `https://marketplace.prometheus-avatar.dev/api/models/${config.avatarId}`
-            : '/models/haru/haru_greeter_t03.model3.json'); // default
-
-    if (!container) {
-        console.warn('[Prometheus Plugin] No container provided. Avatar will not render.');
-        return;
-    }
-
-    // Create avatar instance
-    let avatar: PrometheusAvatar;
-
-    try {
-        avatar = await createAvatar({
-            container,
-            modelUrl,
-            ttsOptions: {
-                voice: config.ttsVoice,
-            },
-        });
-
-        emit('avatar:ready', { modelUrl });
-    } catch (error) {
-        console.error('[Prometheus Plugin] Failed to initialize:', error);
-        return;
-    }
-
-    // Listen for agent messages → drive avatar
-    on('agent:message', async (event: OpenClawEvent) => {
-        const text = event.data?.text;
-        if (!text) return;
-
-        try {
-            // Process text for emotion (always)
-            if (config.enableEmotion !== false) {
-                avatar.processText(text);
-            }
-
-            // Speak the text (with TTS + lip sync)
-            if (config.enableLipSync !== false) {
-                await avatar.speak(text);
-                emit('avatar:speak', { text });
-            }
-        } catch (error) {
-            console.error('[Prometheus Plugin] Error processing message:', error);
-        }
-    });
-
-    // Agent thinking → show thinking expression
-    on('agent:thinking', () => {
-        avatar.setEmotion('thinking');
-    });
-
-    // Agent error → show surprised expression
-    on('agent:error', () => {
-        avatar.setEmotion('surprised');
-    });
-
-    // ═══ Register Creator Tools ═══
+    // ═══ Register Creator Tools (headless-safe) ═══
+    // Registered BEFORE any rendering concern: a Node/headless OpenClaw agent
+    // has no DOM container, and the old order (container guard first) silently
+    // dropped all creator tools in exactly the environment agents run in.
     if (context.registerTool) {
-        const creator = new AssetCreator(); // uses default prod URL
+        // Resolve the agent API key: plugin config first, then env var (Node only).
+        // AssetCreator attaches it as `Authorization: Bearer <key>` — without it the
+        // live marketplace deploy gate returns 401.
+        const configuredApiKey = config.apiKey
+            ?? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PROMETHEUS_API_KEY;
+        const creator = new AssetCreator("https://prometheus.mythslabs.ai", configuredApiKey);
+        // Capability probe: cores older than 0.11.3 have a one-arg constructor, so
+        // plain JS silently drops the key argument and every deploy 401s with a
+        // misleading "missing key" message even though the user configured one.
+        // 0.11.3+ always sets an `apiKey` own-property (even when empty).
+        const coreCarriesApiKey = Object.prototype.hasOwnProperty.call(creator, "apiKey");
 
         context.registerTool(
             "prometheus_generate_thumbnail",
@@ -125,12 +81,12 @@ export async function activate(context: {
 
         context.registerTool(
             "prometheus_deploy_asset",
-            "Instantly deploy a new asset to the Prometheus Marketplace. Use this when you have created a new voice, backdrop, or Live2D model.",
+            "Instantly deploy a new asset to the Prometheus Marketplace. Use this when you have created a new skin, voice, scene, motion, expression, accessory, effect, or persona.",
             {
                 type: "object",
                 properties: {
                     name: { type: "string" },
-                    category: { type: "string", enum: ['avatar', 'voice', 'backdrop', 'wearable', 'animation', 'personality'] },
+                    category: { type: "string", enum: ['skins', 'voices', 'effects', 'motions', 'accessories', 'scenes', 'personas', 'expressions'] },
                     description: { type: "string" },
                     price: { type: "number" },
                     fileData: { type: "string", description: "URL or Base64 string of the actual asset file" },
@@ -140,6 +96,20 @@ export async function activate(context: {
                 required: ["name", "category", "fileData"]
             },
             async (args) => {
+                if (!configuredApiKey) {
+                    return {
+                        success: false,
+                        error: "API key required",
+                        instructions: "Set the `apiKey` plugin config (or the PROMETHEUS_API_KEY environment variable) to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                    };
+                }
+                if (!coreCarriesApiKey) {
+                    return {
+                        success: false,
+                        error: "@prometheusavatar/core is too old for authenticated deploys",
+                        instructions: "The installed @prometheusavatar/core predates 0.11.3, so it cannot attach your API key (the argument is silently dropped and deploys 401). Reinstall dependencies so core resolves to >=0.11.3, e.g. `rm -rf node_modules && npm install`.",
+                    };
+                }
                 console.log(`[Prometheus Plugin] Deploying asset: ${args.name}...`);
                 const config: AssetDeployConfig = {
                     name: args.name,
@@ -220,6 +190,70 @@ export async function activate(context: {
             }
         );
     }
+
+
+    // Resolve model URL. avatarId → model-URL resolution has no live endpoint
+    // (the old marketplace.prometheus-avatar.dev resolver never shipped, and no
+    // /api/models route exists in production), so don't fabricate a URL that can
+    // only 404 — warn and fall back to the default model instead.
+    if (!config.modelUrl && config.avatarId) {
+        console.warn('[Prometheus Plugin] avatarId-based model resolution is not available yet — pass modelUrl (a .model3.json URL) instead. Using the default model.');
+    }
+    const modelUrl = config.modelUrl || '/models/haru/haru_greeter_t03.model3.json'; // default
+
+    if (!container) {
+        console.warn('[Prometheus Plugin] No container provided. Avatar will not render; creator tools remain available.');
+        return;
+    }
+
+    // Create avatar instance
+    let avatar: PrometheusAvatar;
+
+    try {
+        avatar = await createAvatar({
+            container,
+            modelUrl,
+            ttsOptions: {
+                voice: config.ttsVoice,
+            },
+        });
+
+        emit('avatar:ready', { modelUrl });
+    } catch (error) {
+        console.error('[Prometheus Plugin] Failed to initialize:', error);
+        return;
+    }
+
+    // Listen for agent messages → drive avatar
+    on('agent:message', async (event: OpenClawEvent) => {
+        const text = event.data?.text;
+        if (!text) return;
+
+        try {
+            // Process text for emotion (always)
+            if (config.enableEmotion !== false) {
+                avatar.processText(text);
+            }
+
+            // Speak the text (with TTS + lip sync)
+            if (config.enableLipSync !== false) {
+                await avatar.speak(text);
+                emit('avatar:speak', { text });
+            }
+        } catch (error) {
+            console.error('[Prometheus Plugin] Error processing message:', error);
+        }
+    });
+
+    // Agent thinking → show thinking expression
+    on('agent:thinking', () => {
+        avatar.setEmotion('thinking');
+    });
+
+    // Agent error → show surprised expression
+    on('agent:error', () => {
+        avatar.setEmotion('surprised');
+    });
 
     // Return cleanup function
     return () => {
