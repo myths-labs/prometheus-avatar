@@ -97,15 +97,23 @@ function spendsPlatformCredentials(engineName: string, params: URLSearchParams):
         case "grok":
             return false;
 
-        // BYOK-capable engines: the gate MUST mirror each engine's own key
-        // resolution exactly. doubao and asr forward accessKey verbatim (no trim,
-        // no env fallback on a non-empty value), so a whitespace accessKey stays
-        // BYOK. fish resolves `token?.trim() || env.FISH_AUDIO_API_KEY`, so the
-        // gate has to trim identically -- otherwise `?token=%20` reads as BYOK
-        // here, as platform there, and walks through spending our key.
+        // BYOK-capable engines: the gate must mirror each engine's own key
+        // resolution exactly -- EVERY axis of it, not the first one.
+        //
+        // doubao and asr each resolve TWO credentials with an env fallback:
+        //   accessKey = params.accessKey || env.VOLCENGINE_API_KEY
+        //   appId     = params.appId     || env.VOLCENGINE_APP_ID
+        // Checking only accessKey meant `?accessKey=anything` read as BYOK here
+        // and skipped the ticket, while the header below still attached OUR
+        // platform App ID upstream. Caller-supplied has to mean caller-supplied
+        // on both, or it is not the caller's request being paid for.
+        //
+        // fish resolves one: `token?.trim() || env.FISH_AUDIO_API_KEY`. It must
+        // trim identically or `?token=%20` reads as BYOK here and as platform
+        // there, and walks straight through spending our key.
         case "doubao":
         case "asr":
-            return !params.get("accessKey");
+            return !params.get("accessKey") || !params.get("appId");
         case "fish":
             return !params.get("token")?.trim();
 
