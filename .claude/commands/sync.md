@@ -1,1 +1,0 @@
-../../.agent/workflows/sync.md

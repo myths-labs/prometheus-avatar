@@ -67,3 +67,10 @@ docs/plans/
 docs/growth/
 .agent/skills
 docs/公司背景总览_for_Codex.md
+
+# Internal agent/SOP working files — local only (2026-08-16).
+# These carried the author's absolute machine paths into a public,
+# forked repo. They are MUSE workflow docs, not project source; the
+# canonical copies live in the MUSE repo. Kept on disk, untracked here.
+.agent/
+.claude/commands/

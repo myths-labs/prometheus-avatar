@@ -8,8 +8,20 @@
 ## 项目概述
 开源 SDK 让 LLM 输出驱动 Live2D/3D Avatar + Marketplace（创作者上传→租赁/售卖→平台抽佣）
 
+## 📁 本地根路径（占位符）
+
+这些工作区在每个人机器上的位置不同，所以本文件用占位符引用，不写死绝对路径。
+按你自己的检出位置解析：
+
+| 占位符 | 指向 |
+|--------|------|
+| `${DYA_ROOT}` | DYA 工作区（MUSE 角色文件 `.muse/` 与共享 `.agent/skills/` 所在） |
+| `${MUSE_ROOT}` | MUSE 开源仓 |
+| `${PROMETHEUS_ROOT}` | 本仓（Prometheus）的检出位置 |
+| `${VAULT_ROOT}` | Obsidian vault（可选层·不存在则静默跳过） |
+
 ## MUSE 角色文件
-- **战略**: `/Users/jj/Desktop/DYA/.muse/strategy.md` (S021 条目)
+- **战略**: `${DYA_ROOT}/.muse/strategy.md` (S021 条目)
 - **开发**: 本项目 `.muse/build.md`
 - **增长**: 本项目 `.muse/growth.md`
 - **QA**: 本项目 `.muse/qa.md`
@@ -22,8 +34,8 @@
 
 ## Skill-Driven Execution — 强制执行
 - **铁律**: 动手前扫描 Skills，1% 可能相关就必须先读 `SKILL.md`。
-- **Skills 位置**: `.agent/skills/` → symlink → `/Users/jj/Desktop/DYA/.agent/skills/`
-  - symlink 失效时用绝对路径: `/Users/jj/Desktop/DYA/.agent/skills/[name]/SKILL.md`
+- **Skills 位置**: `.agent/skills/` → symlink → `${DYA_ROOT}/.agent/skills/`
+  - symlink 失效时用绝对路径: `${DYA_ROOT}/.agent/skills/[name]/SKILL.md`
 - **速查表**:
   | 任务 | Skill |
   |------|-------|
@@ -32,6 +44,7 @@
   | 新功能 | `brainstorming` → `planner-agent` → `tdd-workflow` |
   | Git/PR | `git-commit`, `github-pr-creation` |
   | 调试 | `systematic-debugging`, `build-error-resolver` |
+  | MUSE 命令（`/resume`、`/bye` 等） | `muse-commands` |
   | 恢复上下文 | `MUSE 角色系统`（读 .muse/build.md） |
   | **完成验证** | **`verification-before-completion`**（AC-first + Judge verdict） |
 - ❌ 禁止「太简单不需要 Skill」「先做完再查」
@@ -119,4 +132,4 @@
 
 ---
 
-> 📌 通用规则同步自 `/Users/jj/Desktop/DYA/AGENTS.md` (2026-03-11)。DYA 宪法修改后需手动同步。
+> 📌 通用规则同步自 `${DYA_ROOT}/AGENTS.md` (2026-03-11)。DYA 宪法修改后需手动同步。
