@@ -12,7 +12,7 @@
         "node": ">=18.0.0",
         "pnpm": ">=8.0.0"
     },
-    "packageManager": "pnpm@9.15.0",
+    "packageManager": "pnpm@10.34.5",
     "dependencies": {
         "jsonwebtoken": "^9.0.3"
     }
