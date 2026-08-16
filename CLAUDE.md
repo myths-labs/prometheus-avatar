@@ -1,16 +1,29 @@
 # 🔴 偷懒弄虚作假 = 把你删掉。不完整执行 SOP、跳步骤、擅自作主、未经授权修改代码 = 最严重违规。
-# ⚡ 6 条铁律（每次对话必须记住，违反 = 最高优先级 bug）
+# ⚡ 7 条铁律（每次对话必须记住，违反 = 最高优先级 bug）
 # 1. 简体中文对话 | 2. 动手前先查 Skill | 3. 大文件只看局部（≤300行）
 # 4. 上下文≥80%立即退出 | 5. 完成前必须跑验证+QA（禁止假功能）
 # 6. QA 必须深度测试每个交互流程（HTTP 200 ≠ QA 通过）— 见「深度 QA 循环」
+# 7. 禁止从单一信号外推系统/架构事实（cite-or-abstain）— 见「反外推铁律」
 
 # Prometheus — AI Avatar 具身智能 SDK + Marketplace
 
 ## 项目概述
 开源 SDK 让 LLM 输出驱动 Live2D/3D Avatar + Marketplace（创作者上传→租赁/售卖→平台抽佣）
 
+## 📁 本地根路径（占位符）
+
+这些工作区在每个人机器上的位置不同，所以本文件用占位符引用，不写死绝对路径。
+按你自己的检出位置解析：
+
+| 占位符 | 指向 |
+|--------|------|
+| `${DYA_ROOT}` | DYA 工作区（MUSE 角色文件 `.muse/` 与共享 `.agent/skills/` 所在） |
+| `${MUSE_ROOT}` | MUSE 开源仓 |
+| `${PROMETHEUS_ROOT}` | 本仓（Prometheus）的检出位置 |
+| `${VAULT_ROOT}` | Obsidian vault（可选层·不存在则静默跳过） |
+
 ## MUSE 角色文件
-- **战略**: `/Users/jj/Desktop/DYA/.muse/strategy.md` (S021 条目)
+- **战略**: `${DYA_ROOT}/.muse/strategy.md` (S021 条目)
 - **开发**: 本项目 `.muse/build.md`
 - **增长**: 本项目 `.muse/growth.md`
 - **QA**: 本项目 `.muse/qa.md`
@@ -23,8 +36,8 @@
 
 ## Skill-Driven Execution — 强制执行
 - **铁律**: 动手前扫描 Skills，1% 可能相关就必须先读 `SKILL.md`。
-- **Skills 位置**: `.agent/skills/` → symlink → `/Users/jj/Desktop/DYA/.agent/skills/`
-  - symlink 失效时用绝对路径: `/Users/jj/Desktop/DYA/.agent/skills/[name]/SKILL.md`
+- **Skills 位置**: `.agent/skills/` → symlink → `${DYA_ROOT}/.agent/skills/`
+  - symlink 失效时用绝对路径: `${DYA_ROOT}/.agent/skills/[name]/SKILL.md`
 - **速查表**:
   | 任务 | Skill |
   |------|-------|
@@ -43,6 +56,7 @@
   | **UI 品质/图标** | **`ui-skills`** / **`better-icons`**（200+ 图标库检索） |
   | **设计/动效** | **`taste-skill`** / **`design-motion-principles`** / **`canvas-design`** |
   | **网页版 Deck/PPT** | **`frontend-slides`**（零依赖 HTML 演示 + PPT 转 web + 12 预设主题 + Vercel 部署 + PDF 导出） |
+  | **Forge 架构/生产断言** | 先读 `marketplace-app/docs/FORGE_ARCHITECTURE.md` + 守「反外推铁律」（禁单一信号外推） |
 - ❌ 禁止「太简单不需要 Skill」「先做完再查」
 - 安装/更新 Skill 后必须同步更新速查表。
 
@@ -50,7 +64,7 @@
 - **Internal 操作**（读文件/搜索/写代码/组织）→ 直接执行
 - **External 操作**（发邮件/发帖/任何"离开机器"的动作）→ ✅ 必须先确认
 - **破坏性操作**（重构/删除/架构改动）→ ✅ 必须用户确认。`trash` > `rm`
-- **🚨 strategy.md 跨项目写入铁律**: `/Users/jj/Desktop/DYA/.muse/strategy.md` 是全局战略中枢。任何项目（DYA/Prometheus/MUSE/Airachne）、任何角色（QA/BUILD/GROWTH/GM）均可直接读写。"不在当前 workspace" 绝不是拒绝写入的理由。
+- **🚨 strategy.md 跨项目写入铁律**: `${DYA_ROOT}/.muse/strategy.md` 是全局战略中枢。任何项目（DYA/Prometheus/MUSE/Airachne）、任何角色（QA/BUILD/GROWTH/GM）均可直接读写。"不在当前 workspace" 绝不是拒绝写入的理由。
 
 ## 🔴 安全红线（最高宪法 · 2026-03-21 安全事件后新增）
 
@@ -62,7 +76,7 @@
 | `.env.local` / `.env.prod*` / `.env.vercel*` | 含真实 API Key |
 | `.muse/` / `.agent/` / `.gemini/` / `memory/` / `convo/` | 内部文件 |
 | `*.pem` / `*.p12` / `*.jks` / `*.key` | 私钥/证书 |
-| 任何含 `sk-` / `AIzaSy` / `gsk_` / `sk_test_` / `pk_test_` / `eyJhbG` 的文件 | API Key / JWT |
+| 任何含 `sk-` / `AIzaSy` / `AQ.`（Google 新格式·2026-08-09 补·此前全体扫描器只认 AIzaSy）/ `xai-` / `gsk_` / `sk_test_` / `pk_test_` / `eyJhbG` 的文件 | API Key / JWT |
 
 ### Git Commit/Push 前强制检查
 1. `git diff --cached --name-only` — 确认无敏感文件
@@ -98,12 +112,22 @@
 
 ### 代码规范
 - MIT License | 代码注释英文 | README 中英双语
-- 包名: `@prometheus-avatar/sdk`
+- 包名（npm 实证 2026-06-22）: `@prometheusavatar/core`（SDK·v0.11.1）+ `@prometheusavatar/mcp-server`（v0.3.1）+ `@prometheusavatar/openclaw-plugin`。⚠️ 旧值 `@prometheus-avatar/sdk` 已 404 不存在，勿用。
 
 ### 真实性原则（最高宪法）
 - **永远不允许**假功能/假支付/假验证/Coming Soon 占位符。
 - 功能必须**真实完成+真实验证+真实可用**。支付走真实链上/Stripe。
 - 当轮做不完 → **不做**，禁止用假的占位。违反 = 最严重 bug。
+
+### 反外推铁律（最高宪法 · cite-or-abstain · 2026-06-21 neural4d 幻觉事件后新增）
+
+> **事件**: agent 跑一次 `vercel env ls` 没看到 NEURAL4D token，就外推断言「生产不跑 neural4d」——而 token 在 `~/.config/prometheus/neural4d.env`，neural4d 是生产主链。从单一信号外推生产架构事实，是与「假功能」同级的弄虚作假。
+
+- 关于**生产架构 / 系统行为 / 数值 / 路径**的任何断言，必须附**证据锚点**（file:line / 命令输出 / grep 结果）。无锚点 = 必须标注「假设·未验证」并先去验证。证据不足时说「我没有足够证据」，**禁止外推**。
+- **禁止从单一信号断言「生产不用某技术 X」**：env key 在一个 scope 缺失 ≠ 所有 scope 缺失。生产架构跨多 scope：Vercel production/preview、`~/.config/prometheus/*.env`、本地 `.env*`、Modal 后端、数据库。
+- 声称「生产不用 X」前必须**全查 5 个 scope**：`vercel env ls` · `ls ~/.config/prometheus/` · `grep -ri X .env* 2>/dev/null` · DB（rig_metadata 等 ground truth）· Modal。缺 1/5 ≠ 缺 5/5。
+- **当用户陈述其自家产品的事实时，视为权威**——去验证以「调和/对齐」，绝不用更弱的信号去「反驳」。
+- **Forge 架构问题先读 `marketplace-app/docs/FORGE_ARCHITECTURE.md`**（单一真源）。与铁律 5（证据>断言）同级。
 
 ### 深度 QA 循环（最高宪法·反弄虚作假）
 
@@ -175,4 +199,4 @@
 
 ---
 
-> 📌 通用规则同步自 `/Users/jj/Desktop/DYA/CLAUDE.md` (2026-03-11)。DYA 宪法修改后需手动同步。
+> 📌 通用规则同步自 `${DYA_ROOT}/CLAUDE.md` (2026-03-11)。DYA 宪法修改后需手动同步。
