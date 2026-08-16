@@ -74,3 +74,16 @@ docs/公司背景总览_for_Codex.md
 # canonical copies live in the MUSE repo. Kept on disk, untracked here.
 .agent/
 .claude/commands/
+
+# Local-only working directories that outlived the 2026-07-29 sweep. Found
+# 2026-08-16 by re-running `git ls-files --others` against the CURRENT
+# .gitignore instead of the one that sweep started from.
+#
+# backups/ is the serious one: it holds git bundles of the PRIVATE marketplace
+# repository and of this repo's packages. A bundle is an entire repository in a
+# single file, so committing one here would publish that private history in
+# full, to a public repo with forks, from one `git add -A`.
+backups/
+# Drafted social posts and their generated slides: internal until published,
+# and published from elsewhere when they are.
+assets/social/
