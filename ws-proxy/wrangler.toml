@@ -7,6 +7,14 @@ compatibility_date = "2024-12-01"
 # Requires: mythslabs.ai DNS zone in Cloudflare (orange-cloud proxied)
 
 # Secrets (set via `wrangler secret put`):
+# WS_TICKET_SECRET — 🔴 REQUIRED. Shared HMAC secret gating every platform-credential
+#   relay path (doubao/volcengine/zhipu/fish + /test). MUST be byte-identical to the
+#   marketplace-app Vercel env var of the SAME name (WS_TICKET_SECRET) across ALL
+#   Vercel environments (production/preview/development). If either side is missing or
+#   they differ: the route 503s / the Worker rejects every ticket → handsfree voice is
+#   100% down (the exact S307 P0-1 outage). Set BOTH sides in the same deploy:
+#     openssl rand -hex 32   → paste into both `wrangler secret put WS_TICKET_SECRET`
+#                              and `vercel env add WS_TICKET_SECRET` (×3 envs).
 # VOLCENGINE_API_KEY — 火山引擎 Ark API Key
 # VOLCENGINE_APP_ID — 火山引擎 App ID
 # MINIMAX_API_KEY — MiniMax API Key

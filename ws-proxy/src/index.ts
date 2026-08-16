@@ -23,8 +23,102 @@ interface Env {
     OPENAI_API_KEY: string;
     XAI_API_KEY: string;
     FISH_AUDIO_API_KEY: string;
+    /** Shared HMAC secret for short-lived relay tickets (see verifyVoiceTicket). */
+    WS_TICKET_SECRET: string;
     ALLOWED_ORIGINS: string;
     ENVIRONMENT: string;
+}
+
+// ═══ Voice Tickets ═══
+//
+// Any relay path that would spend PLATFORM credentials (env-injected keys)
+// requires a short-lived HMAC ticket minted by the authenticated
+// marketplace route (/api/volcengine-realtime-token). WebSocket upgrades are
+// not subject to CORS, so before this gate the env-credential fallbacks were
+// a public, unmetered proxy for our provider accounts. Caller-supplied
+// credentials (BYOK) pass through without a ticket — the caller is spending
+// their own key, not ours.
+//
+// Verifier contract (mirror of marketplace-app/src/lib/voiceTicket.ts — the
+// Worker cannot import across repos, keep the two in sync BY HAND):
+//   ticket = "v1." + expMs + "." + subB64url + "." + sigB64url
+//   sig    = HMAC-SHA256(secret, "v1." + expMs + "." + subB64url)
+
+function b64urlDecodeToString(s: string): string | null {
+    try {
+        const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+        return atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    } catch {
+        return null;
+    }
+}
+
+type VoiceTicketVerdict =
+    | { valid: true; sub: string }
+    | { valid: false; reason: "unconfigured" | "malformed" | "expired" | "bad-signature" };
+
+async function verifyVoiceTicket(secret: string | undefined, ticket: string, nowMs: number = Date.now()): Promise<VoiceTicketVerdict> {
+    // No shared secret configured → fail closed. The gate must never wave
+    // callers through just because the Worker is missing its own config.
+    if (!secret) return { valid: false, reason: "unconfigured" };
+    if (typeof ticket !== "string" || !ticket) return { valid: false, reason: "malformed" };
+    const parts = ticket.split(".");
+    if (parts.length !== 4 || parts[0] !== "v1") return { valid: false, reason: "malformed" };
+    const [, expStr, subB64, sigB64] = parts;
+    const exp = Number(expStr);
+    if (!Number.isFinite(exp)) return { valid: false, reason: "malformed" };
+
+    const sigBin = b64urlDecodeToString(sigB64);
+    const sub = b64urlDecodeToString(subB64);
+    if (sigBin === null || sub === null) return { valid: false, reason: "malformed" };
+    const sig = Uint8Array.from(sigBin, (c) => c.charCodeAt(0));
+
+    const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["verify"],
+    );
+    const payload = `v1.${expStr}.${subB64}`;
+    const ok = await crypto.subtle.verify("HMAC", key, sig, new TextEncoder().encode(payload));
+    if (!ok) return { valid: false, reason: "bad-signature" };
+    if (nowMs > exp) return { valid: false, reason: "expired" };
+    return { valid: true, sub };
+}
+
+/** True when serving this request would spend platform (env-injected) credentials. */
+function spendsPlatformCredentials(engineName: string, params: URLSearchParams): boolean {
+    switch (engineName) {
+        // Opt OUT explicitly, and only for engines that attach no platform
+        // credential at all: these carry a client-supplied ephemeral token in a
+        // subprotocol, and env holds nothing they could fall back to.
+        case "openai":
+        case "grok":
+            return false;
+
+        // BYOK-capable engines: the gate MUST mirror each engine's own key
+        // resolution exactly. doubao and asr forward accessKey verbatim (no trim,
+        // no env fallback on a non-empty value), so a whitespace accessKey stays
+        // BYOK. fish resolves `token?.trim() || env.FISH_AUDIO_API_KEY`, so the
+        // gate has to trim identically -- otherwise `?token=%20` reads as BYOK
+        // here, as platform there, and walks through spending our key.
+        case "doubao":
+        case "asr":
+            return !params.get("accessKey");
+        case "fish":
+            return !params.get("token")?.trim();
+
+        // Everything else pays with platform credentials and needs a ticket --
+        // including engines added after this was written. The previous default
+        // was `false`, and /asr (added 2026-04-13, with the same
+        // `params.accessKey || env.VOLCENGINE_API_KEY` fallback as doubao) landed
+        // straight in it: an enumerated allowlist silently exempts whatever comes
+        // next. Unknown names never actually reach here -- the engine lookup 400s
+        // first -- so failing closed costs nothing.
+        default:
+            return true;
+    }
 }
 
 // ═══ Engine Configs ═══
@@ -233,6 +327,17 @@ export default {
         // China users hit this CF Worker instead of Vercel serverless
         // which may have latency issues from mainland China.
         if (url.pathname === "/fish-rest" && request.method === "POST") {
+            // Platform-key usage requires a ticket (BYOK ?token= passes free).
+            if (!url.searchParams.get("token")?.trim()) {
+                const verdict = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+                if (!verdict.valid) {
+                    return new Response(JSON.stringify({
+                        error: `fish-rest: platform relay access requires a valid ticket (${verdict.reason})`,
+                    }), {
+                        status: 403, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+                    });
+                }
+            }
             const apiKey = url.searchParams.get("token")?.trim() || env.FISH_AUDIO_API_KEY;
             if (!apiKey) {
                 return new Response(JSON.stringify({ error: "No Fish Audio API key" }), {
@@ -284,6 +389,22 @@ export default {
                     status: 404, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
                 });
             }
+            // /test dials upstream with PLATFORM credentials and reports their
+            // health — that is ticket-gated recon, not a public endpoint. The
+            // ticket check runs BEFORE validate(env): otherwise an unauthenticated
+            // caller distinguishes "X not configured" (500) from "requires ticket"
+            // (403) and learns which platform keys are provisioned — a pre-auth
+            // config oracle. Fail on missing ticket first, uniformly.
+            {
+                const verdict = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+                if (!verdict.valid) {
+                    return new Response(JSON.stringify({
+                        error: `test: requires a valid ticket (${verdict.reason})`,
+                    }), {
+                        status: 403, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+                    });
+                }
+            }
             const validationError = engineConfig.validate(env);
             if (validationError) {
                 return new Response(JSON.stringify({ error: validationError }), {
@@ -305,13 +426,14 @@ export default {
                     testRes.webSocket!.accept();
                     testRes.webSocket!.close(1000, "test complete");
                 }
+                // Deliberately slim: no credential-derived fields (the old
+                // authPrefix echoed the first 15 chars of the first auth
+                // header — for doubao that was the entire App ID).
                 return new Response(JSON.stringify({
                     engine: testEngine,
                     upstreamUrl: testUpstreamUrl.split("?")[0],
                     status: testRes.status,
                     hasWebSocket,
-                    authPrefix: Object.values(testAuthHeaders)[0]?.slice(0, 15) + "...",
-                    headers: Object.fromEntries(testRes.headers.entries()),
                     body: body.slice(0, 300),
                 }), {
                     headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
@@ -348,6 +470,20 @@ export default {
                 status: 500,
                 headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
             });
+        }
+
+        // ═══ Ticket gate — platform-credential paths only ═══
+        if (spendsPlatformCredentials(engineName, url.searchParams)) {
+            const verdict = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+            if (!verdict.valid) {
+                console.warn(`[WS-Relay] 🎫 ${engineName}: rejected platform-credential request (${verdict.reason})`);
+                return new Response(JSON.stringify({
+                    error: `${engineName}: platform relay access requires a valid ticket (${verdict.reason})`,
+                }), {
+                    status: 403,
+                    headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+                });
+            }
         }
 
         // Must be WebSocket upgrade
