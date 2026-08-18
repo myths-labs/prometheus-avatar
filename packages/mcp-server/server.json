@@ -3,7 +3,7 @@
   "name": "io.github.myths-labs/prometheus-avatar",
   "title": "Prometheus Avatar",
   "description": "Give an agent a Live2D body: speech with lip-sync, expressions, and marketplace assets.",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "websiteUrl": "https://prometheus.mythslabs.ai",
   "repository": {
     "url": "https://github.com/myths-labs/prometheus-avatar",
@@ -14,8 +14,10 @@
     {
       "registryType": "npm",
       "identifier": "@prometheusavatar/mcp-server",
-      "version": "0.3.5",
-      "transport": { "type": "stdio" },
+      "version": "0.3.6",
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
         {
           "name": "PROMETHEUS_API_KEY",
