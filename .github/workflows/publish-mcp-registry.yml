@@ -1,0 +1,72 @@
+name: Publish MCP server to the official registry
+
+# Scoped tag on purpose. This repo already carries SDK-level tags like v1.0.0
+# and v0.7.2, so the registry docs' suggested "v*" trigger would fire this
+# workflow on every SDK release.
+on:
+  push:
+    tags:
+      - "mcp-server-v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required: mcp-publisher reads the OIDC token from this
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # The registry validates ownership by fetching the npm metadata for the
+      # version named in server.json and matching its mcpName against the
+      # server name. If server.json points at a version that is not on npm yet,
+      # or at one published before mcpName was added, the publish fails at the
+      # registry with a message that is easy to misread. Fail here instead,
+      # where the cause is obvious.
+      - name: Check server.json agrees with package.json and npm
+        run: |
+          set -euo pipefail
+          SRV=packages/mcp-server/server.json
+          PKG=packages/mcp-server/package.json
+          srv_ver=$(jq -r '.packages[0].version' "$SRV")
+          top_ver=$(jq -r '.version' "$SRV")
+          pkg_ver=$(jq -r '.version' "$PKG")
+          pkg_name=$(jq -r '.name' "$PKG")
+          srv_name=$(jq -r '.name' "$SRV")
+          mcp_name=$(jq -r '.mcpName // ""' "$PKG")
+
+          [ "$srv_ver" = "$pkg_ver" ] || { echo "::error::server.json packages[0].version ($srv_ver) != package.json version ($pkg_ver)"; exit 1; }
+          [ "$top_ver" = "$pkg_ver" ] || { echo "::error::server.json version ($top_ver) != package.json version ($pkg_ver)"; exit 1; }
+          [ "$mcp_name" = "$srv_name" ] || { echo "::error::package.json mcpName ('$mcp_name') != server.json name ('$srv_name')"; exit 1; }
+
+          published=$(curl -fsSL "https://registry.npmjs.org/${pkg_name/\//%2F}/$pkg_ver" | jq -r '.mcpName // "ABSENT"') || {
+            echo "::error::$pkg_name@$pkg_ver is not on npm yet. Publish it before registering."; exit 1; }
+          [ "$published" = "$srv_name" ] || { echo "::error::npm metadata for $pkg_ver carries mcpName '$published', expected '$srv_name'"; exit 1; }
+          echo "ok: $pkg_name@$pkg_ver on npm, mcpName matches $srv_name"
+
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --version
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate packages/mcp-server/server.json
+
+      # OIDC needs no secret. The registry grants io.github.<repository_owner>/*
+      # from the token's repository_owner claim, so this only works from a repo
+      # under the myths-labs org.
+      - name: Authenticate
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish packages/mcp-server/server.json
+
+      - name: Confirm it is listed
+        run: |
+          set -euo pipefail
+          sleep 10
+          curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=prometheus-avatar" \
+            | jq -e '.servers[] | select(.server.name == "io.github.myths-labs/prometheus-avatar")' > /dev/null
+          echo "listed"
