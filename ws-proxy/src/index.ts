@@ -111,9 +111,16 @@ function spendsPlatformCredentials(engineName: string, params: URLSearchParams):
         // fish resolves one: `token?.trim() || env.FISH_AUDIO_API_KEY`. It must
         // trim identically or `?token=%20` reads as BYOK here and as platform
         // there, and walks straight through spending our key.
+        // BYOK for these two is declared with `?byok=1` and the credentials
+        // arrive IN-BAND as the first WebSocket frame (parseByokFrame). They
+        // used to ride in the query string, which every edge log, browser
+        // history and corporate proxy records -- for a key the CALLER owns and
+        // pays for. Nothing in the URL is a credential any more, so an old-style
+        // `?accessKey=...` URL is simply "not BYOK": it needs a ticket, gets a
+        // 403, and a leaked link stops working instead of quietly still working.
         case "doubao":
         case "asr":
-            return !params.get("accessKey") || !params.get("appId");
+            return params.get("byok") !== "1";
         case "fish":
             return !params.get("token")?.trim();
 
@@ -129,11 +136,35 @@ function spendsPlatformCredentials(engineName: string, params: URLSearchParams):
     }
 }
 
+/**
+ * In-band BYOK handshake. The first frame on a `?byok=1` doubao/asr socket must
+ * be a text frame `{"type":"byok","accessKey":"...","appId":"..."}`. Both values
+ * are required and are trimmed -- a whitespace value must not read as "supplied"
+ * here and then resolve to nothing upstream. Anything else (binary, other type,
+ * missing field) is a refusal, never a fallback to platform credentials: this
+ * path exists precisely so the caller's key is the only key that can be used.
+ */
+// Return type is inlined on purpose: this function is mirrored verbatim into the
+// marketplace test fixture, which must compile on its own.
+function parseByokFrame(data: unknown): { accessKey: string; appId: string } | null {
+    if (typeof data !== "string") return null;
+    let msg: unknown;
+    try { msg = JSON.parse(data); } catch { return null; }
+    if (!msg || typeof msg !== "object" || Array.isArray(msg)) return null;
+    const m = msg as Record<string, unknown>;
+    if (m.type !== "byok") return null;
+    const accessKey = typeof m.accessKey === "string" ? m.accessKey.trim() : "";
+    const appId = typeof m.appId === "string" ? m.appId.trim() : "";
+    if (!accessKey || !appId) return null;
+    return { accessKey, appId };
+}
+
 // ═══ Engine Configs ═══
 
 interface EngineConfig {
     upstreamUrl: (params: URLSearchParams, env: Env) => string;
-    headers: (env: Env, params?: URLSearchParams) => Record<string, string>;
+    /** `byok` is set only on the in-band path; when present it is the ONLY source of the credential pair. */
+    headers: (env: Env, params?: URLSearchParams, byok?: { accessKey: string; appId: string }) => Record<string, string>;
     validate: (env: Env) => string | null; // returns error message or null
     /** If true, use subprotocol-based auth (OpenAI Realtime style) instead of header auth */
     subprotocolAuth?: boolean;
@@ -192,10 +223,12 @@ const ENGINES: Record<string, EngineConfig> = {
         upstreamUrl: (_params, _env) => {
             return `wss://openspeech.bytedance.com/api/v3/realtime/dialogue`;
         },
-        headers: (env, params?: URLSearchParams) => {
-            // Auth values come from client query params (populated from server /api/volcengine-realtime-token)
-            const accessKey = params?.get("accessKey") || env.VOLCENGINE_API_KEY;
-            const appId = params?.get("appId") || env.VOLCENGINE_APP_ID;
+        headers: (env, params?: URLSearchParams, byok?: { accessKey: string; appId: string }) => {
+            // Platform mode (ticket verified upstream of here) uses env; BYOK mode
+            // uses the in-band pair and nothing else. The query string is never a
+            // credential source -- see spendsPlatformCredentials.
+            const accessKey = byok ? byok.accessKey : env.VOLCENGINE_API_KEY;
+            const appId = byok ? byok.appId : env.VOLCENGINE_APP_ID;
             const resourceId = params?.get("resourceId") || "volc.speech.dialog";
             const appKey = params?.get("appKey") || "PlgvMymc7f3tQnJ6";
 
@@ -217,9 +250,9 @@ const ENGINES: Record<string, EngineConfig> = {
         upstreamUrl: (_params, _env) => {
             return `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel`;
         },
-        headers: (env, params?: URLSearchParams) => {
-            const accessKey = params?.get("accessKey") || env.VOLCENGINE_API_KEY;
-            const appId = params?.get("appId") || env.VOLCENGINE_APP_ID;
+        headers: (env, params?: URLSearchParams, byok?: { accessKey: string; appId: string }) => {
+            const accessKey = byok ? byok.accessKey : env.VOLCENGINE_API_KEY;
+            const appId = byok ? byok.appId : env.VOLCENGINE_APP_ID;
             const resourceId = params?.get("resourceId") || "volc.bigasr.sauc.duration";
             const connectId = params?.get("connectId") || crypto.randomUUID();
 
@@ -507,6 +540,66 @@ export default {
         }
 
         // ═══ WebSocket Relay ═══
+
+        // ═══ In-band BYOK: accept the client first, open upstream only after the
+        // credential frame arrives. The socket is returned to the browser before
+        // any upstream connection exists; frames that arrive while we are still
+        // connecting are buffered in order so the client's StartConnection is
+        // not lost. No frame within 5s, or a frame that is not a valid handshake,
+        // closes the socket -- it never falls back to platform credentials.
+        if ((engineName === "doubao" || engineName === "asr") && url.searchParams.get("byok") === "1") {
+            const [clientWs, serverWs] = Object.values(new WebSocketPair());
+            serverWs.accept();
+            let phase: "awaiting" | "connecting" | "relaying" | "closed" = "awaiting";
+            const pending: (string | ArrayBuffer)[] = [];
+            let upstream: WebSocket | null = null;
+            const closeBoth = (code: number, reason: string) => {
+                if (phase === "closed") return;
+                phase = "closed";
+                try { serverWs.close(code, reason); } catch { }
+                try { upstream?.close(code, reason); } catch { }
+            };
+            const handshakeTimer = setTimeout(() => {
+                if (phase === "awaiting") closeBoth(4401, "byok: credential frame not received");
+            }, 5000);
+
+            serverWs.addEventListener("message", async (event) => {
+                if (phase === "relaying") {
+                    try { upstream!.send(event.data); } catch (e) { console.error(`[WS-Relay] ${engineName}: error sending to upstream:`, e); }
+                    return;
+                }
+                if (phase === "connecting") { pending.push(event.data as string | ArrayBuffer); return; }
+                if (phase !== "awaiting") return;
+                clearTimeout(handshakeTimer);
+                const creds = parseByokFrame(event.data);
+                if (!creds) { closeBoth(4401, "byok: first frame must be {type:'byok',accessKey,appId}"); return; }
+                phase = "connecting";
+                try {
+                    const fetchUrl = engine.upstreamUrl(url.searchParams, env).replace("wss://", "https://").replace("ws://", "http://");
+                    const res = await fetch(fetchUrl, { headers: { "Upgrade": "websocket", ...engine.headers(env, url.searchParams, creds) } });
+                    const ws = res.webSocket;
+                    if (!ws) {
+                        console.error(`[WS-Relay] ❌ ${engineName} (byok): upstream refused upgrade (HTTP ${res.status})`);
+                        closeBoth(1011, `upstream ${engineName} refused (HTTP ${res.status})`);
+                        return;
+                    }
+                    ws.accept();
+                    upstream = ws;
+                    ws.addEventListener("message", (ev) => { if (phase === "relaying") { try { serverWs.send(ev.data); } catch { } } });
+                    ws.addEventListener("close", (ev) => closeBoth(ev.code, ev.reason));
+                    ws.addEventListener("error", () => closeBoth(1011, `upstream ${engineName} error`));
+                    if ((phase as string) === "closed") { try { ws.close(1000, "client gone"); } catch { } return; }
+                    phase = "relaying";
+                    for (const frame of pending.splice(0)) { try { ws.send(frame); } catch { } }
+                    console.log(`[WS-Relay] ✅ ${engineName}: BYOK relay established (in-band)`);
+                } catch (e: any) {
+                    console.error(`[WS-Relay] ❌ ${engineName} (byok): ${e?.message}`);
+                    closeBoth(1011, `failed to connect to ${engineName}`);
+                }
+            });
+            serverWs.addEventListener("close", (event) => closeBoth(event.code, event.reason));
+            return new Response(null, { status: 101, webSocket: clientWs });
+        }
 
         const upstreamUrl = engine.upstreamUrl(url.searchParams, env);
         const authHeaders = engine.headers(env, url.searchParams);
