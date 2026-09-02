@@ -31,3 +31,12 @@ jobs:
 
       - name: Test SDK
         run: pnpm --filter @prometheusavatar/core test
+
+      # ws-proxy is where the relay's credential gate lives (S307 P0-1: tickets
+      # verified here, platform keys never leave this Worker). Until now CI ran
+      # only the SDK package, so the one directory that guards credentials was
+      # the one directory nothing checked. It has no tests yet; a typecheck is
+      # the floor, not the ceiling.
+      - name: Typecheck ws-proxy
+        working-directory: ws-proxy
+        run: npm ci --ignore-scripts && npm run typecheck
