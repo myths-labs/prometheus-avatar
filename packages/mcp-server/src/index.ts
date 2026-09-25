@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /**
- * Prometheus Avatar MCP Server (S068 · Phase 11 Day 3 — version lives in package.json only, see PKG_VERSION below)
+ * Prometheus Avatar MCP Server (S068 · v0.3.0 · Phase 11 Day 3)
  *
- * Model Context Protocol server that exposes 10 tools for AI agents
+ * Model Context Protocol server that exposes 9 tools for AI agents
  * to interact with the Prometheus Avatar platform:
  *
  *   1. create_avatar       — Initialize an avatar instance
- *  1b. set_avatar_state    — Push companion state (thinking/acting/…) to live embeds
  *   2. equip_asset         — Equip a marketplace asset to an avatar
  *   3. generate_asset      — AI-generate a new asset (skin, voice, etc.)
  *  3b. update_asset        — Edit price / metadata of an existing asset
@@ -34,6 +33,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { createRequire } from "node:module";
+import { speechResult } from "./speech-result.js";
+import { configuredAudioHost, registerAudioHostTools } from './audio-host-tools.js';
+import { registerWorkspaceTools } from './workspace-tools.js';
 
 // Read the version from package.json at runtime. It used to be typed in by
 // hand in two places and both had drifted: serverInfo said 0.3.2 while the
@@ -48,7 +50,7 @@ const API_KEY = process.env.PROMETHEUS_API_KEY || "";
 // Helper: API call wrapper
 // ═══════════════════════════════════════════════════════════════
 
-async function apiCall(path: string, method: string = "GET", body?: unknown): Promise<unknown> {
+async function apiCall(path: string, method: string = "GET", body?: unknown, signal?: AbortSignal): Promise<unknown> {
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "User-Agent": `PrometheusAvatar-MCP/${PKG_VERSION}`,
@@ -60,6 +62,7 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
     const res = await fetch(`${API_BASE}${path}`, {
         method,
         headers,
+        signal,
         ...(body ? { body: JSON.stringify(body) } : {}),
     });
 
@@ -113,7 +116,7 @@ registerTool(
                     text: JSON.stringify({
                         success: false,
                         error: "PROMETHEUS_API_KEY required",
-                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                        instructions: "Creating an avatar persists it to your Prometheus account and returns a live, renderable embed URL. Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Register for one at https://prometheus.mythslabs.ai (POST /api/agent/register with a name + email).",
                     }, null, 2),
                 }],
                 isError: true,
@@ -164,65 +167,6 @@ registerTool(
 );
 
 // ═══════════════════════════════════════════════════════════════
-// Tool 1.5: set_avatar_state (S304-A1 batch 2)
-// ═══════════════════════════════════════════════════════════════
-
-registerTool(
-    "set_avatar_state",
-    "Push a companion task state (or a direct emotion) onto your avatar. Any ALREADY-OPEN embed page follows within ~3 seconds — the avatar's expression and motion change live. Use this to make the avatar accompany real work: set 'listening' when waiting for user input, 'thinking' while working, 'acting' while executing, 'done' on completion.",
-    {
-        state: z.enum(["listening", "thinking", "acting", "done"]).optional()
-            .describe("Agent task state. listening: attentive idle · thinking: pondering · acting: focused work · done: celebrate"),
-        emotion: z.enum(["happy", "sad", "angry", "surprised", "thinking", "neutral"]).optional()
-            .describe("Direct emotion override (takes effect when no state is given, or alongside it)"),
-    },
-    async ({ state, emotion }) => {
-        if (!API_KEY) {
-            return {
-                content: [{
-                    type: "text" as const,
-                    text: JSON.stringify({
-                        success: false,
-                        error: "PROMETHEUS_API_KEY required",
-                        instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
-                    }, null, 2),
-                }],
-                isError: true,
-            };
-        }
-        if (!state && !emotion) {
-            return {
-                content: [{ type: "text" as const, text: "Provide state and/or emotion." }],
-                isError: true,
-            };
-        }
-        try {
-            const result = await apiCall("/api/agent/avatar/state", "POST", {
-                ...(state ? { state } : {}),
-                ...(emotion ? { emotion } : {}),
-            }) as { avatarId: string; companionState: Record<string, string> };
-            return {
-                content: [{
-                    type: "text" as const,
-                    text: JSON.stringify({
-                        success: true,
-                        avatar_id: result.avatarId,
-                        companion_state: result.companionState,
-                        instructions: "Open embed pages for this avatar pick the state up within ~3 seconds.",
-                    }, null, 2),
-                }],
-            };
-        } catch (error: unknown) {
-            const errMsg = error instanceof Error ? error.message : String(error);
-            return {
-                content: [{ type: "text" as const, text: `Error setting avatar state: ${errMsg}` }],
-                isError: true,
-            };
-        }
-    }
-);
-
-// ═══════════════════════════════════════════════════════════════
 // Tool 2: equip_asset
 // ═══════════════════════════════════════════════════════════════
 
@@ -231,44 +175,13 @@ registerTool(
     "Equip a marketplace asset to the avatar. Changes the avatar's skin, voice, expression, accessories, scene, or persona.",
     {
         asset_id: z.string().describe("The asset ID from the marketplace (UUID format)"),
-        action: z.enum(["equip", "unequip"]).optional().describe("Action to perform (default: 'equip'). NOTE: 'unequip' is NOT supported for agent accounts yet and always fails — to swap, equip another asset of the same category and it replaces the current one."),
+        action: z.enum(["equip", "unequip"]).optional().describe("Action to perform (default: 'equip')"),
     },
     async ({ asset_id, action }) => {
         try {
-            if (!API_KEY) {
-                return {
-                    content: [{
-                        type: "text" as const,
-                        text: JSON.stringify({
-                            success: false,
-                            error: "PROMETHEUS_API_KEY required",
-                            instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
-                        }, null, 2),
-                    }],
-                    isError: true,
-                };
-            }
-
-            // The agent equip route has no unequip operation. Say so instead of
-            // silently calling a human-only route that 403s every agent key.
-            if (action === "unequip") {
-                return {
-                    content: [{
-                        type: "text" as const,
-                        text: JSON.stringify({
-                            success: false,
-                            error: "unequip is not supported for agent accounts yet",
-                            instructions: "Equipping another asset of the same category replaces the current one, which covers most swap use-cases.",
-                        }, null, 2),
-                    }],
-                    isError: true,
-                };
-            }
-
-            // Agent-key route. The previous target (/api/user/inventory) is
-            // human-session-only and rejects every agent key with 403.
-            const result = await apiCall("/api/agent/equip", "POST", {
+            const result = await apiCall("/api/user/inventory", "POST", {
                 assetId: asset_id,
+                action: action || "equip",
             });
 
             return {
@@ -501,24 +414,7 @@ registerTool(
     {},
     async () => {
         try {
-            if (!API_KEY) {
-                return {
-                    content: [{
-                        type: "text" as const,
-                        text: JSON.stringify({
-                            success: false,
-                            error: "PROMETHEUS_API_KEY required",
-                            instructions: "Set the PROMETHEUS_API_KEY environment variable to a Prometheus agent API key (pak_...). Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
-                        }, null, 2),
-                    }],
-                    isError: true,
-                };
-            }
-
-            // Agent-key route: returns the account avatar, its equipped assets and
-            // embed URL. The previous target (/api/user/inventory) is
-            // human-session-only and rejects every agent key with 403.
-            const result = await apiCall("/api/agent/avatar", "GET");
+            const result = await apiCall("/api/user/inventory");
 
             return {
                 content: [{
@@ -620,13 +516,15 @@ registerTool(
 
 registerTool(
     "speak",
-    "Make the avatar speak text aloud. The text is synthesized to speech and played with lip-sync animation. Supports emotion detection.",
+    "Generate speech audio using the existing Doubao default or a selected voice and return MCP audio content. Avatar playback and lip-sync require a connected host. This endpoint does not support emotion control.",
     {
-        text: z.string().describe("Text for the avatar to speak aloud"),
-        voice: z.string().optional().describe("Voice override: Kore (warm female), Puck (energetic male), Charon (deep male), Zephyr (neutral)"),
-        emotion: z.string().optional().describe("Force emotion: happy, sad, angry, surprised, neutral"),
+        text: z.string().trim().min(1).max(2000).describe("Text for the avatar to speak aloud"),
+        voice: z.enum(["Kore", "Aoede", "Leda", "Despina", "Laomedeia", "Callirrhoe", "Puck", "Charon", "Fenrir", "Achird", "Zephyr", "Algenib"]).optional().describe("Explicit legacy Gemini voice override. Omit to use the existing Doubao default."),
+        voice_asset_id: z.string().uuid().optional().describe("Saved Forge Voice asset to resolve on the server. Paid preview limits and account permissions still apply."),
+        avatar: z.string().min(1).max(120).optional().describe("Avatar selector for its existing default voice, such as haru."),
+        emotion: z.string().optional().describe("Unsupported by this speech endpoint. Omit this parameter; providing it returns an error without generating audio."),
     },
-    async ({ text, voice, emotion }) => {
+    async ({ text, voice, voice_asset_id, avatar, emotion }, { signal }) => {
         if (!API_KEY) {
             return {
                 content: [{
@@ -634,7 +532,7 @@ registerTool(
                     text: JSON.stringify({
                         success: false,
                         error: "PROMETHEUS_API_KEY required",
-                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Get one at https://prometheus.mythslabs.ai/settings/agent-keys (sign in with Google/GitHub, click Generate key — shown once).",
+                        instructions: "Set PROMETHEUS_API_KEY (a pak_... agent API key) to synthesize speech. Register at https://prometheus.mythslabs.ai (POST /api/agent/register).",
                     }, null, 2),
                 }],
                 isError: true,
@@ -642,30 +540,31 @@ registerTool(
         }
 
         try {
+            if (emotion !== undefined) {
+                throw new Error("Emotion control is not supported by this speech endpoint; omit emotion");
+            }
             // Generate TTS audio via the agent-authenticated speech endpoint.
             const result = await apiCall("/api/agent/speak", "POST", {
                 text,
                 ...(voice ? { voice } : {}),
+                ...(voice_asset_id ? { voiceAssetId: voice_asset_id } : {}),
+                ...(avatar ? { avatar } : {}),
                 format: "base64",
-            }) as { audio?: string; mimeType?: string; voice?: string; textLength?: number };
+            }, signal);
 
-            const audioBytes = result.audio ? Math.floor((result.audio.length * 3) / 4) : 0;
+            const selection = result as { voiceAssetId?: unknown; voice?: unknown; engine?: unknown } | null;
+            if (voice_asset_id && selection?.voiceAssetId !== voice_asset_id) {
+                throw new Error("Speech endpoint did not confirm the requested voice asset");
+            }
+            if (voice && !voice_asset_id && selection?.voice !== voice) {
+                throw new Error("Speech endpoint did not confirm the requested voice");
+            }
+            if (!voice && !voice_asset_id && (typeof selection?.engine !== "string"
+                || !["volcengine", "volcengine-v1", "volcengine-v3"].includes(selection.engine))) {
+                throw new Error("Speech endpoint did not confirm the configured Doubao default");
+            }
 
-            return {
-                content: [{
-                    type: "text" as const,
-                    text: JSON.stringify({
-                        success: true,
-                        text,
-                        voice: result.voice || voice || "Kore",
-                        emotion: emotion || "auto-detected",
-                        audio_generated: !!result.audio,
-                        audio_format: result.mimeType || "audio/wav",
-                        audio_bytes: audioBytes,
-                        instructions: "Speech audio (base64 WAV) was generated. Play it in your client, or — to see an avatar lip-sync it in a browser — open the avatar's embed URL and post a { type: 'prometheus:speak', text } message to the iframe from the parent window.",
-                    }, null, 2),
-                }],
-            };
+            return speechResult(result, text);
         } catch (error: unknown) {
             const errMsg = error instanceof Error ? error.message : String(error);
             return {
@@ -729,8 +628,18 @@ MIT — Myths Labs
 // ═══════════════════════════════════════════════════════════════
 
 async function main() {
+    const audioHost = await configuredAudioHost(API_BASE, API_KEY, PKG_VERSION);
+    toolCount += registerAudioHostTools(server, audioHost);
+    toolCount += registerWorkspaceTools(server, API_BASE, API_KEY, PKG_VERSION);
     const transport = new StdioServerTransport();
-    await server.connect(transport);
+    let closing: Promise<void> | undefined;
+    const close = () => closing ??= (async () => {
+        try { await audioHost?.close(); } finally { await server.close(); }
+    })();
+    const shutdown = () => { void close().catch(() => { process.exitCode = 1; }); };
+    process.stdin.once('end', shutdown);
+    process.once('SIGTERM', shutdown); process.once('SIGINT', shutdown);
+    try { await server.connect(transport); } catch (error) { await close(); throw error; }
     console.error(`[Prometheus MCP] Server started — ${toolCount} tools available`);
 }
 

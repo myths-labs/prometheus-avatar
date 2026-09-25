@@ -1,7 +1,7 @@
 {
     "name": "@prometheusavatar/mcp-server",
-    "version": "0.3.5",
-    "description": "MCP Server for Prometheus Avatar — Give any AI agent an embodied avatar + AAA image generation via Model Context Protocol. 10 tools.",
+    "version": "0.3.4",
+    "description": "MCP Server for Prometheus Avatar \u2014 Embodied avatars, durable speech, and account-owned work/tasks via Model Context Protocol. 18 tools.",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -23,14 +23,19 @@
         "dev": "tsup src/index.ts --format esm --dts --watch",
         "start": "node dist/index.js",
         "clean": "rm -rf dist",
-        "lint": "tsc --noEmit"
+        "lint": "tsc --noEmit",
+        "test": "npm run build && node --test test/speak-protocol.test.mjs",
+        "test:coverage": "tsup src/speech-result.ts --format esm --out-dir .test-build --clean --sourcemap && node --test --experimental-test-coverage --test-coverage-include='**/.test-build/speech-result.js' --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 test/*-result.test.mjs",
+        "test:host": "tsup src/audio-host-transport.ts src/audio-host-ledger.ts src/audio-host-cache.ts --format esm --out-dir .test-host --clean && node --test test/audio-host-transport.test.mjs test/audio-host-ledger.test.mjs test/audio-host-cache.test.mjs"
     },
     "dependencies": {
-        "zod": "^4.3.6",
-        "@modelcontextprotocol/sdk": "^1.12.1"
+        "@modelcontextprotocol/sdk": "^1.12.1",
+        "ws": "8.21.3",
+        "zod": "4.3.6"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",
+        "@types/ws": "8.18.1",
         "tsup": "^8.0.0",
         "typescript": "^5.4.0"
     },
