@@ -14,7 +14,14 @@
  *
  * No imports, so node --test can load it directly.
  */
-export const SERVER_EVENT = { SESSION_STARTED: 150, SESSION_FINISHED: 152, SESSION_FAILED: 153, BOT_AUDIO: 202, ASR_INFO: 300, USER_TRANSCRIPTION: 301 } as const;
+// Doubao realtime dialogue server events as the production service sends them (the numbers marketplace
+// src/lib/useLiveVoice.ts handles; seen live 2026-09-27: 150, 350, 352, 450, 451, 459, 550).
+export const SERVER_EVENT = { SESSION_STARTED: 150, SESSION_FINISHED: 152, SESSION_FAILED: 153, TTS_RESPONSE: 352 } as const;
+/** Conversation: user speech (ASR 450/451/459) or bot output (TTS 350-359, chat 550/559). */
+const ACTIVITY_EVENTS = new Set([350, 351, 352, 353, 359, 450, 451, 459, 550, 559,
+    // An older numbering of the same events, still listed in doubaoProtocol.ts; counted in case the service uses it.
+    200, 201, 202, 203, 300, 301, 302]);
+const AUDIO_EVENTS = new Set([SERVER_EVENT.TTS_RESPONSE, 202]);
 const OUTPUT_BYTES_PER_SECOND = 48_000; // pcm_s16le, 24 kHz, mono (marketplace doubaoProtocol.ts buildStartSession)
 const TICK_MS = 60_000;
 const IDLE_MS = 60_000;
@@ -84,9 +91,8 @@ export function createSessionMeter<T>(o: {
                 armTick(); armIdle();
             } else if (!active) {
                 return;
-            } else if (f.event === SERVER_EVENT.BOT_AUDIO) {
-                outputBytes += f.payloadBytes; lastActivity = o.now();
-            } else if (f.event === SERVER_EVENT.ASR_INFO || f.event === SERVER_EVENT.USER_TRANSCRIPTION) {
+            } else if (ACTIVITY_EVENTS.has(f.event)) {
+                if (AUDIO_EVENTS.has(f.event)) outputBytes += f.payloadBytes;
                 lastActivity = o.now();
             } else if (f.event === SERVER_EVENT.SESSION_FINISHED || f.event === SERVER_EVENT.SESSION_FAILED) {
                 await end();
