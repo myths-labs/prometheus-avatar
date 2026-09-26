@@ -767,7 +767,7 @@ export default {
                     const body = JSON.stringify(r.kind === "start"
                         ? { event: "start", session: crypto.randomUUID(), subject: asrSubject, meter: "asr_seconds" }
                         : r.kind === "tick" ? { event: "tick", reservation: r.reservation }
-                        : { event: "end", reservation: r.reservation, input_audio_seconds: r.inputAudioSeconds });
+                        : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds });
                     try {
                         const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
                             "x-internal-call": await signUsageReport(usageSecret, body) }, body });

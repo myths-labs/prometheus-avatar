@@ -42,7 +42,7 @@ test('every client frame passes the guard before it is sent upstream, and the me
 test('the meter reports the ticket subject without its prefix, as asr_seconds, and every end closes it', () => {
     assert.match(src, /ticketSubject\.slice\(ASR_TICKET_PREFIX\.length\)/);
     assert.match(src, /\{ event: "start", session: crypto\.randomUUID\(\), subject: asrSubject, meter: "asr_seconds" \}/);
-    assert.match(src, /\{ event: "end", reservation: r\.reservation, input_audio_seconds: r\.inputAudioSeconds \}/);
+    assert.match(src, /\{ event: "end", reservation: r\.reservation, audio_seconds: r\.inputAudioSeconds \}/);
     for (const [start, end] of [
         ['const rejectFrame = () => {', '};'],
         ['serverWs.addEventListener("close", (event) => {', '});'],
