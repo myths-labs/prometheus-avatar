@@ -14,9 +14,17 @@
  * connecting to the upstream, then relays messages bidirectionally.
  */
 
+import { createDoubaoFrameGuard, isPublicDoubaoSpeaker } from './doubao-frame-guard';
+import { verifyLiveVoiceGrant, type LiveVoiceGrant } from './live-voice-grant';
+import { createLiveVoiceLease } from './live-voice-lease';
+import { createDoubaoByokRelay } from './doubao-byok-relay';
+import {resolveVolcengineApplication} from './volcengine-applications';
+import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
+
 interface Env {
     VOLCENGINE_API_KEY: string;
     VOLCENGINE_APP_ID: string;
+    VOLCENGINE_VOICE_APPS?: string;
     MINIMAX_API_KEY: string;
     MINIMAX_GROUP_ID: string;
     ZHIPU_API_KEY: string;
@@ -504,6 +512,10 @@ export default {
             });
         }
 
+        if (engineName === 'doubao' && url.searchParams.has('byok')) {
+            return createDoubaoByokRelay(request, corsHeaders(origin, env));
+        }
+
         // Validate config
         const validationError = engine.validate(env);
         if (validationError) {
@@ -514,8 +526,15 @@ export default {
         }
 
         // ═══ Ticket gate — platform-credential paths only ═══
-        if (spendsPlatformCredentials(engineName, url.searchParams)) {
-            const verdict = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+        // A supplied saved-voice ticket cannot be downgraded to the legacy
+        // query-credential path by appending another application pair.
+        const platformCredentials = spendsPlatformCredentials(engineName, url.searchParams)
+            || engineName === 'doubao' && url.searchParams.has('ticket');
+        let liveGrant: LiveVoiceGrant | null = null;
+        if (platformCredentials) {
+            const ticket = url.searchParams.get('ticket') || '';
+            liveGrant = engineName === 'doubao' && /^lv[23]\./.test(ticket) ? await verifyLiveVoiceGrant(env.WS_TICKET_SECRET, ticket) : null;
+            const verdict = liveGrant ? { valid: true as const, sub: liveGrant.sub } : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
             if (!verdict.valid) {
                 console.warn(`[WS-Relay] 🎫 ${engineName}: rejected platform-credential request (${verdict.reason})`);
                 return new Response(JSON.stringify({
@@ -601,8 +620,21 @@ export default {
             return new Response(null, { status: 101, webSocket: clientWs });
         }
 
-        const upstreamUrl = engine.upstreamUrl(url.searchParams, env);
-        const authHeaders = engine.headers(env, url.searchParams);
+        let applicationEnv=env;
+        if(liveGrant?.providerAppSha256){
+            try{
+                const application=await resolveVolcengineApplication({appId:env.VOLCENGINE_APP_ID,accessKey:env.VOLCENGINE_API_KEY,
+                    registry:env.VOLCENGINE_VOICE_APPS},liveGrant.providerAppSha256);
+                if(!application)throw Error('Unavailable voice application');
+                applicationEnv={...env,VOLCENGINE_APP_ID:application.appId,VOLCENGINE_API_KEY:application.accessKey};
+            }catch{
+                return new Response(JSON.stringify({error:'The original voice application is unavailable. Restore its configuration before retrying.'}),
+                    {status:503,headers:{'Content-Type':'application/json',...corsHeaders(origin,env)}});
+            }
+        }
+        const upstreamUrl = engine.upstreamUrl(url.searchParams, applicationEnv);
+        // A platform grant cannot replace one credential or choose another resource.
+        const authHeaders = engine.headers(applicationEnv, engineName === 'doubao' && platformCredentials ? new URLSearchParams() : url.searchParams);
 
         // ⚠️ Cloudflare Workers fetch() requires https:// not wss://
         // Workers handle the WebSocket upgrade internally via the Upgrade header
@@ -632,20 +664,14 @@ export default {
 
             const upstreamWs = upstreamResponse.webSocket;
             if (!upstreamWs) {
-                // Log detailed error info for debugging
+                // Provider bodies can echo authorization headers. Keep status only
+                // and cancel the response without buffering or returning its text.
                 const status = upstreamResponse.status;
-                let body = "";
-                try { body = await upstreamResponse.text(); } catch { }
-                const respHeaders = Object.fromEntries(upstreamResponse.headers.entries());
+                try { await upstreamResponse.body?.cancel(); } catch { }
                 console.error(`[WS-Relay] ❌ ${engineName}: upstream refused WebSocket upgrade`);
                 console.error(`[WS-Relay] ❌ Status: ${status}`);
-                console.error(`[WS-Relay] ❌ Body: ${body.slice(0, 500)}`);
-                console.error(`[WS-Relay] ❌ Headers: ${JSON.stringify(respHeaders)}`);
-                console.error(`[WS-Relay] ❌ Request URL: ${upstreamUrl}`);
-                console.error(`[WS-Relay] ❌ Auth header prefix: ${Object.values(authHeaders)[0]?.slice(0, 20)}...`);
                 return new Response(JSON.stringify({
                     error: `Upstream ${engineName} refused WebSocket upgrade (HTTP ${status})`,
-                    detail: body.slice(0, 200),
                 }), {
                     status: 502,
                     headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
@@ -653,6 +679,10 @@ export default {
             }
 
             upstreamWs.accept();
+            if (liveGrant && Date.now() >= liveGrant.exp) {
+                upstreamWs.close(1008, 'Voice authorization expired');
+                return new Response(JSON.stringify({ error: 'Voice authorization expired' }), { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders(origin, env) } });
+            }
 
             // Create WebSocket pair for client
             const [clientWs, serverWs] = Object.values(new WebSocketPair());
@@ -660,12 +690,62 @@ export default {
             // For subprotocol auth engines, mirror the upstream's accepted protocol
             // so the browser client sees the correct Sec-WebSocket-Protocol in the response
             serverWs.accept();
+            serverWs.binaryType = 'arraybuffer';
+            upstreamWs.binaryType = 'arraybuffer';
 
             let clientClosed = false;
             let upstreamClosed = false;
+            let lease: ReturnType<typeof createLiveVoiceLease> | null = null;
+            let voiceProof: ReturnType<typeof createPrivateVoiceProofObserver> | null = null;
+            const frameGuard = engineName === 'doubao' && platformCredentials
+                ? createDoubaoFrameGuard(async (speaker, model) => lease ? lease.authorize(speaker, model) : isPublicDoubaoSpeaker(speaker)
+                    && (await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get('ticket') || '')).valid) : null;
+            let pendingBytes = 0, pendingMessages = 0, clientQueue = Promise.resolve();
+            const rejectFrame = () => {
+                clientClosed = true; upstreamClosed = true;
+                frameGuard?.close();
+                lease?.close();
+                voiceProof?.close();
+                try { serverWs.close(1008, 'Voice session authorization failed'); } catch { }
+                try { upstreamWs.close(1008, 'Voice session authorization failed'); } catch { }
+            };
+            if (liveGrant) lease = createLiveVoiceLease(env.WS_TICKET_SECRET!, liveGrant, rejectFrame);
+            if (liveGrant?.assetId && liveGrant.providerAppSha256) voiceProof = createPrivateVoiceProofObserver({
+                grant: liveGrant, secret: env.WS_TICKET_SECRET!, providerLogId: upstreamResponse.headers.get('x-tt-logid'),
+                onProof: receipt => {
+                    if (!clientClosed && !upstreamClosed && lease?.active())
+                        serverWs.send(JSON.stringify({ type: 'voice-realtime-proof', receipt }));
+                },
+            });
 
             // Client → Upstream
             serverWs.addEventListener("message", (event) => {
+                if (frameGuard) {
+                    const control = typeof event.data === 'string' && event.data.length <= 3072;
+                    const bytes = event.data instanceof ArrayBuffer ? event.data.byteLength : control ? new TextEncoder().encode(event.data as string).byteLength : 1024 * 1024 + 1;
+                    if (clientClosed || upstreamClosed) return;
+                    if (bytes > 1024 * 1024 || pendingBytes + bytes > 4 * 1024 * 1024 || pendingMessages >= 256) { rejectFrame(); return; }
+                    pendingBytes += bytes; pendingMessages++;
+                    clientQueue = clientQueue.then(async () => {
+                        if (clientClosed || upstreamClosed) return;
+                        if (lease && !lease.active()) { rejectFrame(); return; }
+                        if (control) {
+                            let message;
+                            try { message = JSON.parse(event.data as string); } catch { rejectFrame(); return; }
+                            if (!lease || !message || typeof message !== 'object' || Array.isArray(message)
+                                || Object.keys(message).sort().join(',') !== 'ticket,type' || message.type !== 'voice-lease'
+                                || typeof message.ticket !== 'string' || message.ticket.length > 2048) { rejectFrame(); return; }
+                            const expiresAt = await lease.renew(message.ticket);
+                            if (expiresAt === null || clientClosed || upstreamClosed) { rejectFrame(); return; }
+                            serverWs.send(JSON.stringify({ type: 'voice-lease', expiresAt }));
+                            return;
+                        }
+                        if (!await frameGuard.admit(event.data)) { rejectFrame(); return; }
+                        voiceProof?.client(event.data);
+                        if (!clientClosed && !upstreamClosed) upstreamWs.send(event.data);
+                    }).catch(rejectFrame).finally(() => { pendingBytes -= bytes; pendingMessages--; });
+                    return;
+                }
                 if (!upstreamClosed) {
                     try {
                         upstreamWs.send(event.data);
@@ -676,15 +756,23 @@ export default {
             });
 
             serverWs.addEventListener("close", (event) => {
+                frameGuard?.close();
+                lease?.close();
+                voiceProof?.close();
                 clientClosed = true;
+                const code = [1005, 1006, 1015].includes(event.code) ? 1000 : event.code;
+                // A received close still needs a reply on compatibility dates before automatic replies.
+                try { serverWs.close(code, 'Voice client closed'); } catch { }
                 console.log(`[WS-Relay] ${engineName}: client closed (${event.code})`);
                 if (!upstreamClosed) {
-                    try { upstreamWs.close(event.code, event.reason); } catch { }
+                    try { upstreamWs.close(code, 'Voice client closed'); } catch { }
                 }
             });
 
             // Upstream → Client
             upstreamWs.addEventListener("message", (event) => {
+                if (lease && !lease.active()) { rejectFrame(); return; }
+                voiceProof?.server(event.data);
                 if (!clientClosed) {
                     try {
                         serverWs.send(event.data);
@@ -695,14 +783,23 @@ export default {
             });
 
             upstreamWs.addEventListener("close", (event) => {
+                frameGuard?.close();
+                lease?.close();
+                voiceProof?.close();
                 upstreamClosed = true;
-                console.log(`[WS-Relay] ${engineName}: upstream closed (${event.code} ${event.reason || ""})`);
+                const code = [1005, 1006, 1015].includes(event.code) ? 1000 : event.code;
+                try { upstreamWs.close(code, 'Voice provider closed'); } catch { }
+                console.log(`[WS-Relay] ${engineName}: upstream closed (${event.code})`);
                 if (!clientClosed) {
-                    try { serverWs.close(event.code, event.reason); } catch { }
+                    try { serverWs.close(code, 'Voice provider closed'); } catch { }
                 }
             });
 
             upstreamWs.addEventListener("error", (event) => {
+                if (upstreamClosed || clientClosed) return;
+                frameGuard?.close();
+                lease?.close();
+                voiceProof?.close();
                 console.error(`[WS-Relay] ${engineName}: upstream error`);
                 upstreamClosed = true;
                 if (!clientClosed) {
@@ -718,9 +815,9 @@ export default {
             });
 
         } catch (error: any) {
-            console.error(`[WS-Relay] ❌ ${engineName}: connection failed:`, error.message);
+            console.error(`[WS-Relay] ❌ ${engineName}: connection failed`);
             return new Response(JSON.stringify({
-                error: `Failed to connect to ${engineName}: ${error.message}`,
+                error: `Failed to connect to ${engineName}`,
             }), {
                 status: 502,
                 headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
