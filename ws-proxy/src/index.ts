@@ -20,6 +20,7 @@ import { createLiveVoiceLease } from './live-voice-lease';
 import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
+import { createSessionMeter, signUsageReport } from './realtime-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -33,6 +34,10 @@ interface Env {
     FISH_AUDIO_API_KEY: string;
     /** Shared HMAC secret for short-lived relay tickets (see verifyVoiceTicket). */
     WS_TICKET_SECRET: string;
+    /** Marketplace endpoint for realtime usage reports (/api/internal/realtime-usage). Unset = no metering. */
+    MARKETPLACE_USAGE_URL?: string;
+    /** HMAC secret for those reports; must equal the marketplace's RELAY_USAGE_SECRET. */
+    RELAY_USAGE_SECRET?: string;
     ALLOWED_ORIGINS: string;
     ENVIRONMENT: string;
 }
@@ -706,10 +711,38 @@ export default {
                 frameGuard?.close();
                 lease?.close();
                 voiceProof?.close();
+                meter?.close();
                 try { serverWs.close(1008, 'Voice session authorization failed'); } catch { }
                 try { upstreamWs.close(1008, 'Voice session authorization failed'); } catch { }
             };
             if (liveGrant) lease = createLiveVoiceLease(env.WS_TICKET_SECRET!, liveGrant, rejectFrame);
+            // Realtime usage metering (marketplace conversation usage ledger). The clock starts at
+            // Doubao's SessionStarted, so pre-connections that never start a session record nothing.
+            // Fail open: an unreachable marketplace never hangs up a conversation.
+            const meterGrant = liveGrant, usageUrl = env.MARKETPLACE_USAGE_URL, usageSecret = env.RELAY_USAGE_SECRET;
+            const meter = meterGrant && usageUrl && usageSecret ? createSessionMeter<ReturnType<typeof setTimeout>>({
+                now: () => Date.now(),
+                schedule: (fn, ms) => setTimeout(() => { void fn(); }, ms),
+                cancel: (t) => clearTimeout(t),
+                report: async (r) => {
+                    const body = JSON.stringify(r.kind === "start"
+                        ? { event: "start", session: crypto.randomUUID(), account: meterGrant.sub }
+                        : r.kind === "tick" ? { event: "tick", reservation: r.reservation }
+                        : { event: "end", reservation: r.reservation, connected_seconds: r.connectedSeconds, output_audio_seconds: r.outputAudioSeconds });
+                    try {
+                        const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
+                            "x-internal-call": await signUsageReport(usageSecret, body) }, body });
+                        return res.ok ? await res.json() as { continue: boolean; reservation?: string | null } : { continue: true, reservation: null };
+                    } catch { return { continue: true, reservation: null }; }
+                },
+                stop: (reason) => {
+                    clientClosed = true; upstreamClosed = true;
+                    frameGuard?.close(); lease?.close(); voiceProof?.close();
+                    const code = reason === "quota" ? 4402 : 1000;
+                    try { serverWs.close(code, reason === "quota" ? "Voice is text-only for now" : "Voice idle"); } catch { }
+                    try { upstreamWs.close(1000, "Voice session ended"); } catch { }
+                },
+            }) : null;
             if (liveGrant?.assetId && liveGrant.providerAppSha256) voiceProof = createPrivateVoiceProofObserver({
                 grant: liveGrant, secret: env.WS_TICKET_SECRET!, providerLogId: upstreamResponse.headers.get('x-tt-logid'),
                 onProof: receipt => {
@@ -759,6 +792,7 @@ export default {
                 frameGuard?.close();
                 lease?.close();
                 voiceProof?.close();
+                meter?.close();
                 clientClosed = true;
                 const code = [1005, 1006, 1015].includes(event.code) ? 1000 : event.code;
                 // A received close still needs a reply on compatibility dates before automatic replies.
@@ -773,6 +807,7 @@ export default {
             upstreamWs.addEventListener("message", (event) => {
                 if (lease && !lease.active()) { rejectFrame(); return; }
                 voiceProof?.server(event.data);
+                void meter?.onServerFrame(event.data);
                 if (!clientClosed) {
                     try {
                         serverWs.send(event.data);
@@ -786,6 +821,7 @@ export default {
                 frameGuard?.close();
                 lease?.close();
                 voiceProof?.close();
+                meter?.close();
                 upstreamClosed = true;
                 const code = [1005, 1006, 1015].includes(event.code) ? 1000 : event.code;
                 try { upstreamWs.close(code, 'Voice provider closed'); } catch { }
@@ -800,6 +836,7 @@ export default {
                 frameGuard?.close();
                 lease?.close();
                 voiceProof?.close();
+                meter?.close();
                 console.error(`[WS-Relay] ${engineName}: upstream error`);
                 upstreamClosed = true;
                 if (!clientClosed) {
