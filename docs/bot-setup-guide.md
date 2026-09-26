@@ -31,16 +31,7 @@
 3. Bot Permissions 勾选：`Send Messages` + `Use Slash Commands` + `Embed Links`
 4. 复制底部生成的 URL → 浏览器打开 → 选你的服务器 → 邀请
 
-### 第 5 步：设置 Interactions Endpoint
-
-1. 回到 **「General Information」**
-2. **INTERACTIONS ENDPOINT URL** 填：
-   ```
-   https://prometheus.mythslabs.ai/api/messaging/discord
-   ```
-3. 点 **Save Changes**（Discord 会发一个 PING 验证，我们的代码已经处理了）
-
-### 第 6 步：Vercel 添加环境变量
+### 第 5 步：Vercel 添加环境变量
 
 1. 打开 [Vercel Dashboard](https://vercel.com) → 进 `prometheus-avatar` 项目
 2. **Settings** → **Environment Variables**
@@ -51,6 +42,17 @@
    | `DISCORD_PUBLIC_KEY` | 第 2 步复制的 Public Key |
 
 4. 点 **Save** → **Redeploy**（Settings → Deployments → 最新的 → ⋯ → Redeploy）
+
+> ⚠️ 一定要先做这一步再做第 6 步。没配 `DISCORD_PUBLIC_KEY` 时接口对所有请求都返回 503，Discord 保存 Endpoint 会失败。
+
+### 第 6 步：设置 Interactions Endpoint
+
+1. 回到 **「General Information」**
+2. **INTERACTIONS ENDPOINT URL** 填：
+   ```
+   https://prometheus.mythslabs.ai/api/messaging/discord
+   ```
+3. 点 **Save Changes**（Discord 会发 PING，并故意发几条签名错误的请求，我们的代码会回 401，验证才能通过）
 
 ### 第 7 步：注册 Slash Commands（一次性）
 
@@ -74,43 +76,25 @@ curl -X PUT \
 
 ---
 
-## 📖 LINE Bot 配置
+## 📖 Telegram Bot 配置
 
-### 第 1 步：注册 LINE Developers
+### 第 1 步：拿到 Bot Token
 
-1. 打开 [LINE Developers Console](https://developers.line.biz/console/)
-2. 用你的 LINE 账号登录
-3. 如果没有 Provider，点 **「Create」** 新建一个（名字填 `Myths Labs`）
+1. 在 Telegram 里找 [@BotFather](https://t.me/BotFather)
+2. 发 `/newbot`，按提示起名字
+3. 复制它给你的 token（形如 `123456:ABC...`）
 
-### 第 2 步：创建 Messaging API Channel
+### 第 2 步：生成 Webhook Secret
 
-1. 点你的 Provider → **「Create a new channel」**
-2. 选 **「Messaging API」**
-3. 填写信息：
-   - **Channel name**: `Prometheus Avatar`
-   - **Channel description**: `AI Avatar with voice & marketplace`
-   - **Category**: `Web services`
-   - **Subcategory**: `Web services (general)`
-4. 同意条款 → **Create**
+在终端运行，复制输出的那串字符：
 
-### 第 3 步：拿到 Channel Access Token
+```bash
+openssl rand -hex 32
+```
 
-1. 进入你的 Channel → 点顶部 **「Messaging API」** tab
-2. 滚到最底部 → **Channel access token** → 点 **「Issue」**
-3. 复制这个超长的 token
+Telegram 每次推送都会在 `X-Telegram-Bot-Api-Secret-Token` 头里带上它，我们的代码靠它确认请求真的来自 Telegram。
 
-### 第 4 步：设置 Webhook
-
-1. 还是 **「Messaging API」** tab
-2. **Webhook URL** 填：
-   ```
-   https://prometheus.mythslabs.ai/api/messaging/webhook
-   ```
-3. 点 **Update** → 点 **Verify**（应该显示 Success）
-4. **Use webhook** 开关打开 ✅
-5. **Auto-reply messages** 关掉 ❌（不然 LINE 自带的自动回复会和我们的 AI 冲突）
-
-### 第 5 步：Vercel 添加环境变量
+### 第 3 步：Vercel 添加环境变量
 
 1. 打开 [Vercel Dashboard](https://vercel.com) → 进 `prometheus-avatar` 项目
 2. **Settings** → **Environment Variables**
@@ -118,20 +102,30 @@ curl -X PUT \
 
    | Key | Value |
    |-----|-------|
-   | `LINE_CHANNEL_ACCESS_TOKEN` | 第 3 步复制的 token |
+   | `TELEGRAM_BOT_TOKEN` | 第 1 步的 token |
+   | `TELEGRAM_WEBHOOK_SECRET` | 第 2 步生成的 secret |
 
 4. 点 **Save** → **Redeploy**
 
-### 第 6 步：加好友测试
+> 没配 `TELEGRAM_WEBHOOK_SECRET` 时接口返回 503；secret 对不上返回 401，都不会处理消息。
 
-1. 回到 LINE Developers → **「Messaging API」** tab
-2. 找到 **Bot basic ID** 或扫 **QR code**
-3. 用 LINE app 加好友
-4. 发一条消息 → 应该收到 AI 回复 + Avatar / Marketplace 按钮
+### 第 4 步：注册 Webhook（一次性）
+
+在终端运行（把 `YOUR_BOT_TOKEN` 和 `YOUR_WEBHOOK_SECRET` 换成你的）：
+
+```bash
+curl -X POST "https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook" \
+  -d "url=https://prometheus.mythslabs.ai/api/telegram/webhook" \
+  -d "secret_token=YOUR_WEBHOOK_SECRET"
+```
+
+以后换 secret，Vercel 和 `setWebhook` 两边都要改；中间对不上的那几条推送，Telegram 会自动重试。
 
 ### ✅ 完成！
 
-用户加你的 LINE Bot 好友后，直接发消息就能和 Avatar AI 聊天。
+用户给 bot 发 `/start` 就能看到 Avatar 和 Marketplace 按钮，发普通消息会收到 AI 回复。
+
+> LINE / WhatsApp 目前没有接入。原来的 `/api/messaging/webhook` 已下线：它解析不了 LINE 的推送格式，也不校验签名。
 
 ---
 
@@ -140,6 +134,7 @@ curl -X PUT \
 | 变量 | 平台 | 在哪拿 |
 |------|------|--------|
 | `DISCORD_PUBLIC_KEY` | Discord | Developer Portal → Application → General → PUBLIC KEY |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINE | Developers Console → Channel → Messaging API → Issue token |
+| `TELEGRAM_BOT_TOKEN` | Telegram | @BotFather → `/newbot` |
+| `TELEGRAM_WEBHOOK_SECRET` | Telegram | 自己生成：`openssl rand -hex 32` |
 
 > 都填到 **Vercel → Settings → Environment Variables** 然后 Redeploy。
