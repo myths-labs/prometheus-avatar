@@ -43,6 +43,8 @@ test('the meter reports the ticket subject without its prefix, as asr_seconds, a
     assert.match(src, /ticketSubject\.slice\(ASR_TICKET_PREFIX\.length\)/);
     assert.match(src, /\{ event: "start", session: crypto\.randomUUID\(\), subject: asrSubject, meter: "asr_seconds" \}/);
     assert.match(src, /\{ event: "end", reservation: r\.reservation, audio_seconds: r\.inputAudioSeconds \}/);
+    const asrReport = between('subject: asrSubject, meter: "asr_seconds"', 'stop: () => {');
+    assert.ok(asrReport.includes('signal: AbortSignal.timeout(5000)'), 'a stuck usage report must not hold the socket open');
     for (const [start, end] of [
         ['const rejectFrame = () => {', '};'],
         ['serverWs.addEventListener("close", (event) => {', '});'],

@@ -769,8 +769,9 @@ export default {
                         : r.kind === "tick" ? { event: "tick", reservation: r.reservation }
                         : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds });
                     try {
+                        // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
                         const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
-                            "x-internal-call": await signUsageReport(usageSecret, body) }, body });
+                            "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
                         return res.ok ? await res.json() as { continue: boolean; reservation?: string | null } : { continue: true, reservation: null };
                     } catch { return { continue: true, reservation: null }; }
                 },
