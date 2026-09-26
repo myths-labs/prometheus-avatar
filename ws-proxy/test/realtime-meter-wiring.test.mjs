@@ -18,7 +18,7 @@ test('the meter is created only for platform live-voice grants with a configured
     assert.match(src, /import \{ createSessionMeter, signUsageReport \} from '\.\/realtime-meter';/);
     assert.match(src, /MARKETPLACE_USAGE_URL\?: string;/);
     assert.match(src, /RELAY_USAGE_SECRET\?: string;/);
-    assert.match(src, /const meter = meterGrant && usageUrl && usageSecret \? createSessionMeter/);
+    assert.match(src, /meter = meterGrant && usageUrl && usageSecret \? createSessionMeter/);
 });
 
 test('every upstream frame reaches the meter before it is forwarded', () => {
@@ -44,4 +44,12 @@ test('a quota stop closes the client with 4402 and the upstream normally', () =>
     const stop = between('stop: (reason) => {', '},');
     assert.match(stop, /reason === "quota" \? 4402 : 1000/);
     assert.match(stop, /upstreamWs\.close\(1000/);
+});
+
+test('the meter is declared before rejectFrame, like the lease it sits beside', () => {
+    // rejectFrame closes the meter. A const declared after it is only safe while every caller is asynchronous.
+    const declared = src.indexOf('let meter: ');
+    assert.ok(declared > 0, 'meter is not declared with let');
+    assert.ok(declared < src.indexOf('const rejectFrame = () => {'), 'meter must be declared before rejectFrame reads it');
+    assert.doesNotMatch(src, /const meter = /);
 });

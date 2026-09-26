@@ -702,6 +702,7 @@ export default {
             let upstreamClosed = false;
             let lease: ReturnType<typeof createLiveVoiceLease> | null = null;
             let voiceProof: ReturnType<typeof createPrivateVoiceProofObserver> | null = null;
+            let meter: ReturnType<typeof createSessionMeter<ReturnType<typeof setTimeout>>> | null = null;
             const frameGuard = engineName === 'doubao' && platformCredentials
                 ? createDoubaoFrameGuard(async (speaker, model) => lease ? lease.authorize(speaker, model) : isPublicDoubaoSpeaker(speaker)
                     && (await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get('ticket') || '')).valid) : null;
@@ -720,7 +721,7 @@ export default {
             // Doubao's SessionStarted, so pre-connections that never start a session record nothing.
             // Fail open: an unreachable marketplace never hangs up a conversation.
             const meterGrant = liveGrant, usageUrl = env.MARKETPLACE_USAGE_URL, usageSecret = env.RELAY_USAGE_SECRET;
-            const meter = meterGrant && usageUrl && usageSecret ? createSessionMeter<ReturnType<typeof setTimeout>>({
+            meter = meterGrant && usageUrl && usageSecret ? createSessionMeter<ReturnType<typeof setTimeout>>({
                 now: () => Date.now(),
                 schedule: (fn, ms) => setTimeout(() => { void fn(); }, ms),
                 cancel: (t) => clearTimeout(t),
