@@ -1,0 +1,45 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.myths-labs/prometheus-avatar",
+  "title": "Prometheus Avatar",
+  "description": "Give an agent a Live2D body: speech with lip-sync, expressions, and marketplace assets.",
+  "version": "0.3.6",
+  "websiteUrl": "https://prometheus.mythslabs.ai",
+  "repository": {
+    "url": "https://github.com/myths-labs/prometheus-avatar",
+    "source": "github",
+    "subfolder": "packages/mcp-server"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@prometheusavatar/mcp-server",
+      "version": "0.3.6",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "PROMETHEUS_API_KEY",
+          "description": "Agent key (pak_...) for avatar create, speak, equip and share. Omit for read-only use.",
+          "format": "string",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "GEMINI_API_KEY",
+          "description": "Only needed by generate_asset. Free key at https://ai.google.dev",
+          "format": "string",
+          "isSecret": true,
+          "isRequired": false
+        },
+        {
+          "name": "PROMETHEUS_API_URL",
+          "description": "API base URL. Defaults to https://prometheus.mythslabs.ai",
+          "format": "string",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}
