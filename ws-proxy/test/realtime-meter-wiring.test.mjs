@@ -53,3 +53,10 @@ test('the meter is declared before rejectFrame, like the lease it sits beside', 
     assert.ok(declared < src.indexOf('const rejectFrame = () => {'), 'meter must be declared before rejectFrame reads it');
     assert.doesNotMatch(src, /const meter = /);
 });
+
+test('a report that hangs gives up after 5 s and fails open', () => {
+    // The end report waits on the start's answer; a marketplace that never answers must not hold the session.
+    const report = between('report: async (r) => {', 'stop: (reason) => {');
+    assert.match(report, /signal: AbortSignal\.timeout\(5000\)/);
+    assert.match(report, /catch \{ return \{ continue: true, reservation: null \}; \}/);
+});

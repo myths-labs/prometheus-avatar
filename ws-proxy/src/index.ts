@@ -731,8 +731,9 @@ export default {
                         : r.kind === "tick" ? { event: "tick", reservation: r.reservation }
                         : { event: "end", reservation: r.reservation, connected_seconds: r.connectedSeconds, output_audio_seconds: r.outputAudioSeconds });
                     try {
+                        // A marketplace that never answers must not hold the session: give up after 5 s, fail open.
                         const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
-                            "x-internal-call": await signUsageReport(usageSecret, body) }, body });
+                            "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
                         return res.ok ? await res.json() as { continue: boolean; reservation?: string | null } : { continue: true, reservation: null };
                     } catch { return { continue: true, reservation: null }; }
                 },
