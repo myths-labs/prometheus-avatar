@@ -26,3 +26,5 @@ compatibility_date = "2024-12-01"
 
 [vars]
 ENVIRONMENT = "production"
+# Realtime usage reports (marketplace conversation usage ledger). RELAY_USAGE_SECRET is a wrangler secret.
+MARKETPLACE_USAGE_URL = "https://prometheus.mythslabs.ai/api/internal/realtime-usage"
