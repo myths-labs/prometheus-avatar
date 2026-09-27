@@ -21,6 +21,7 @@ import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
 import { createSessionMeter, signUsageReport } from './realtime-meter';
+import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, createAsrFrameGuard, createAsrMeter, ticketFitsPath } from './asr-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -259,14 +260,15 @@ const ENGINES: Record<string, EngineConfig> = {
         },
     },
     // ═══ Volcengine Streaming ASR — parallel real-time transcription ═══
+    // A platform grant always uses streaming ASR 2.0 (volc.seedasr.sauc.duration, on the optimized bigmodel_async
+    // endpoint): the platform call passes no params (see authHeaders below), so the caller cannot pick another
+    // resource. An own-key caller may choose between the two duration resources only.
     asr: {
-        upstreamUrl: (_params, _env) => {
-            return `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel`;
-        },
+        upstreamUrl: (params, _env) => ASR_RESOURCES[asrResource(params)],
         headers: (env, params?: URLSearchParams, byok?: { accessKey: string; appId: string }) => {
             const accessKey = byok ? byok.accessKey : env.VOLCENGINE_API_KEY;
             const appId = byok ? byok.appId : env.VOLCENGINE_APP_ID;
-            const resourceId = params?.get("resourceId") || "volc.bigasr.sauc.duration";
+            const resourceId = asrResource(params);
             const connectId = params?.get("connectId") || crypto.randomUUID();
 
             return {
@@ -383,7 +385,8 @@ export default {
         if (url.pathname === "/fish-rest" && request.method === "POST") {
             // Platform-key usage requires a ticket (BYOK ?token= passes free).
             if (!url.searchParams.get("token")?.trim()) {
-                const verdict = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+                const checked = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+                const verdict = checked.valid && !ticketFitsPath(checked.sub, "fish-rest") ? { valid: false as const, reason: "wrong-purpose" } : checked;
                 if (!verdict.valid) {
                     return new Response(JSON.stringify({
                         error: `fish-rest: platform relay access requires a valid ticket (${verdict.reason})`,
@@ -450,7 +453,9 @@ export default {
             // (403) and learns which platform keys are provisioned — a pre-auth
             // config oracle. Fail on missing ticket first, uniformly.
             {
-                const verdict = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+                const checked = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+                // A recognition ticket never opens this platform health probe, whichever engine it names.
+                const verdict = checked.valid && !ticketFitsPath(checked.sub, "test") ? { valid: false as const, reason: "wrong-purpose" } : checked;
                 if (!verdict.valid) {
                     return new Response(JSON.stringify({
                         error: `test: requires a valid ticket (${verdict.reason})`,
@@ -536,10 +541,13 @@ export default {
         const platformCredentials = spendsPlatformCredentials(engineName, url.searchParams)
             || engineName === 'doubao' && url.searchParams.has('ticket');
         let liveGrant: LiveVoiceGrant | null = null;
+        let ticketSubject: string | null = null;
         if (platformCredentials) {
             const ticket = url.searchParams.get('ticket') || '';
             liveGrant = engineName === 'doubao' && /^lv[23]\./.test(ticket) ? await verifyLiveVoiceGrant(env.WS_TICKET_SECRET, ticket) : null;
-            const verdict = liveGrant ? { valid: true as const, sub: liveGrant.sub } : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
+            const checked = liveGrant ? { valid: true as const, sub: liveGrant.sub } : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
+            const verdict = checked.valid && !ticketFitsPath(checked.sub, engineName) ? { valid: false as const, reason: "wrong-purpose" } : checked;
+            if (verdict.valid) ticketSubject = verdict.sub;
             if (!verdict.valid) {
                 console.warn(`[WS-Relay] 🎫 ${engineName}: rejected platform-credential request (${verdict.reason})`);
                 return new Response(JSON.stringify({
@@ -637,9 +645,10 @@ export default {
                     {status:503,headers:{'Content-Type':'application/json',...corsHeaders(origin,env)}});
             }
         }
-        const upstreamUrl = engine.upstreamUrl(url.searchParams, applicationEnv);
-        // A platform grant cannot replace one credential or choose another resource.
-        const authHeaders = engine.headers(applicationEnv, engineName === 'doubao' && platformCredentials ? new URLSearchParams() : url.searchParams);
+        // A platform grant cannot replace one credential or choose another resource (or, for asr, another endpoint).
+        const platformParams = (engineName === 'doubao' || engineName === 'asr') && platformCredentials ? new URLSearchParams() : url.searchParams;
+        const upstreamUrl = engine.upstreamUrl(engineName === 'asr' ? platformParams : url.searchParams, applicationEnv);
+        const authHeaders = engine.headers(applicationEnv, platformParams);
 
         // ⚠️ Cloudflare Workers fetch() requires https:// not wss://
         // Workers handle the WebSocket upgrade internally via the Upgrade header
@@ -703,6 +712,9 @@ export default {
             let lease: ReturnType<typeof createLiveVoiceLease> | null = null;
             let voiceProof: ReturnType<typeof createPrivateVoiceProofObserver> | null = null;
             let meter: ReturnType<typeof createSessionMeter<ReturnType<typeof setTimeout>>> | null = null;
+            let asrMeter: ReturnType<typeof createAsrMeter<ReturnType<typeof setTimeout>>> | null = null;
+            // Recognition on platform credentials: only the marketplace client's PCM shape passes (asr-meter.ts).
+            const asrGuard = engineName === 'asr' && platformCredentials ? createAsrFrameGuard() : null;
             const frameGuard = engineName === 'doubao' && platformCredentials
                 ? createDoubaoFrameGuard(async (speaker, model) => lease ? lease.authorize(speaker, model) : isPublicDoubaoSpeaker(speaker)
                     && (await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get('ticket') || '')).valid) : null;
@@ -713,6 +725,7 @@ export default {
                 lease?.close();
                 voiceProof?.close();
                 meter?.close();
+                asrMeter?.close();
                 try { serverWs.close(1008, 'Voice session authorization failed'); } catch { }
                 try { upstreamWs.close(1008, 'Voice session authorization failed'); } catch { }
             };
@@ -745,6 +758,30 @@ export default {
                     try { upstreamWs.close(1000, "Voice session ended"); } catch { }
                 },
             }) : null;
+            // Recognition usage: the audio seconds sent upstream, reported for the ticket's subject (the "asr:" prefix
+            // removed) through the same signed path. Fail open like realtime.
+            const asrSubject = asrGuard && ticketSubject?.startsWith(ASR_TICKET_PREFIX) ? ticketSubject.slice(ASR_TICKET_PREFIX.length) : null;
+            asrMeter = asrSubject && usageUrl && usageSecret ? createAsrMeter<ReturnType<typeof setTimeout>>({
+                schedule: (fn, ms) => setTimeout(() => { void fn(); }, ms),
+                cancel: (t) => clearTimeout(t),
+                report: async (r) => {
+                    const body = JSON.stringify(r.kind === "start"
+                        ? { event: "start", session: crypto.randomUUID(), subject: asrSubject, meter: "asr_seconds" }
+                        : r.kind === "tick" ? { event: "tick", reservation: r.reservation }
+                        : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds });
+                    try {
+                        // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
+                        const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
+                            "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
+                        return res.ok ? await res.json() as { continue: boolean; reservation?: string | null } : { continue: true, reservation: null };
+                    } catch { return { continue: true, reservation: null }; }
+                },
+                stop: () => {
+                    clientClosed = true; upstreamClosed = true;
+                    try { serverWs.close(4402, "Voice is text-only for now"); } catch { }
+                    try { upstreamWs.close(1000, "Voice session ended"); } catch { }
+                },
+            }) : null;
             if (liveGrant?.assetId && liveGrant.providerAppSha256) voiceProof = createPrivateVoiceProofObserver({
                 grant: liveGrant, secret: env.WS_TICKET_SECRET!, providerLogId: upstreamResponse.headers.get('x-tt-logid'),
                 onProof: receipt => {
@@ -755,6 +792,14 @@ export default {
 
             // Client → Upstream
             serverWs.addEventListener("message", (event) => {
+                if (asrGuard) {
+                    if (clientClosed || upstreamClosed) return;
+                    const verdict = asrGuard.inspect(event.data);
+                    if (!verdict.ok) { console.warn(`[WS-Relay] asr: refused a client frame (${verdict.reason})`); rejectFrame(); return; }
+                    try { upstreamWs.send(event.data); } catch (e) { console.error(`[WS-Relay] asr: error sending to upstream:`, e); return; }
+                    asrMeter?.onAudio(verdict.audioBytes);
+                    return;
+                }
                 if (frameGuard) {
                     const control = typeof event.data === 'string' && event.data.length <= 3072;
                     const bytes = event.data instanceof ArrayBuffer ? event.data.byteLength : control ? new TextEncoder().encode(event.data as string).byteLength : 1024 * 1024 + 1;
@@ -795,6 +840,7 @@ export default {
                 lease?.close();
                 voiceProof?.close();
                 meter?.close();
+                asrMeter?.close();
                 clientClosed = true;
                 const code = [1005, 1006, 1015].includes(event.code) ? 1000 : event.code;
                 // A received close still needs a reply on compatibility dates before automatic replies.
@@ -824,6 +870,7 @@ export default {
                 lease?.close();
                 voiceProof?.close();
                 meter?.close();
+                asrMeter?.close();
                 upstreamClosed = true;
                 const code = [1005, 1006, 1015].includes(event.code) ? 1000 : event.code;
                 try { upstreamWs.close(code, 'Voice provider closed'); } catch { }
@@ -839,6 +886,7 @@ export default {
                 lease?.close();
                 voiceProof?.close();
                 meter?.close();
+                asrMeter?.close();
                 console.error(`[WS-Relay] ${engineName}: upstream error`);
                 upstreamClosed = true;
                 if (!clientClosed) {
