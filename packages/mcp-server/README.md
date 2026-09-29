@@ -22,7 +22,7 @@ npx @prometheusavatar/mcp-server
 | `speak` | Make the avatar speak text with TTS and lip-sync animation |
 | `connect_seller` | **NEW v0.4** Hermes Agent only: connect a Prometheus seller account (link + code to approve) |
 | `seller_connection_status` | **NEW v0.4** Waiting for approval / connected (rates, X link, today's publishes) / not connected |
-| `publish_listing` | **NEW v0.4** Publish an asset (or a draft by `draft_asset_id`) through the connection at the Hermes Agent rate |
+| `publish_listing` | **NEW v0.4** Publish an asset (or a draft by `draft_asset_id`) through the connection; sold at the account's seller rate |
 | `disconnect_seller` | **NEW v0.4** Revoke the connection at once (needs `confirm: true`) |
 
 ## Setup
@@ -57,7 +57,7 @@ Add to `claude_desktop_config.json`:
 
 ## Sell from Hermes Agent (v0.4)
 
-Connect Hermes Agent to your Prometheus seller account once. Listings you publish through it are listed at the **Hermes Agent seller rate** (current rates are shown in your Prometheus dashboard and by `seller_connection_status`).
+Connect Hermes Agent to your Prometheus seller account once. When your account is verified through Hermes Agent, **all of that account's listings** are sold at the Hermes Agent seller rate: the rate follows the account, not each listing. An account that only uses an API key and has not been verified is at the AI agent rate. Current rates are shown in your Prometheus dashboard and by `seller_connection_status`.
 
 1. Add the server to Hermes. Either put this in `~/.hermes/config.yaml`:
 
@@ -74,13 +74,14 @@ Connect Hermes Agent to your Prometheus seller account once. Listings you publis
 2. Tell Hermes: **`Connect my Prometheus seller account`**. It answers with a link and a short code.
 3. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The server finishes the connection by itself.
 4. Link your X account from Dashboard → Seller types → Hermes Agent. Tier publishes need it.
-5. Tell Hermes: **`Publish this to Prometheus Marketplace`**. To sell something made with `generate_asset`, generate it with `auto_deploy: false` and publish the draft with `publish_listing` (`draft_asset_id`).
+5. Tell Hermes: **`Publish this to Prometheus Marketplace`**. To publish something made with `generate_asset` through the channel, generate it with `auto_deploy: false` and publish the draft with `publish_listing` (`draft_asset_id`). The listing is public and cannot be withdrawn from the agent loop, so confirm before publishing.
 
 How it decides this really is Hermes: `PROMETHEUS_CHANNEL=hermes` must be set, a Hermes process must be among the server's parent processes (only the matched word and how far up it is are sent, never a command line), and the client's name and whether it supports sampling come from the MCP handshake. This is a friction check, not a security boundary. Native Windows cannot connect Hermes; use WSL.
 
 - The connection key (`pch_…`) is issued once, never shown in the chat or in a log, and kept in `~/.prometheus/channel-hermes.json` (mode 0600), not in your Hermes config.
-- If a check fails (X not linked, daily limit, a suspended connection…), the tool says why and where to fix it. It never quietly publishes at another rate.
-- Using this MCP server from another app, or with only an API key, sells at the AI agent rate. Connect it from Hermes to get the Hermes Agent rate.
+- If a check fails (X not linked, daily limit, a suspended connection…), nothing is published and the tool says why and where to fix it.
+- Using this MCP server from another app, or with only an API key and no verification, sells at the AI agent rate. Verify your account by connecting from Hermes to get the Hermes Agent rate for all your listings.
+- Disconnecting stops this key at once; your account's rate and the listings you already published are unchanged.
 - The seller channel opens on the Prometheus side when Prometheus turns it on. Before that, connecting says it is not available yet.
 
 ## Environment Variables

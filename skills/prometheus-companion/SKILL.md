@@ -46,7 +46,7 @@ curl -s -X POST https://prometheus.mythslabs.ai/api/agent/avatar/state \
 
 ## Sell on Prometheus
 
-If you run inside **OpenClaw** or **Hermes Agent** and your user wants to sell what you made on Prometheus Marketplace, connect their seller account once, then publish. Listings published this way get the seller rate of your platform (shown by the status tool).
+If you run inside **OpenClaw** or **Hermes Agent** and your user wants to sell what you made on Prometheus Marketplace, connect their seller account once, then publish. Once the account is verified through OpenClaw or Hermes Agent, all of the account's listings are sold at that platform's seller rate: the rate follows the account, not each listing (the status tool shows it). An account that only uses an API key and has not been verified is at the AI agent rate.
 
 | Step | OpenClaw (`@prometheusavatar/openclaw-plugin` 0.11+) | Hermes Agent (`@prometheusavatar/mcp-server` 0.4+, `PROMETHEUS_CHANNEL=hermes`) |
 |---|---|---|
@@ -57,9 +57,10 @@ If you run inside **OpenClaw** or **Hermes Agent** and your user wants to sell w
 
 - Connecting returns a link and a short code. Give both to the user exactly as returned: they sign in to Prometheus and approve within 10 minutes; the connection then completes by itself.
 - Publishing at this rate needs the user's X account linked on Prometheus. If it is not, the tool says so and returns the link; pass that on.
-- Publish only after the user agrees: the listing becomes public. Never ask for or print the connection key; you never see it.
-- A failed publish is not a reason to fall back to an API-key deploy: that sells at the lower AI agent rate the user did not choose.
-- With Hermes, to sell something made by `generate_asset`, generate with `auto_deploy: false`, then `publish_listing` with its `draft_asset_id`.
+- **Publishing is public and cannot be withdrawn from the agent loop: confirm with the user first.** Never ask for or print the connection key; you never see it.
+- Forge launch scope for publishing: `skins`, `voices`, `motions`, `expressions`, `personas`; `accessories` and `effects` are coming soon (the API still accepts them; do not promise them). Voices are published in the Voice Creator on the site; the publish tools are refused for them.
+- A failed check is not a reason to try an API-key deploy: the same checks apply.
+- With Hermes, to publish something made by `generate_asset` through the channel, generate with `auto_deploy: false`, then `publish_listing` with its `draft_asset_id`.
 
 ## Common mistakes
 

@@ -352,7 +352,7 @@ export class SellerConnection {
 
     async publish(args: PublishArgs): Promise<Outcome> {
         const stored = await this.d.keyFile.get();
-        if (!stored) return { ok: false, text: 'Not connected to a Prometheus seller account, so this cannot be published at the Hermes Agent rate. Ask me to "Connect my Prometheus seller account" first. (generate_asset with auto_deploy sells at the AI agent rate.)' };
+        if (!stored) return { ok: false, text: 'Not connected to a Prometheus seller account, so this cannot be published through the channel. Ask me to "Connect my Prometheus seller account" first.' };
         let payload: Record<string, unknown>;
         if (args.draft_asset_id) payload = { draft_asset_id: args.draft_asset_id };
         else {
@@ -372,7 +372,7 @@ export class SellerConnection {
         try {
             const r = await this.client().publish(stored.key, payload);
             const held = r.bonus_hold_days > 0 ? ` On points sales, the extra points above the normal creator rate are held for ${r.bonus_hold_days} days.` : "";
-            return { ok: true, text: `Published to Prometheus Marketplace: ${r.url}\nListed at the ${r.creator_type} rate: platform fee ${fee(r.fee.platform)}, ${fee(r.fee.member)} for members.${held}` };
+            return { ok: true, text: `Published to Prometheus Marketplace: ${r.url}\nSold at your account's ${r.creator_type} seller rate: platform fee ${fee(r.fee.platform)}, ${fee(r.fee.member)} for members.${held}` };
         } catch (err) {
             if (err instanceof ChannelError && err.code === "CHANNEL_KEY_INACTIVE") await this.d.keyFile.clear();
             return this.failure(err, "Publish failed");
@@ -386,7 +386,7 @@ export class SellerConnection {
         try {
             const r = await this.client().unlinkSelf(stored.key, hide);
             await this.d.keyFile.clear();
-            return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ""}Listings already published keep their rate. To sell at the Hermes Agent rate again, connect again.` };
+            return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ""}Your account's rate and the listings already published are unchanged. To publish through the channel again, connect again.` };
         } catch (err) {
             if (err instanceof ChannelError && err.code === "CHANNEL_KEY_INACTIVE") {
                 await this.d.keyFile.clear();
@@ -414,7 +414,7 @@ export function registerSellerTools(
 ): void {
     registerTool(
         "connect_seller",
-        "Connect this Hermes Agent to your Prometheus seller account, so listings you publish get the Hermes Agent seller rate. Returns a link and a short code for the user to approve in the browser (10 minutes). Use when the user says \"Connect my Prometheus seller account\". Only works when the server runs inside Hermes with PROMETHEUS_CHANNEL=hermes.",
+        "Connect this Hermes Agent to your Prometheus seller account. Once the account is verified through Hermes Agent, all of the account's listings are sold at the Hermes Agent seller rate (the rate follows the account, not each listing). Returns a link and a short code for the user to approve in the browser (10 minutes). Use when the user says \"Connect my Prometheus seller account\". Only works when the server runs inside Hermes with PROMETHEUS_CHANNEL=hermes.",
         { relink: z.boolean().optional().describe("Connect a different account even though one is already connected.") },
         async ({ relink }: { relink?: boolean }) => reply(await conn.connect(relink === true)),
     );
@@ -426,7 +426,7 @@ export function registerSellerTools(
     );
     registerTool(
         "publish_listing",
-        "Publish an asset to Prometheus Marketplace through the connected seller account, at the Hermes Agent seller rate. Needs a connection (connect_seller). Use when the user says \"Publish this to Prometheus Marketplace\". To sell something generated with generate_asset at this rate, generate with auto_deploy=false and pass its id as draft_asset_id. It never publishes at another rate: if a check fails (for example the X account is not linked), it says why and how to fix it.",
+        "Publish an asset to Prometheus Marketplace through the connected seller account; the listing is sold at the account's seller rate. Needs a connection (connect_seller). Use when the user says \"Publish this to Prometheus Marketplace\". To publish something made with generate_asset through the channel, generate it with auto_deploy=false and pass its id as draft_asset_id. The listing becomes public and cannot be withdrawn from the agent loop, so confirm with the user first. If a check fails (for example the X account is not linked), nothing is published and it says why and how to fix it.",
         {
             name: z.string().optional(),
             category: z.enum(["skins", "voices", "effects", "motions", "accessories", "scenes", "personas", "expressions", "bundles"]).optional(),
@@ -446,7 +446,7 @@ export function registerSellerTools(
     );
     registerTool(
         "disconnect_seller",
-        "Revoke this Hermes Agent's Prometheus seller connection immediately. Published listings keep their rate. Only call when the user asks to disconnect, and pass confirm=true.",
+        "Revoke this Hermes Agent's Prometheus seller connection immediately. The account's rate and the listings already published are unchanged. Only call when the user asks to disconnect, and pass confirm=true.",
         { confirm: z.boolean().describe("Must be true."), hide_listings: z.boolean().optional().describe("Also hide the listings published through this connection.") },
         async ({ confirm, hide_listings }: { confirm: boolean; hide_listings?: boolean }) =>
             confirm === true ? reply(await conn.disconnect(hide_listings === true)) : reply({ ok: false, text: "Not disconnected: confirm=true is required." }),

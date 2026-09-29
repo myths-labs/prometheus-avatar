@@ -5,7 +5,7 @@ description: Sell on Prometheus Marketplace from OpenClaw (connect a seller acco
 
 # Prometheus Avatar
 
-This skill ships with `@prometheusavatar/openclaw-plugin`. It lets your agent sell on the Prometheus Marketplace at the OpenClaw seller rate, author marketplace assets, and (where the host gives the plugin a page element) drive a visual avatar.
+This skill ships with `@prometheusavatar/openclaw-plugin`. It lets your agent sell on the Prometheus Marketplace through a verified seller account, author marketplace assets, keep the user's Prometheus avatar in step with what the agent is doing, and (where the host gives the plugin a page element) draw the avatar on screen.
 
 ## What a Prometheus character is
 
@@ -73,30 +73,30 @@ Lighter thumbnails for non-AAA contexts. Faster and cheaper than `prometheus_gen
 
 ### Sell on Prometheus (seller channel)
 
-Use when the user says "Connect my Prometheus seller account", "Publish this to Prometheus Marketplace", or asks to sell an asset they made.
+Use when the user says "Connect my Prometheus seller account", "Publish this to Prometheus Marketplace", or asks to sell an asset they made. Once the account is verified through OpenClaw, all of the account's listings are sold at the OpenClaw seller rate: the rate follows the account, not each listing. An account that only uses an API key and has not been verified is at the AI agent rate.
 
 1. **`prometheus_connect_seller`** — starts the connection. Tell the user the link and the code exactly as returned (they have 10 minutes; they must sign in to Prometheus and approve). The plugin completes the connection by itself once they approve; `prometheus_connection_status` shows where it is.
-2. **`prometheus_connection_status`** — connected or not, the seller rates, whether the X account is linked, today's publish count. If X is not linked, publishing at the OpenClaw rate fails: give the user the link the tool returned.
-3. **`prometheus_publish_listing`** — needs `name`, `category`, the file (`fileData`: URL or base64) — or `draft_asset_id` for a draft the account already holds. `personas` also need `description` and `persona_config`; `bundles` need `bundle_items`. Voices cannot be published this way (publish them in the Voice Creator on the site). Confirm with the user before publishing: the listing becomes public.
-4. **`prometheus_disconnect_seller`** — only when the user asks to disconnect; pass `confirm: true`.
+2. **`prometheus_connection_status`** — connected or not, the seller rates, whether the X account is linked, today's publish count. If X is not linked, publishing through the channel fails: give the user the link the tool returned.
+3. **`prometheus_publish_listing`** — needs `name`, `category`, the file (`fileData`: URL or base64) — or `draft_asset_id` for a draft the account already holds. Forge launch scope: `skins`, `voices`, `motions`, `expressions`, `personas`; `accessories` and `effects` are coming soon (the API still accepts them, but do not promise them). `personas` also need `description` and `persona_config`. Voices are published in the Voice Creator on the site; this tool is refused for them. **Publishing is public and cannot be withdrawn from the agent loop: confirm with the user before you call it.**
+4. **`prometheus_disconnect_seller`** — only when the user asks to disconnect; pass `confirm: true`. The account's rate and the listings already published are unchanged.
 
-Rules: never invent a connection or a rate; when a tool returns a message and a fix link, tell the user both as written. If `prometheus_publish_listing` fails, do NOT retry with `prometheus_deploy_asset` and an API key to get around it: that sells at the lower AI agent rate and the user did not choose that. The connection key is never shown to you or the user; never ask for it.
+Rules: never invent a connection or a rate; when a tool returns a message and a fix link, tell the user both as written. If `prometheus_publish_listing` fails a check, do NOT try `prometheus_deploy_asset` to get around it: the same checks apply. The connection key is never shown to you or the user; never ask for it.
 
 ### `prometheus_deploy_asset` (older name)
 
-Same as `prometheus_publish_listing` when the plugin is connected. Not connected, it deploys with the configured API key (`pak_...`) at the AI agent rate. Category must be one of `skins` / `voices` / `effects` / `motions` / `accessories` / `scenes` / `personas` / `expressions`. Requires `name`, `category`, and `fileData` (URL or base64).
+Same as `prometheus_publish_listing` when the plugin is connected. Not connected, it deploys with the configured API key (`pak_...`). The rate is your account's rate. Categories and confirmation rules are the same as above; it requires `name`, `category`, and `fileData` (URL or base64).
 
 ## Avatar events (automatic · no tool call needed)
 
-Where the host gives the plugin a page element (`containerSelector`) and `enableLipSync` / `enableEmotion` are on, the avatar reacts to OpenClaw's normal event stream:
+With an agent API key (`apiKey` or `PROMETHEUS_API_KEY`) the plugin pushes what the agent is doing to the user's Prometheus avatar; any avatar page the user has open follows within a few seconds. This works in the OpenClaw gateway. Where the host also gives the plugin a page element (`containerSelector`), it draws the avatar there too.
 
-| OpenClaw hook | Avatar reaction |
-|-------------|----------------|
-| `message_sent` | Speaks the message with lip-sync |
-| `model_call_started` | Thinking expression |
-| `model_call_ended` (error) | Surprised expression |
+| OpenClaw hook | Avatar state update | On-screen avatar (page element only) |
+|-------------|----------------|----------------|
+| `model_call_started` | state `thinking` | Thinking expression |
+| `message_sent` | state `done` + the message's emotion | Speaks the message with lip-sync |
+| `model_call_ended` (error) | emotion `surprised` | Surprised expression |
 
-The agent does NOT need to call a tool to trigger these. The OpenClaw gateway has no page, so there this part is skipped and the tools work as usual.
+The agent does NOT need to call a tool to trigger these. Turn the state updates off with `companionState: false`.
 
 ## Configuration
 

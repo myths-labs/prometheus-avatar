@@ -35,12 +35,14 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
 - **mcp-server**: Hermes Agent seller channel: `connect_seller`, `seller_connection_status`, `publish_listing`,
   `disconnect_seller` (14 tools total). Checks `PROMETHEUS_CHANNEL=hermes`, a Hermes ancestor process and the MCP client
   handshake; key in `~/.prometheus/channel-hermes.json` (0600).
+- **openclaw-plugin**: avatar state updates: with an agent API key, `model_call_started`, `message_sent` and `model_call_ended` push `thinking` / `done` + emotion / `surprised` to `POST /api/agent/avatar/state` (the channel `set_avatar_state` uses), so any open avatar page follows even though the gateway has no page. Transitions only, spaced out; off by itself on a 404 or a rejected key; `companionState: false` turns it off.
 - **skills**: "Sell on Prometheus" in `prometheus-companion` and the plugin's bundled skill.
 
 ### Changed
-- **openclaw-plugin**: the avatar display now runs only where the host gives the plugin a page element
-  (`containerSelector`); the OpenClaw gateway has none, so it logs once and skips. README no longer claims a merge
-  into the OpenClaw community registry.
+- **openclaw-plugin**: the on-screen avatar now runs only where the host gives the plugin a page element
+  (`containerSelector`); the OpenClaw gateway has none, so it logs once and skips (state updates above still work).
+  README states the OpenClaw community-list milestone in the past tense with its evidence (PR #52752, merged
+  April 20, 2026).
 
 ---
 

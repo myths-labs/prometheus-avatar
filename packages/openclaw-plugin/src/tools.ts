@@ -43,7 +43,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
         {
             name: 'prometheus_connect_seller',
             label: 'Connect Prometheus seller account',
-            description: 'Connect this OpenClaw to your Prometheus seller account, so listings you publish get the OpenClaw seller rate. Returns a link and a short code for the user to approve in the browser (10 minutes). Use when the user says "Connect my Prometheus seller account".',
+            description: 'Connect this OpenClaw to your Prometheus seller account. Once the account is verified through OpenClaw, all of the account\'s listings are sold at the OpenClaw seller rate (the rate follows the account, not each listing). Returns a link and a short code for the user to approve in the browser (10 minutes). Use when the user says "Connect my Prometheus seller account".',
             parameters: {
                 type: 'object', additionalProperties: false,
                 properties: { relink: { type: 'boolean', description: 'Connect a different account even though one is already connected.' } },
@@ -60,14 +60,14 @@ export function buildTools(d: ToolDeps): PluginTool[] {
         {
             name: 'prometheus_publish_listing',
             label: 'Publish to Prometheus Marketplace',
-            description: 'Publish an asset (skin, voice, effect, motion, accessory, scene, persona, expression, bundle) to Prometheus Marketplace through the connected seller account, at the OpenClaw seller rate. Needs a connection (prometheus_connect_seller). Use when the user says "Publish this to Prometheus Marketplace". It never publishes at another rate: if a check fails (for example the X account is not linked), it says why and how to fix it.',
+            description: 'Publish an asset (skin, voice, effect, motion, accessory, scene, persona, expression, bundle) to Prometheus Marketplace through the connected seller account; the listing is sold at the account\'s seller rate. Needs a connection (prometheus_connect_seller). Use when the user says "Publish this to Prometheus Marketplace". The listing becomes public and cannot be withdrawn from the agent loop, so confirm with the user first. If a check fails (for example the X account is not linked), nothing is published and it says why and how to fix it.',
             parameters: { type: 'object', additionalProperties: false, properties: publishProps },
             async execute(_id, params) { return text(await d.conn.publish(params as PublishArgs)); },
         },
         {
             name: 'prometheus_deploy_asset',
             label: 'Deploy asset to Prometheus Marketplace',
-            description: 'Older name of prometheus_publish_listing, kept for compatibility. When this OpenClaw is connected to a Prometheus seller account it publishes through the connection at the OpenClaw rate; otherwise it deploys with the configured agent API key (pak_...) at the AI agent rate.',
+            description: 'Older name of prometheus_publish_listing, kept for compatibility. When this OpenClaw is connected to a Prometheus seller account it publishes through the connection; otherwise it deploys with the configured agent API key (pak_...). Either way the listing is sold at the account\'s seller rate (the AI agent rate for an account that has not been verified through OpenClaw or Hermes). Public and not withdrawable from the agent loop: confirm with the user first.',
             parameters: { type: 'object', additionalProperties: false, properties: publishProps },
             async execute(_id, params) {
                 const args = params as PublishArgs;
@@ -79,7 +79,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
                 const apiKey = configuredApiKey();
                 if (!apiKey) {
                     return text({
-                        text: 'This OpenClaw is not connected to a Prometheus seller account and has no agent API key. Either ask me to "Connect my Prometheus seller account" (OpenClaw seller rate), or set the `apiKey` plugin config (or PROMETHEUS_API_KEY) to a pak_... key from https://prometheus.mythslabs.ai/settings/agent-keys (AI agent rate).',
+                        text: 'This OpenClaw is not connected to a Prometheus seller account and has no agent API key. Either ask me to "Connect my Prometheus seller account" (this verifies the account through OpenClaw), or set the `apiKey` plugin config (or PROMETHEUS_API_KEY) to a pak_... key from https://prometheus.mythslabs.ai/settings/agent-keys.',
                         details: { ok: false, code: 'NO_CREDENTIALS' },
                     });
                 }
@@ -89,7 +89,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
                 const { fileData, thumbnailData, draft_asset_id: _d, ...config } = args;
                 try {
                     const res = await (await creator()).deployAsset(config as never, fileData, thumbnailData);
-                    return text({ text: `Deployed to Prometheus Marketplace${res.asset?.url ? `: ${res.asset.url}` : ''} (AI agent rate).`, details: { ...res } });
+                    return text({ text: `Deployed to Prometheus Marketplace${res.asset?.url ? `: ${res.asset.url}` : ''}.`, details: { ...res } });
                 } catch (err) {
                     return text({ text: `Deploy failed: ${(err as Error).message}`, details: { ok: false, code: 'DEPLOY_FAILED' } });
                 }
@@ -98,7 +98,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
         {
             name: 'prometheus_disconnect_seller',
             label: 'Disconnect Prometheus seller account',
-            description: 'Revoke this OpenClaw\'s Prometheus seller connection immediately. Published listings keep their rate. Only call when the user asks to disconnect, and pass confirm=true.',
+            description: 'Revoke this OpenClaw\'s Prometheus seller connection immediately. The account\'s rate and the listings already published are unchanged. Only call when the user asks to disconnect, and pass confirm=true.',
             parameters: {
                 type: 'object', additionalProperties: false, required: ['confirm'],
                 properties: {

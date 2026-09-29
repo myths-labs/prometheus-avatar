@@ -214,7 +214,7 @@ export class SellerConnection {
     async publish(args: PublishArgs): Promise<Outcome> {
         const stored = await this.o.store.get();
         if (!stored) {
-            return { ok: false, text: 'Not connected to a Prometheus seller account, so this cannot be published at the OpenClaw rate. Ask me to "Connect my Prometheus seller account" first.', details: { ok: false, state: 'not_connected' } };
+            return { ok: false, text: 'Not connected to a Prometheus seller account, so this cannot be published through the channel. Ask me to "Connect my Prometheus seller account" first.', details: { ok: false, state: 'not_connected' } };
         }
         const creator = new (await this.o.loadCore()).AssetCreator(this.o.baseUrl);
         const opts = {
@@ -236,7 +236,7 @@ export class SellerConnection {
             const held = r.bonus_hold_days > 0 ? ` On points sales, the extra points above the normal creator rate are held for ${r.bonus_hold_days} days.` : '';
             return {
                 ok: true,
-                text: `Published to Prometheus Marketplace: ${r.url}\nListed at the ${r.creator_type} rate: platform fee ${fee(r.fee.platform)}, ${fee(r.fee.member)} for members.${held}`,
+                text: `Published to Prometheus Marketplace: ${r.url}\nSold at your account's ${r.creator_type} seller rate: platform fee ${fee(r.fee.platform)}, ${fee(r.fee.member)} for members.${held}`,
                 details: { ok: true, asset_id: r.asset_id, url: r.url, creator_type: r.creator_type, fee: r.fee, bonus_hold_days: r.bonus_hold_days },
             };
         } catch (err) {
@@ -253,7 +253,7 @@ export class SellerConnection {
         try {
             const r = await (await this.api()).unlinkSelf(stored.key, hideListings);
             await this.o.store.clear();
-            return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ''}Listings already published keep their rate. To sell at the OpenClaw rate again, connect again.`, details: { ok: true, hidden: r.hidden } };
+            return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ''}Your account's rate and the listings already published are unchanged. To publish through the channel again, connect again.`, details: { ok: true, hidden: r.hidden } };
         } catch (err) {
             if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') {
                 await this.o.store.clear();

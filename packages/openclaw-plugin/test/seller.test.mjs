@@ -99,7 +99,7 @@ test('publish sends the deploy fields with the bearer key and no creator_type; a
     const r = await call(h.tools, 'prometheus_publish_listing', { name: 'Cat', category: 'skins', description: 'd', price: 5, tags: ['a'], fileData: 'https://cdn.example/a.zip', thumbnailData: 'data:image/png;base64,AAAA' });
     assert.equal(r.details.ok, true);
     assert.match(r.text, /Published to Prometheus Marketplace: https:\/\/prometheus\.mythslabs\.ai\/marketplace\?asset=asset_1/);
-    assert.match(r.text, /openclaw rate: platform fee 12%, 6% for members/);
+    assert.match(r.text, /Sold at your account's openclaw seller rate: platform fee 12%, 6% for members/);
     assert.match(r.text, /held for 3 days/);
     assert.deepEqual(server.state.published[0], { name: 'Cat', category: 'skins', description: 'd', price: 5, tags: ['a'], file_url: 'https://cdn.example/a.zip', thumbnail_base64: 'data:image/png;base64,AAAA' });
     const req = server.state.requests.filter((x) => x.path === '/api/channels/publish').at(-1);
@@ -132,7 +132,7 @@ test('a failed check says why and how to fix it, and never publishes at another 
     assert.equal(server.state.deployed.length, 0, 'the alias must not fall back to a pak_ deploy after a channel failure');
 });
 
-test('not connected: publish refuses, alias without any credential explains both ways, alias with a pak_ key deploys at the AI agent rate', async () => {
+test('not connected: publish refuses, alias without any credential explains both ways, alias with a pak_ key deploys with it', async () => {
     const h = boot();
     const p = await call(h.tools, 'prometheus_publish_listing', { name: 'Cat', category: 'skins', fileData: 'https://cdn.example/a.zip' });
     assert.equal(p.details.state, 'not_connected');
@@ -142,7 +142,7 @@ test('not connected: publish refuses, alias without any credential explains both
 
     const h2 = boot({ pluginConfig: { apiKey: 'pak_abc123' } });
     const b = await call(h2.tools, 'prometheus_deploy_asset', { name: 'Cat', category: 'skins', fileData: 'https://cdn.example/a.zip' });
-    assert.match(b.text, /AI agent rate/);
+    assert.match(b.text, /Deployed to Prometheus Marketplace/);
     assert.equal(server.state.deployed.length, 1);
 });
 
