@@ -28,3 +28,9 @@ test('the client header is name/version (hermes) and the key only goes in Author
     assert.equal(seen.headers.Authorization, 'Bearer pch_abc');
     assert.ok(!seen.url.includes('pch_abc'));
 });
+
+test('a 404 that carries an error code (channel switched off) keeps the server message', async () => {
+    const off = new Response(JSON.stringify({ error: 'NOT_ENABLED', message: 'Seller channels are not open yet.', fix_url: null }), { status: 404 });
+    const e = await api(async () => off).startLink({}).catch((x) => x);
+    assert.deepEqual([e.code, e.message], ['NOT_ENABLED', 'Seller channels are not open yet.']);
+});

@@ -90,6 +90,12 @@ describe('device flow', () => {
         expect(e.message).toMatch(/not available right now.*try again later/);
     });
 
+    it('a 404 that carries an error code (channel switched off) keeps the server\'s own message', async () => {
+        const off = new SellerChannelApi({ ...OC, baseUrl: server.url, fetchImpl: (async () => new Response(JSON.stringify({ error: 'NOT_ENABLED', message: 'Seller channels are not open yet.', fix_url: null }), { status: 404 })) as typeof fetch });
+        const e = await off.startLink().catch((x) => x);
+        expect(e).toMatchObject({ code: 'NOT_ENABLED', status: 404, message: 'Seller channels are not open yet.', fixUrl: null });
+    });
+
     it('a network failure is CHANNEL_NETWORK, not a crash', async () => {
         const dead = new SellerChannelApi({ ...OC, baseUrl: 'http://127.0.0.1:9' });
         await expect(dead.startLink()).rejects.toMatchObject({ code: 'CHANNEL_NETWORK' });
