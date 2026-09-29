@@ -59,6 +59,8 @@ export interface PluginConfig {
     enableEmotion?: boolean;
     /** CSS selector of a page element to render the avatar into (browser-hosted OpenClaw UIs only). */
     containerSelector?: string;
+    /** Push agent activity to the user's avatar (needs an API key). On unless set to false. */
+    companionState?: boolean;
     /** Testing only: point the seller channel at a local server. Must be https, or http on localhost. */
     channelBaseUrl?: string;
 }

@@ -58,12 +58,22 @@ test('real OpenClaw loads the packed plugin and the seller flow works through it
     assert.equal(p.status, 'loaded', `plugin status: ${p.status} ${p.error ?? ''}`);
     assert.deepEqual([...p.toolNames].sort(), [...manifest.contracts.tools].sort());
     assert.deepEqual(inspected.diagnostics ?? [], []);
+    assert.equal(p.hookCount, 0, 'without an API key the plugin registers no hooks');
 
     // 3. Run the gateway (loopback, no auth, throwaway HOME) with the plugin pointed at the local test double.
     const fake = await startFakeSellerServer({ intervalSec: 1 });
     const port = await freePort();
     for (const [k, v] of [['gateway.mode', 'local'], ['gateway.bind', 'loopback'], ['gateway.port', String(port)], ['gateway.auth.mode', 'none'],
         ['plugins.entries.prometheus-avatar.config.channelBaseUrl', fake.url]]) oc(home, 'config', 'set', k, v);
+    // With an agent key (a dummy value; nothing calls the real platform) the host must accept the hooks the plugin registers.
+    oc(home, 'config', 'set', 'plugins.entries.prometheus-avatar.config.apiKey', 'pak_localtest');
+    const withKey = JSON.parse(oc(home, 'plugins', 'inspect', 'prometheus-avatar', '--runtime', '--json'));
+    const kp = withKey.plugin ?? withKey;
+    assert.equal(kp.status, 'loaded', `plugin status with a key: ${kp.status} ${kp.error ?? ''}`);
+    assert.equal(kp.hookCount, 3, 'message_sent, model_call_started and model_call_ended are registered');
+    assert.deepEqual(withKey.diagnostics ?? [], []);
+    oc(home, 'config', 'unset', 'plugins.entries.prometheus-avatar.config.apiKey');
+
     const gw = spawn(NODE, [path.join(OPENCLAW_DIR, 'openclaw.mjs'), 'gateway', 'run', '--allow-unconfigured', '--port', String(port)], {
         env: { ...process.env, HOME: home, OPENCLAW_STATE_DIR: path.join(home, 'state') }, stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -101,6 +111,7 @@ test('real OpenClaw loads the packed plugin and the seller flow works through it
         assert.equal(fs.existsSync(keyFile), false);
     } finally {
         gw.kill('SIGTERM');           // only the child this test started
+        await new Promise((resolve) => { gw.once('exit', resolve); setTimeout(resolve, 20_000); });   // it writes state while stopping
         await fake.close();
         fs.rmSync(work, { recursive: true, force: true });
     }

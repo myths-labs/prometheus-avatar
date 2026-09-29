@@ -42,6 +42,11 @@
                 "type": "string",
                 "description": "CSS selector of the page element to draw the avatar into. Only used by browser-hosted OpenClaw UIs; the gateway has no page."
             },
+            "companionState": {
+                "type": "boolean",
+                "default": true,
+                "description": "Push what the agent is doing (thinking, done, emotion) to your Prometheus avatar, which any open avatar page follows within a few seconds. Needs an agent API key (apiKey or PROMETHEUS_API_KEY). Set false to turn it off."
+            },
             "ttsProvider": {
                 "type": "string",
                 "deprecated": true,

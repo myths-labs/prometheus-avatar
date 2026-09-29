@@ -6,6 +6,7 @@
  *   prometheus_publish_listing (+ prometheus_deploy_asset, the older name), prometheus_disconnect_seller.
  * - Image tools: prometheus_generate_image_pro, prometheus_generate_thumbnail.
  * - Avatar bridge: agent events -> on-screen avatar, where the host gives the plugin a page element.
+ * - Companion state: agent activity -> the user's Prometheus avatar through the platform's state channel (works in the gateway).
  *
  * `register` must be synchronous (OpenClaw rejects an async one), so everything slow happens inside the tools.
  * The default export is a plain object: OpenClaw only needs `register`, and nothing here imports the host.
@@ -15,6 +16,7 @@ import { SellerConnection } from './sellerConnection';
 import type { CoreModule } from './sellerConnection';
 import { buildTools } from './tools';
 import { attachAvatarBridge } from './avatarBridge';
+import { attachCompanion } from './companion';
 import { PLUGIN_VERSION } from './version';
 import type { PluginApi, PluginConfig } from './types';
 
@@ -39,6 +41,11 @@ function register(api: PluginApi): void {
     }
 
     attachAvatarBridge(api, config, loadCore);
+    attachCompanion({
+        api,
+        config,
+        loadAnalyzer: async () => new ((await loadCore()) as unknown as { EmotionAnalyzer: new () => { analyze(t: string): { emotion: 'happy' | 'sad' | 'angry' | 'surprised' | 'thinking' | 'neutral' } } }).EmotionAnalyzer(),
+    });
 }
 
 export default {

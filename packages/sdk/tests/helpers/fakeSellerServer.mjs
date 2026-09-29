@@ -22,6 +22,8 @@ export async function startFakeSellerServer(opts = {}) {
         requests: [],          // every request: {method, path, headers, body}
         published: [],         // bodies accepted by /publish
         deployed: [],          // bodies accepted by the old API-key deploy route
+        avatarStates: [],      // bodies accepted by the companion-state route
+        stateRoute: opts.stateRoute ?? 'ok',   // 'ok' | 'missing' (older platform build: 404, no error code) | 'reject' (401)
         xLinked: opts.xLinked ?? true,
         dailyUsed: 0,
         dailyCap: opts.dailyCap ?? 4,
@@ -49,6 +51,16 @@ export async function startFakeSellerServer(opts = {}) {
             if (!/^Bearer pak_\w+$/.test(String(req.headers.authorization || ''))) return err(res, 401, 'UNAUTHORIZED', 'A pak_ agent key is required.');
             state.deployed.push(body);
             return send(res, 200, { success: true, asset: { id: 'legacy_1', name: body?.name, url: 'https://prometheus.mythslabs.ai/marketplace?asset=legacy_1', file_url: '', thumbnail: '' } });
+        }
+        // The companion-state route (pak_ key; state / emotion whitelists as on the platform).
+        if (path === '/api/agent/avatar/state' && req.method === 'POST') {
+            if (state.stateRoute === 'missing') { res.writeHead(404, { 'Content-Type': 'text/html' }); return res.end('<html>Not Found</html>'); }
+            if (state.stateRoute === 'reject' || !/^Bearer pak_\w+$/.test(String(req.headers.authorization || ''))) return err(res, 401, 'UNAUTHORIZED', 'A pak_ agent key is required.');
+            const okState = !body?.state || ['listening', 'thinking', 'acting', 'done'].includes(body.state);
+            const okEmotion = !body?.emotion || ['happy', 'sad', 'angry', 'surprised', 'thinking', 'neutral'].includes(body.emotion);
+            if (!okState || !okEmotion || (!body?.state && !body?.emotion)) return err(res, 400, 'INVALID_STATE', 'state or emotion not allowed');
+            state.avatarStates.push({ ...body, at: Date.now() });
+            return send(res, 200, { avatarId: 'av_1', companionState: body });
         }
         const clientHeader = String(req.headers['x-prometheus-client'] || '');
         const m = /^([\w-]+)\/([\d.]+) \((\w+)(?: ([^)]+))?\)$/.exec(clientHeader);
