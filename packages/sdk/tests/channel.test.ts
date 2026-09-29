@@ -72,7 +72,7 @@ describe('device flow', () => {
     });
 
     it('server errors carry code, message, https fix_url and Retry-After', async () => {
-        for (let i = 0; i < 5; i++) await api().startLink();
+        for (let i = 0; i < server.state.startLimit; i++) await api().startLink();
         const e = await api().startLink().catch((x) => x);
         expect(e).toBeInstanceOf(SellerChannelError);
         expect(e).toMatchObject({ code: 'RATE_LIMITED', status: 429, retryAfterSec: 120 });
@@ -111,9 +111,9 @@ describe('after connecting', () => {
     it('whoami, publish, unlink-self', async () => {
         const key = await connect();
         const who = await api().whoami(key);
-        expect(who).toMatchObject({ channel: 'openclaw', account: { fee: { platform: 0.10, member: 0.05 } }, x_link: { linked: true } });
+        expect(who).toMatchObject({ channel: 'openclaw', account: { fee: { platform: 0.12, member: 0.06 } }, x_link: { linked: true } });
         const pub = await api().publish(key, { name: 'Cat', category: 'skins' });
-        expect(pub).toMatchObject({ success: true, creator_type: 'openclaw', bonus_hold_days: 7 });
+        expect(pub).toMatchObject({ success: true, creator_type: 'openclaw', bonus_hold_days: 3 });
         expect(await api().unlinkSelf(key)).toMatchObject({ ok: true, channel: 'openclaw' });
         await expect(api().whoami(key)).rejects.toMatchObject({ code: 'CHANNEL_KEY_INACTIVE', status: 401 });
     });

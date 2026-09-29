@@ -76,7 +76,7 @@ Connect Hermes Agent to your Prometheus seller account once. Listings you publis
 4. Link your X account from Dashboard → Seller types → Hermes Agent. Tier publishes need it.
 5. Tell Hermes: **`Publish this to Prometheus Marketplace`**. To sell something made with `generate_asset`, generate it with `auto_deploy: false` and publish the draft with `publish_listing` (`draft_asset_id`).
 
-How it decides this really is Hermes: `PROMETHEUS_CHANNEL=hermes` must be set, a Hermes process must be among the server's parent processes (only the matched word and how far up it is are sent, never a command line), and the client's name and whether it supports sampling come from the MCP handshake. This is a check, not a lock: the real limits are the X link and the daily caps. Native Windows cannot connect Hermes; use WSL.
+How it decides this really is Hermes: `PROMETHEUS_CHANNEL=hermes` must be set, a Hermes process must be among the server's parent processes (only the matched word and how far up it is are sent, never a command line), and the client's name and whether it supports sampling come from the MCP handshake. This is a friction check, not a security boundary. Native Windows cannot connect Hermes; use WSL.
 
 - The connection key (`pch_…`) is issued once, never shown in the chat or in a log, and kept in `~/.prometheus/channel-hermes.json` (mode 0600), not in your Hermes config.
 - If a check fails (X not linked, daily limit, a suspended connection…), the tool says why and where to fix it. It never quietly publishes at another rate.

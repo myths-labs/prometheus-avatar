@@ -103,7 +103,7 @@ test('publish: fields go through with the bearer key; a draft id is sent alone; 
     const p = await h.call('publish_listing', { name: 'Cat', category: 'skins', file_data: 'https://cdn.example/a.zip', thumbnail_data: 'data:image/png;base64,AAAA', price: 5 });
     assert.equal(p.isError, false, p.text);
     assert.match(p.text, /marketplace\?asset=asset_1/);
-    assert.match(p.text, /hermes rate: platform fee 10%, 5% for members/);
+    assert.match(p.text, /hermes rate: platform fee 12%, 6% for members/);
     assert.deepEqual(server.state.published[0], { name: 'Cat', category: 'skins', price: 5, file_url: 'https://cdn.example/a.zip', thumbnail_base64: 'data:image/png;base64,AAAA' });
     const req = server.state.requests.filter((r) => r.path === '/api/channels/publish').at(-1);
     assert.match(req.headers.authorization, /^Bearer pch_/);

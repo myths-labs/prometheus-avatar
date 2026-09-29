@@ -15,7 +15,7 @@ const cmp = (a, b) => {
 export async function startFakeSellerServer(opts = {}) {
     const state = {
         intervalSec: opts.intervalSec ?? 5,
-        startLimit: opts.startLimit ?? 5,
+        startLimit: opts.startLimit ?? 3,
         startCount: 0,
         codes: new Map(),      // device_code -> record
         keys: new Map(),       // key -> record
@@ -24,7 +24,7 @@ export async function startFakeSellerServer(opts = {}) {
         deployed: [],          // bodies accepted by the old API-key deploy route
         xLinked: opts.xLinked ?? true,
         dailyUsed: 0,
-        dailyCap: opts.dailyCap ?? 10,
+        dailyCap: opts.dailyCap ?? 4,
     };
     const send = (res, status, body, extra = {}) => {
         res.writeHead(status, { 'Content-Type': 'application/json', ...extra });
@@ -108,7 +108,7 @@ export async function startFakeSellerServer(opts = {}) {
         if (path === '/api/channels/whoami' && req.method === 'GET') {
             return send(res, 200, {
                 channel: kr.channel, client_name: kr.client_name, key_prefix: auth[1].slice(0, 8), linked_at: '2026-10-01T00:00:00Z',
-                account: { identity_type: kr.channel, is_member: false, fee: { platform: 0.10, member: 0.05 } },
+                account: { identity_type: kr.channel, is_member: false, fee: { platform: 0.12, member: 0.06 } },
                 x_link: { linked: state.xLinked, handle: state.xLinked ? '@seller' : null, eligible_on: null },
                 today: { used: state.dailyUsed, cap: state.dailyCap }, listings: { active: state.published.length, hidden: 0 },
                 suspension: null, next_url: `https://prometheus.mythslabs.ai/dashboard#${kr.channel}`,
@@ -121,7 +121,7 @@ export async function startFakeSellerServer(opts = {}) {
             state.dailyUsed++;
             state.published.push(body);
             const id = 'asset_' + state.published.length;
-            return send(res, 200, { success: true, asset_id: id, url: `https://prometheus.mythslabs.ai/marketplace?asset=${id}`, creator_type: kr.channel, fee: { platform: 0.10, member: 0.05 }, bonus_hold_days: 7 });
+            return send(res, 200, { success: true, asset_id: id, url: `https://prometheus.mythslabs.ai/marketplace?asset=${id}`, creator_type: kr.channel, fee: { platform: 0.12, member: 0.06 }, bonus_hold_days: opts.bonusHoldDays ?? 3 });
         }
         if (path === '/api/channels/unlink-self' && req.method === 'POST') {
             kr.active = false;
