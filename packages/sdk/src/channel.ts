@@ -50,6 +50,8 @@ export interface SellerChannelKey {
     identity_type: string | null;
     x_linked: boolean;
     next_url: string;
+    /** Masked email of the account that approved the connection, e.g. "a***@example.com". Show it to the user. */
+    account_hint?: string;
 }
 
 export type SellerLinkPoll =

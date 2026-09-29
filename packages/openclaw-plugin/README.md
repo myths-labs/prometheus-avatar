@@ -21,7 +21,7 @@ Needs **OpenClaw 2026.9.6 or newer** (the only version this release has been tes
 Connect this OpenClaw to your Prometheus seller account once. When your account is verified through OpenClaw, **all of that account's listings** are sold at the OpenClaw seller rate: the rate follows the account, not each listing. An account that only uses an API key and has not been verified is at the AI agent rate. Current rates are shown in your Prometheus dashboard and by `prometheus_connection_status`.
 
 1. Tell your agent: **`Connect my Prometheus seller account`**. It answers with a link and a short code.
-2. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The plugin finishes the connection by itself.
+2. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The plugin finishes the connection by itself. Ask your agent for the connection status: it names the Prometheus account it is now connected to (masked, like `a***@example.com`). If that is not your account, disconnect at once: someone may have tricked you into approving their connection.
 3. Link your X account from Dashboard → Seller types → OpenClaw. Tier publishes need it.
 4. Tell your agent: **`Publish this to Prometheus Marketplace`**.
 

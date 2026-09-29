@@ -65,6 +65,7 @@ test('after approval the plugin finishes on its own; the key sits in a 0600 file
     assert.equal(st.details.state, 'connected');
     assert.match(st.text, /Connected as an OpenClaw seller/);
     assert.match(st.text, /Platform fee 12%, 6% for members/);
+    assert.match(st.text, /to the Prometheus account a\*\*\*@example\.com/, 'the user is told which account approved');
     assert.equal(fs.statSync(h.keyFile).mode & 0o777, 0o600);
     assert.equal(fs.statSync(h.keyFile.replace(/[^/]+$/, '')).mode & 0o777, 0o700);
     const saved = JSON.parse(fs.readFileSync(h.keyFile, 'utf8'));
@@ -232,4 +233,14 @@ test('when the seller channel is not live on the server the user gets a plain se
     const net = await call(h.tools, 'prometheus_connect_seller');
     assert.equal(net.details.code, 'CHANNEL_NETWORK');
     assert.match(net.text, /Could not reach Prometheus/);
+});
+
+test('the masked account is remembered across a restart (it is in the saved record, not only in memory)', async () => {
+    const h = boot();
+    await connectAndApprove(h);
+    assert.equal(JSON.parse(fs.readFileSync(h.keyFile, 'utf8')).account_hint, 'a***@example.com');
+    const h2 = makeApi({ stateDir: h.dir, pluginConfig: { channelBaseUrl: server.url } });     // a new process, same state directory
+    plugin.register(h2.api);
+    const st = await call(h2.tools, 'prometheus_connection_status');
+    assert.match(st.text, /a\*\*\*@example\.com/);
 });

@@ -62,7 +62,7 @@ export class ChannelError extends Error {
     }
 }
 
-export interface ChannelKeyResponse { key: string; key_prefix: string; channel: string; identity_type: string | null; x_linked: boolean; next_url: string }
+export interface ChannelKeyResponse { key: string; key_prefix: string; channel: string; identity_type: string | null; x_linked: boolean; next_url: string; account_hint?: string }
 export interface Whoami {
     channel: string; client_name: string; key_prefix: string; linked_at: string;
     account: { identity_type: string | null; is_member: boolean; fee: { platform: number; member: number } };
@@ -165,7 +165,7 @@ export class ChannelApi {
 
 // ─── Key file ──────────────────────────────────────────────────────
 
-export interface StoredChannel { key: string; key_prefix: string; channel: "hermes"; linked_at: string; client_version: string }
+export interface StoredChannel { key: string; key_prefix: string; channel: "hermes"; linked_at: string; client_version: string; account_hint?: string }
 
 export class KeyFile {
     constructor(private readonly file: string) {}
@@ -208,12 +208,20 @@ export interface ConnectionDeps {
 type PendingState = "waiting" | "denied" | "expired" | "invalid" | "failed";
 interface Pending { device_code: string; user_code: string; verification_uri: string; expiresAt: number; interval: number; nextPollAt: number; state: PendingState; failure?: string }
 
+/** The masked account email from the server, cleaned for display (short, no control characters). */
+function safeHint(v: unknown): string | undefined {
+    if (typeof v !== "string") return undefined;
+    const t = v.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+    return t && t.length <= 80 ? t : undefined;
+}
+
 const fee = (n: number) => `${Math.round(n * 1000) / 10}%`;
 
 export class SellerConnection {
     private pending?: Pending;
     private polling = false;
     private lastApproved?: { x_linked: boolean; next_url: string };
+    private hint?: string;
     private api?: ChannelApi;
 
     constructor(private readonly d: ConnectionDeps) {}
@@ -296,8 +304,9 @@ export class SellerConnection {
             const r = await this.client().pollToken(p.device_code);
             switch (r.status) {
                 case "approved":
-                    await this.d.keyFile.set({ key: r.key.key, key_prefix: r.key.key_prefix, channel: "hermes", linked_at: new Date(this.now()).toISOString(), client_version: this.d.version });
+                    await this.d.keyFile.set({ key: r.key.key, key_prefix: r.key.key_prefix, channel: "hermes", linked_at: new Date(this.now()).toISOString(), client_version: this.d.version, ...(safeHint(r.key.account_hint) ? { account_hint: safeHint(r.key.account_hint) } : {}) });
                     this.lastApproved = { x_linked: r.key.x_linked, next_url: r.key.next_url };
+                    this.hint = safeHint(r.key.account_hint);
                     this.pending = undefined;
                     this.d.log?.(`Prometheus seller channel connected (key ${r.key.key_prefix}...; stored at ${this.d.keyFile.location()}).`);
                     return;
@@ -334,7 +343,8 @@ export class SellerConnection {
         if (!stored) return { ok: false, text: 'Not connected to a Prometheus seller account. Ask me to "Connect my Prometheus seller account" to start.' };
         try {
             const w = await this.client().whoami(stored.key);
-            const lines = [`Connected as a Hermes Agent seller (key ${w.key_prefix}...). Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`];
+            const hint = safeHint(stored.account_hint) ?? this.hint;
+            const lines = [`Connected as a Hermes Agent seller${hint ? ` to the Prometheus account ${hint}` : ""} (key ${w.key_prefix}...). Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`];
             if (w.suspension) lines.push(w.suspension.permanent ? "This connection is suspended permanently." : `This connection is suspended until ${w.suspension.until}.`);
             if (w.x_link.linked) lines.push(`X account linked (${w.x_link.handle}).`);
             else lines.push(`X account not linked yet: tier publishes need it. Link it at ${w.next_url}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ""}.`);

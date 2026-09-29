@@ -44,7 +44,10 @@ describe('device flow', () => {
         server.approve();
         const got = await api().pollToken(start.device_code);
         expect(got.status).toBe('approved');
-        if (got.status === 'approved') expect(got.key.key).toMatch(/^pch_[0-9a-f]{32}$/);
+        if (got.status === 'approved') {
+            expect(got.key.key).toMatch(/^pch_[0-9a-f]{32}$/);
+            expect(got.key.account_hint).toBe('a***@example.com');
+        }
         expect((await api().pollToken(start.device_code)).status).toBe('invalid');
     });
 

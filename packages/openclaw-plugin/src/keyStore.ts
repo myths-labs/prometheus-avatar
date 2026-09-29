@@ -9,6 +9,8 @@ export interface StoredChannel {
     channel: 'openclaw';
     linked_at: string;
     client_version: string;
+    /** Masked account email from the approval, so the user can tell whose account this is. */
+    account_hint?: string;
 }
 
 export interface KeyStore {

@@ -72,7 +72,7 @@ Connect Hermes Agent to your Prometheus seller account once. When your account i
 
    or run `hermes mcp add prometheus --command npx --args -y @prometheusavatar/mcp-server@0.4 --env PROMETHEUS_CHANNEL=hermes` and answer the tool prompt. Restart Hermes.
 2. Tell Hermes: **`Connect my Prometheus seller account`**. It answers with a link and a short code.
-3. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The server finishes the connection by itself.
+3. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The server finishes the connection by itself. Ask Hermes for the connection status: it names the Prometheus account it is now connected to (masked, like `a***@example.com`). If that is not your account, disconnect at once: someone may have tricked you into approving their connection.
 4. Link your X account from Dashboard → Seller types → Hermes Agent. Tier publishes need it.
 5. Tell Hermes: **`Publish this to Prometheus Marketplace`**. To publish something made with `generate_asset` through the channel, generate it with `auto_deploy: false` and publish the draft with `publish_listing` (`draft_asset_id`). The listing is public and cannot be withdrawn from the agent loop, so confirm before publishing.
 

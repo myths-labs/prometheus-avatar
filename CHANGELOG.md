@@ -36,6 +36,7 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
   `disconnect_seller` (14 tools total). Checks `PROMETHEUS_CHANNEL=hermes`, a Hermes ancestor process and the MCP client
   handshake; key in `~/.prometheus/channel-hermes.json` (0600).
 - **openclaw-plugin**: avatar state updates: with an agent API key, `model_call_started`, `message_sent` and `model_call_ended` push `thinking` / `done` + emotion / `surprised` to `POST /api/agent/avatar/state` (the channel `set_avatar_state` uses), so any open avatar page follows even though the gateway has no page. Transitions only, spaced out; off by itself on a 404 or a rejected key; `companionState: false` turns it off.
+- **core / openclaw-plugin / mcp-server**: the token response's `account_hint` (masked account email) is kept with the key and shown by the connection status ("connected to the Prometheus account a***@…"), so someone tricked into approving another person's connection can see the account is wrong; the skills tell the agent to say so and to disconnect on a mismatch.
 - **skills**: "Sell on Prometheus" in `prometheus-companion` and the plugin's bundled skill.
 
 ### Changed

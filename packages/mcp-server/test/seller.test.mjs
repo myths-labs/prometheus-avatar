@@ -68,7 +68,8 @@ test('connect sends the Hermes evidence from the MCP handshake and the real proc
     await until(() => fs.existsSync(h.keyFile));
     const st = await h.call('seller_connection_status');
     assert.equal(st.isError, false);
-    assert.match(st.text, /Connected as a Hermes Agent seller/);
+    assert.match(st.text, /Connected as a Hermes Agent seller to the Prometheus account a\*\*\*@example\.com/);
+    assert.equal(JSON.parse(fs.readFileSync(h.keyFile, 'utf8')).account_hint, 'a***@example.com');
     assert.equal(fs.statSync(h.keyFile).mode & 0o777, 0o600);
     assert.equal(fs.statSync(path.dirname(h.keyFile)).mode & 0o777, 0o700);
     const key = JSON.parse(fs.readFileSync(h.keyFile, 'utf8')).key;

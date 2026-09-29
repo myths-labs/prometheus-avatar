@@ -108,7 +108,7 @@ export async function startFakeSellerServer(opts = {}) {
             rec.claimed = true;
             const key = 'pch_' + crypto.randomBytes(16).toString('hex');
             state.keys.set(key, { channel: rec.channel, client_name: rec.client_name, active: true });
-            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: rec.channel, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}` });
+            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: rec.channel, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}`, account_hint: 'a***@example.com' });
         }
 
         // Bearer routes

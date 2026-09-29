@@ -52,6 +52,13 @@ export interface Outcome {
     details: Record<string, unknown>;
 }
 
+/** The masked account email from the server, cleaned for display (short, no control characters). */
+function safeHint(v: unknown): string | undefined {
+    if (typeof v !== 'string') return undefined;
+    const t = v.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+    return t && t.length <= 80 ? t : undefined;
+}
+
 const fee = (n: number) => `${Math.round(n * 1000) / 10}%`;
 
 export class SellerConnection {
@@ -59,6 +66,7 @@ export class SellerConnection {
     private polling = false;
     private timer?: { unref?: () => void };
     private lastApproved?: { x_linked: boolean; next_url: string };
+    private hint?: string;
     private cached?: SellerChannelApi;
 
     constructor(private readonly o: ConnectionOptions) {}
@@ -146,9 +154,11 @@ export class SellerConnection {
                     const stored: StoredChannel = {
                         key: r.key.key, key_prefix: r.key.key_prefix, channel: 'openclaw',
                         linked_at: new Date(this.now()).toISOString(), client_version: this.o.pluginVersion,
+                        ...(safeHint(r.key.account_hint) ? { account_hint: safeHint(r.key.account_hint) } : {}),
                     };
                     await this.o.store.set(stored);
                     this.lastApproved = { x_linked: r.key.x_linked, next_url: r.key.next_url };
+                    this.hint = safeHint(r.key.account_hint);
                     this.pending = undefined;
                     this.o.log.info(`Prometheus seller channel connected (key ${r.key.key_prefix}...; stored at: ${this.o.store.location()}).`);
                     return;
@@ -189,7 +199,7 @@ export class SellerConnection {
         }
         try {
             const w = await (await this.api()).whoami(stored.key);
-            return this.connectedText(w);
+            return this.connectedText(w, safeHint(stored.account_hint) ?? this.hint);
         } catch (err) {
             if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') {
                 await this.o.store.clear();
@@ -199,15 +209,15 @@ export class SellerConnection {
         }
     }
 
-    private connectedText(w: SellerChannelWhoami): Outcome {
-        const lines = [`Connected as an OpenClaw seller (key ${w.key_prefix}...). Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`];
+    private connectedText(w: SellerChannelWhoami, hint?: string): Outcome {
+        const lines = [`Connected as an OpenClaw seller${hint ? ` to the Prometheus account ${hint}` : ''} (key ${w.key_prefix}...). Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`];
         if (w.suspension) lines.push(w.suspension.permanent ? 'This connection is suspended permanently.' : `This connection is suspended until ${w.suspension.until}.`);
         if (w.x_link.linked) lines.push(`X account linked (${w.x_link.handle}).`);
         else lines.push(`X account not linked yet: tier publishes need it. Link it at ${w.next_url}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ''}.`);
         lines.push(`Publishes today: ${w.today.used} of ${w.today.cap}. Listings: ${w.listings.active} active, ${w.listings.hidden} hidden.`);
         const pendingX = this.lastApproved && !this.lastApproved.x_linked && !w.x_link.linked;
         if (pendingX) lines.push('Next: finish the X link, then publish.');
-        return { ok: true, text: lines.join('\n'), details: { ok: true, state: 'connected', key_prefix: w.key_prefix, fee: w.account.fee, x_linked: w.x_link.linked, today: w.today, listings: w.listings, suspension: w.suspension } };
+        return { ok: true, text: lines.join('\n'), details: { ok: true, state: 'connected', key_prefix: w.key_prefix, ...(hint ? { account_hint: hint } : {}), fee: w.account.fee, x_linked: w.x_link.linked, today: w.today, listings: w.listings, suspension: w.suspension } };
     }
 
     /** Publish through the channel. Never falls back to another tier or to an API key. */

@@ -55,7 +55,7 @@ If you run inside **OpenClaw** or **Hermes Agent** and your user wants to sell w
 | Publish | `prometheus_publish_listing` | `publish_listing` |
 | Disconnect | `prometheus_disconnect_seller` (`confirm: true`) | `disconnect_seller` (`confirm: true`) |
 
-- Connecting returns a link and a short code. Give both to the user exactly as returned: they sign in to Prometheus and approve within 10 minutes; the connection then completes by itself.
+- Connecting returns a link and a short code. Give both to the user exactly as returned: they sign in to Prometheus and approve within 10 minutes; the connection then completes by itself. Once they say they approved, check the status and tell them which Prometheus account (masked email) it is connected to; if it is not theirs, disconnect and warn them (someone may have tricked them into approving another connection).
 - Publishing at this rate needs the user's X account linked on Prometheus. If it is not, the tool says so and returns the link; pass that on.
 - **Publishing is public and cannot be withdrawn from the agent loop: confirm with the user first.** Never ask for or print the connection key; you never see it.
 - Forge launch scope for publishing: `skins`, `voices`, `motions`, `expressions`, `personas`; `accessories` and `effects` are coming soon (the API still accepts them; do not promise them). Voices are published in the Voice Creator on the site; the publish tools are refused for them.
