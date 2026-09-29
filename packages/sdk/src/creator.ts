@@ -5,6 +5,9 @@
  * assets (models, voices, backdrops) to the Prometheus Marketplace.
  */
 
+import { SellerChannelApi } from './channel';
+import type { SellerChannelClient, SellerChannelRuntime, SellerChannelPublishResult } from './channel';
+
 export interface AssetDeployConfig {
     name: string;
     /** Marketplace category — must be one of the server's accepted values.
@@ -17,6 +20,24 @@ export interface AssetDeployConfig {
     tags?: string[];
     creator_id?: string;
     license?: 'personal' | 'commercial' | 'cc-by';
+    /** Price in platform points. */
+    price_points?: number;
+    price_currency?: string;
+    /** Required by the server for category "personas". */
+    persona_config?: Record<string, unknown>;
+    /** Required by the server for category "bundles". */
+    bundle_items?: unknown[];
+}
+
+/** Who is publishing through a seller channel (see `AssetCreator.publishViaChannel`). */
+export interface ChannelPublishOptions {
+    /** The one-time `pch_...` key issued by the device flow. Never logged, never sent anywhere but the Prometheus host. */
+    channelKey: string;
+    client: SellerChannelClient;
+    runtime: SellerChannelRuntime;
+    /** Test / local integration only. Must be https, or http on localhost. */
+    baseUrl?: string;
+    fetchImpl?: typeof fetch;
 }
 
 export interface ImageGenerationOptions {
@@ -156,6 +177,45 @@ export class AssetCreator {
         }
 
         return data;
+    }
+
+    /**
+     * Publish an asset through a seller channel (OpenClaw / Hermes Agent). The listing gets the
+     * channel's tier only if the server's checks pass at this moment; a failed check throws a
+     * `SellerChannelError` (CHANNEL_X_REQUIRED, CHANNEL_DAILY_CAP, ...) and never publishes at a
+     * different tier. `creator_type` is deliberately not sent: the account decides it.
+     */
+    async publishViaChannel(
+        config: AssetDeployConfig,
+        fileBase64OrUrl: string,
+        thumbnailBase64OrUrl: string | undefined,
+        opts: ChannelPublishOptions
+    ): Promise<SellerChannelPublishResult> {
+        const isFileUrl = fileBase64OrUrl.startsWith('http');
+        const isThumbUrl = thumbnailBase64OrUrl?.startsWith('http');
+        const { creator_id: _ignored, ...fields } = config;
+        const payload = {
+            ...fields,
+            file_url: isFileUrl ? fileBase64OrUrl : undefined,
+            file_base64: !isFileUrl ? fileBase64OrUrl : undefined,
+            thumbnail_url: isThumbUrl ? thumbnailBase64OrUrl : undefined,
+            thumbnail_base64: thumbnailBase64OrUrl && !isThumbUrl ? thumbnailBase64OrUrl : undefined,
+        };
+        return this.channelApi(opts).publish(opts.channelKey, payload);
+    }
+
+    /** Publish a draft the account already holds (never published, never sold) through a seller channel. */
+    async publishDraftViaChannel(draftAssetId: string, opts: ChannelPublishOptions): Promise<SellerChannelPublishResult> {
+        return this.channelApi(opts).publish(opts.channelKey, { draft_asset_id: draftAssetId });
+    }
+
+    private channelApi(opts: ChannelPublishOptions): SellerChannelApi {
+        return new SellerChannelApi({
+            client: opts.client,
+            runtime: opts.runtime,
+            baseUrl: opts.baseUrl ?? this.apiBaseUrl,
+            fetchImpl: opts.fetchImpl,
+        });
     }
 
     /**

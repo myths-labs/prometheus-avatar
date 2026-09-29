@@ -37,5 +37,19 @@ export type {
     DeploymentResult,
     CreateImageOptions,
     CreateImageResult,
+    ChannelPublishOptions,
 } from './creator';
+export { SellerChannelApi, SellerChannelError, channelClientHeader } from './channel';
+export type {
+    SellerChannelName,
+    SellerChannelClient,
+    SellerChannelRuntime,
+    SellerChannelEvidence,
+    SellerChannelApiOptions,
+    SellerLinkStart,
+    SellerLinkPoll,
+    SellerChannelKey,
+    SellerChannelWhoami,
+    SellerChannelPublishResult,
+} from './channel';
 
