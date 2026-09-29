@@ -11,6 +11,8 @@ export interface StoredChannel {
     client_version: string;
     /** Masked account email from the approval, so the user can tell whose account this is. */
     account_hint?: string;
+    /** Why the account will not become an OpenClaw seller (from the approval), if the server said so. */
+    registration_note?: string;
 }
 
 export interface KeyStore {

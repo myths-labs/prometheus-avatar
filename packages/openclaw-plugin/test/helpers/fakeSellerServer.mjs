@@ -108,7 +108,7 @@ export async function startFakeSellerServer(opts = {}) {
             rec.claimed = true;
             const key = 'pch_' + crypto.randomBytes(16).toString('hex');
             state.keys.set(key, { channel: rec.channel, client_name: rec.client_name, active: true });
-            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: rec.channel, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}`, account_hint: 'a***@example.com' });
+            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: (state.xLinked && !opts.registrationNote) ? rec.channel : null, next_step: (state.xLinked || opts.registrationNote) ? null : 'link_x', registration_note: opts.registrationNote ?? null, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}`, account_hint: 'a***@example.com' });
         }
 
         // Bearer routes
@@ -117,6 +117,7 @@ export async function startFakeSellerServer(opts = {}) {
         if (!kr || !kr.active) return err(res, 401, 'CHANNEL_KEY_INACTIVE', 'This key is no longer active. Connect again.');
         if (kr.client_name !== hName) return err(res, 403, 'CHANNEL_CLIENT_MISMATCH', 'Client does not match this key.');
 
+        if (path === '/api/channels/whoami' && opts.whoamiMissing) { res.writeHead(404, { 'Content-Type': 'text/html' }); return res.end('<html>Not Found</html>'); }   // not built yet
         if (path === '/api/channels/whoami' && req.method === 'GET') {
             return send(res, 200, {
                 channel: kr.channel, client_name: kr.client_name, key_prefix: auth[1].slice(0, 8), linked_at: '2026-10-01T00:00:00Z',

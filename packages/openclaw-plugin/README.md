@@ -22,7 +22,7 @@ Connect this OpenClaw to your Prometheus seller account once. When your account 
 
 1. Tell your agent: **`Connect my Prometheus seller account`**. It answers with a link and a short code.
 2. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The plugin finishes the connection by itself. Ask your agent for the connection status: it names the Prometheus account it is now connected to (masked, like `a***@example.com`). If that is not your account, disconnect at once: someone may have tricked you into approving their connection.
-3. Link your X account from Dashboard → Seller types → OpenClaw. Tier publishes need it.
+3. Link your X account from Dashboard → Seller types → OpenClaw. The account becomes an OpenClaw seller only once X is linked (and Prometheus's automatic checks pass); the key is already saved, but the rate does not change before that. If the approving account already has sales or listings, or its account type is already set, it will not become an OpenClaw seller: the agent says so.
 4. Tell your agent: **`Publish this to Prometheus Marketplace`**.
 
 If a check fails (X not linked, daily limit, a suspended connection…), nothing is published and the agent tells you why and where to fix it. Publishing is public and cannot be withdrawn from the agent loop, so your agent should confirm with you first.

@@ -153,3 +153,27 @@ test('a plain-http PROMETHEUS_API_URL to another host is refused so the key neve
     assert.throws(() => new ChannelApi({ baseUrl: 'http://prometheus.mythslabs.ai', version: '0.4.0' }), /https/);
     assert.doesNotThrow(() => new ChannelApi({ baseUrl: 'http://127.0.0.1:1', version: '0.4.0' }));
 });
+
+test('next_step link_x and registration_note are told to the user (Hermes wording), also when whoami cannot answer yet', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 0.05, xLinked: false, whoamiMissing: true });
+    const h = await start({ psRow: '/usr/local/bin/hermes chat' });
+    await h.call('connect_seller');
+    server.approve();
+    await until(() => fs.existsSync(h.keyFile));
+    const st = await h.call('seller_connection_status');
+    assert.match(st.text, /^Approved by the Prometheus account a\*\*\*@example\.com; the key is saved\./);
+    assert.match(st.text, /becomes a Hermes Agent seller only once X is linked/);
+
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 0.05, registrationNote: 'ACCOUNT_HAS_SELLER_HISTORY' });
+    fs.rmSync(home, { recursive: true, force: true });                    // a fresh home, so there is no saved key from the first half
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-home-'));
+    const h2 = await start({ psRow: '/usr/local/bin/hermes chat' });
+    await h2.call('connect_seller');
+    server.approve();
+    await until(() => fs.existsSync(h2.keyFile));
+    const st2 = await h2.call('seller_connection_status');
+    assert.match(st2.text, /This account will not become a Hermes Agent seller: it already has sales or listings\./);
+    assert.equal(JSON.parse(fs.readFileSync(h2.keyFile, 'utf8')).registration_note, 'ACCOUNT_HAS_SELLER_HISTORY');
+});

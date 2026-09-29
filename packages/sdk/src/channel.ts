@@ -52,6 +52,10 @@ export interface SellerChannelKey {
     next_url: string;
     /** Masked email of the account that approved the connection, e.g. "a***@example.com". Show it to the user. */
     account_hint?: string;
+    /** "link_x": the account will become this kind of seller once the user links an X account on the site. null: nothing further. */
+    next_step?: 'link_x' | null;
+    /** Why the account will NOT become this kind of seller ("ACCOUNT_HAS_SELLER_HISTORY", "IDENTITY_LOCKED"), or null. */
+    registration_note?: string | null;
 }
 
 export type SellerLinkPoll =

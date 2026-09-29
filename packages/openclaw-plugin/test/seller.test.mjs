@@ -244,3 +244,45 @@ test('the masked account is remembered across a restart (it is in the saved reco
     const st = await call(h2.tools, 'prometheus_connection_status');
     assert.match(st.text, /a\*\*\*@example\.com/);
 });
+
+test('next_step link_x: after approval the user hears which account approved and that X must be linked first (also when whoami cannot answer yet)', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 0.05, xLinked: false, whoamiMissing: true });
+    const h = boot();
+    await connectAndApprove(h);
+    const st = await call(h.tools, 'prometheus_connection_status');
+    assert.match(st.text, /^Approved by the Prometheus account a\*\*\*@example\.com; the key is saved\./);
+    assert.match(st.text, /Next: link your X account on the Prometheus dashboard \(https:\/\/prometheus\.mythslabs\.ai\/dashboard#openclaw\)/);
+    assert.match(st.text, /becomes an OpenClaw seller only once X is linked/);
+    assert.match(st.text, /not available right now/);
+    server.state.xLinked = false;
+});
+
+test('next_step link_x with whoami available: the status line says the account becomes a seller only once X is linked', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 0.05, xLinked: false });
+    const h = boot();
+    await connectAndApprove(h);
+    const st = await call(h.tools, 'prometheus_connection_status');
+    assert.match(st.text, /X account not linked yet/);
+    assert.match(st.text, /becomes an OpenClaw seller only once the X account is linked/);
+});
+
+test('registration_note: the user is told the account will not become an OpenClaw seller, and it is remembered across a restart', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 0.05, registrationNote: 'ACCOUNT_HAS_SELLER_HISTORY' });
+    const h = boot();
+    await connectAndApprove(h);
+    const st = await call(h.tools, 'prometheus_connection_status');
+    assert.match(st.text, /This account will not become an OpenClaw seller: it already has sales or listings\./);
+    assert.equal(JSON.parse(fs.readFileSync(h.keyFile, 'utf8')).registration_note, 'ACCOUNT_HAS_SELLER_HISTORY');
+    const h2 = makeApi({ stateDir: h.dir, pluginConfig: { channelBaseUrl: server.url } });
+    plugin.register(h2.api);
+    assert.match((await call(h2.tools, 'prometheus_connection_status')).text, /will not become an OpenClaw seller/);
+    // and the other reason, plus an unknown one is shown without inventing a meaning
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 0.05, registrationNote: 'IDENTITY_LOCKED' });
+    const h3 = boot();
+    await connectAndApprove(h3);
+    assert.match((await call(h3.tools, 'prometheus_connection_status')).text, /its account type is already set/);
+});

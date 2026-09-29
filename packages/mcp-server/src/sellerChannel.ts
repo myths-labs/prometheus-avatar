@@ -62,7 +62,7 @@ export class ChannelError extends Error {
     }
 }
 
-export interface ChannelKeyResponse { key: string; key_prefix: string; channel: string; identity_type: string | null; x_linked: boolean; next_url: string; account_hint?: string }
+export interface ChannelKeyResponse { key: string; key_prefix: string; channel: string; identity_type: string | null; x_linked: boolean; next_url: string; account_hint?: string; next_step?: "link_x" | null; registration_note?: string | null }
 export interface Whoami {
     channel: string; client_name: string; key_prefix: string; linked_at: string;
     account: { identity_type: string | null; is_member: boolean; fee: { platform: number; member: number } };
@@ -165,7 +165,7 @@ export class ChannelApi {
 
 // ─── Key file ──────────────────────────────────────────────────────
 
-export interface StoredChannel { key: string; key_prefix: string; channel: "hermes"; linked_at: string; client_version: string; account_hint?: string }
+export interface StoredChannel { key: string; key_prefix: string; channel: "hermes"; linked_at: string; client_version: string; account_hint?: string; registration_note?: string }
 
 export class KeyFile {
     constructor(private readonly file: string) {}
@@ -215,12 +215,19 @@ function safeHint(v: unknown): string | undefined {
     return t && t.length <= 80 ? t : undefined;
 }
 
+/** What the server's registration_note means for the user. */
+function noteText(note: string, seller: string): string {
+    if (note === "ACCOUNT_HAS_SELLER_HISTORY") return `This account will not become ${seller}: it already has sales or listings.`;
+    if (note === "IDENTITY_LOCKED") return `This account will not become ${seller}: its account type is already set.`;
+    return `This account will not become ${seller} (${note.replace(/[^A-Za-z0-9_ .-]/g, "").slice(0, 64)}).`;
+}
+
 const fee = (n: number) => `${Math.round(n * 1000) / 10}%`;
 
 export class SellerConnection {
     private pending?: Pending;
     private polling = false;
-    private lastApproved?: { x_linked: boolean; next_url: string };
+    private lastApproved?: { x_linked: boolean; next_url: string; next_step: string | null };
     private hint?: string;
     private api?: ChannelApi;
 
@@ -304,8 +311,8 @@ export class SellerConnection {
             const r = await this.client().pollToken(p.device_code);
             switch (r.status) {
                 case "approved":
-                    await this.d.keyFile.set({ key: r.key.key, key_prefix: r.key.key_prefix, channel: "hermes", linked_at: new Date(this.now()).toISOString(), client_version: this.d.version, ...(safeHint(r.key.account_hint) ? { account_hint: safeHint(r.key.account_hint) } : {}) });
-                    this.lastApproved = { x_linked: r.key.x_linked, next_url: r.key.next_url };
+                    await this.d.keyFile.set({ key: r.key.key, key_prefix: r.key.key_prefix, channel: "hermes", linked_at: new Date(this.now()).toISOString(), client_version: this.d.version, ...(safeHint(r.key.account_hint) ? { account_hint: safeHint(r.key.account_hint) } : {}), ...(typeof r.key.registration_note === "string" && r.key.registration_note ? { registration_note: r.key.registration_note.slice(0, 64) } : {}) });
+                    this.lastApproved = { x_linked: r.key.x_linked, next_url: r.key.next_url, next_step: r.key.next_step ?? null };
                     this.hint = safeHint(r.key.account_hint);
                     this.pending = undefined;
                     this.d.log?.(`Prometheus seller channel connected (key ${r.key.key_prefix}...; stored at ${this.d.keyFile.location()}).`);
@@ -345,19 +352,31 @@ export class SellerConnection {
             const w = await this.client().whoami(stored.key);
             const hint = safeHint(stored.account_hint) ?? this.hint;
             const lines = [`Connected as a Hermes Agent seller${hint ? ` to the Prometheus account ${hint}` : ""} (key ${w.key_prefix}...). Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`];
+            if (stored.registration_note) lines.push(noteText(stored.registration_note, "a Hermes Agent seller"));
             if (w.suspension) lines.push(w.suspension.permanent ? "This connection is suspended permanently." : `This connection is suspended until ${w.suspension.until}.`);
             if (w.x_link.linked) lines.push(`X account linked (${w.x_link.handle}).`);
             else lines.push(`X account not linked yet: tier publishes need it. Link it at ${w.next_url}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ""}.`);
             lines.push(`Publishes today: ${w.today.used} of ${w.today.cap}. Listings: ${w.listings.active} active, ${w.listings.hidden} hidden.`);
-            if (this.lastApproved && !this.lastApproved.x_linked && !w.x_link.linked) lines.push("Next: finish the X link, then publish.");
+            if (this.lastApproved?.next_step === "link_x" && !w.x_link.linked) lines.push("The account becomes a Hermes Agent seller only once the X account is linked; finish that, then publish.");
             return { ok: true, text: lines.join("\n") };
         } catch (err) {
             if (err instanceof ChannelError && err.code === "CHANNEL_KEY_INACTIVE") {
                 await this.d.keyFile.clear();
                 return { ok: false, text: "The saved connection is no longer active (it was revoked or replaced). Ask me to connect again." };
             }
-            return this.failure(err, "Could not check the connection");
+            const f = this.failure(err, "Could not check the connection");
+            if (this.lastApproved) f.text = `${this.approvalText(stored.account_hint, stored.registration_note)}\n${f.text}`;
+            return f;
         }
+    }
+
+    /** What the user should hear right after approving: which account, and the next step or why there is none. */
+    private approvalText(hintRaw?: string, note?: string): string {
+        const hint = safeHint(hintRaw) ?? this.hint;
+        const lines = [`Approved${hint ? ` by the Prometheus account ${hint}` : ""}; the key is saved.`];
+        if (this.lastApproved?.next_step === "link_x") lines.push(`Next: link your X account on the Prometheus dashboard (${this.lastApproved.next_url}). The account becomes a Hermes Agent seller only once X is linked.`);
+        if (note) lines.push(noteText(note, "a Hermes Agent seller"));
+        return lines.join("\n");
     }
 
     async publish(args: PublishArgs): Promise<Outcome> {

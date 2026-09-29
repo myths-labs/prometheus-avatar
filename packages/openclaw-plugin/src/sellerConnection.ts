@@ -59,13 +59,20 @@ function safeHint(v: unknown): string | undefined {
     return t && t.length <= 80 ? t : undefined;
 }
 
+/** What the server's registration_note means for the user. */
+function noteText(note: string, seller: string): string {
+    if (note === 'ACCOUNT_HAS_SELLER_HISTORY') return `This account will not become ${seller}: it already has sales or listings.`;
+    if (note === 'IDENTITY_LOCKED') return `This account will not become ${seller}: its account type is already set.`;
+    return `This account will not become ${seller} (${note.replace(/[^A-Za-z0-9_ .-]/g, '').slice(0, 64)}).`;
+}
+
 const fee = (n: number) => `${Math.round(n * 1000) / 10}%`;
 
 export class SellerConnection {
     private pending?: Pending;
     private polling = false;
     private timer?: { unref?: () => void };
-    private lastApproved?: { x_linked: boolean; next_url: string };
+    private lastApproved?: { x_linked: boolean; next_url: string; next_step: string | null };
     private hint?: string;
     private cached?: SellerChannelApi;
 
@@ -155,9 +162,10 @@ export class SellerConnection {
                         key: r.key.key, key_prefix: r.key.key_prefix, channel: 'openclaw',
                         linked_at: new Date(this.now()).toISOString(), client_version: this.o.pluginVersion,
                         ...(safeHint(r.key.account_hint) ? { account_hint: safeHint(r.key.account_hint) } : {}),
+                        ...(typeof r.key.registration_note === 'string' && r.key.registration_note ? { registration_note: r.key.registration_note.slice(0, 64) } : {}),
                     };
                     await this.o.store.set(stored);
-                    this.lastApproved = { x_linked: r.key.x_linked, next_url: r.key.next_url };
+                    this.lastApproved = { x_linked: r.key.x_linked, next_url: r.key.next_url, next_step: r.key.next_step ?? null };
                     this.hint = safeHint(r.key.account_hint);
                     this.pending = undefined;
                     this.o.log.info(`Prometheus seller channel connected (key ${r.key.key_prefix}...; stored at: ${this.o.store.location()}).`);
@@ -199,24 +207,35 @@ export class SellerConnection {
         }
         try {
             const w = await (await this.api()).whoami(stored.key);
-            return this.connectedText(w, safeHint(stored.account_hint) ?? this.hint);
+            return this.connectedText(w, safeHint(stored.account_hint) ?? this.hint, stored.registration_note);
         } catch (err) {
             if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') {
                 await this.o.store.clear();
                 return { ok: false, text: 'The saved connection is no longer active (it was revoked or replaced). Ask me to connect again.', details: { ok: false, state: 'key_inactive' } };
             }
-            return this.failure(err, 'Could not check the connection');
+            const f = this.failure(err, 'Could not check the connection');
+            if (this.lastApproved) f.text = `${this.approvalText(stored.account_hint, stored.registration_note)}\n${f.text}`;
+            return f;
         }
     }
 
-    private connectedText(w: SellerChannelWhoami, hint?: string): Outcome {
+    /** What the user should hear right after approving: which account, and the next step or why there is none. */
+    private approvalText(hintRaw?: string, note?: string): string {
+        const hint = safeHint(hintRaw) ?? this.hint;
+        const lines = [`Approved${hint ? ` by the Prometheus account ${hint}` : ''}; the key is saved.`];
+        if (this.lastApproved?.next_step === 'link_x') lines.push(`Next: link your X account on the Prometheus dashboard (${this.lastApproved.next_url}). The account becomes an OpenClaw seller only once X is linked.`);
+        if (note) lines.push(noteText(note, 'an OpenClaw seller'));
+        return lines.join('\n');
+    }
+
+    private connectedText(w: SellerChannelWhoami, hint?: string, note?: string): Outcome {
         const lines = [`Connected as an OpenClaw seller${hint ? ` to the Prometheus account ${hint}` : ''} (key ${w.key_prefix}...). Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`];
+        if (note) lines.push(noteText(note, 'an OpenClaw seller'));
         if (w.suspension) lines.push(w.suspension.permanent ? 'This connection is suspended permanently.' : `This connection is suspended until ${w.suspension.until}.`);
         if (w.x_link.linked) lines.push(`X account linked (${w.x_link.handle}).`);
         else lines.push(`X account not linked yet: tier publishes need it. Link it at ${w.next_url}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ''}.`);
         lines.push(`Publishes today: ${w.today.used} of ${w.today.cap}. Listings: ${w.listings.active} active, ${w.listings.hidden} hidden.`);
-        const pendingX = this.lastApproved && !this.lastApproved.x_linked && !w.x_link.linked;
-        if (pendingX) lines.push('Next: finish the X link, then publish.');
+        if (this.lastApproved?.next_step === 'link_x' && !w.x_link.linked) lines.push('The account becomes an OpenClaw seller only once the X account is linked; finish that, then publish.');
         return { ok: true, text: lines.join('\n'), details: { ok: true, state: 'connected', key_prefix: w.key_prefix, ...(hint ? { account_hint: hint } : {}), fee: w.account.fee, x_linked: w.x_link.linked, today: w.today, listings: w.listings, suspension: w.suspension } };
     }
 
