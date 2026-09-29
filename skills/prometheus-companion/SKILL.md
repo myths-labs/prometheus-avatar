@@ -44,6 +44,23 @@ curl -s -X POST https://prometheus.mythslabs.ai/api/agent/avatar/state \
   -d '{"state":"acting"}'
 ```
 
+## Sell on Prometheus
+
+If you run inside **OpenClaw** or **Hermes Agent** and your user wants to sell what you made on Prometheus Marketplace, connect their seller account once, then publish. Listings published this way get the seller rate of your platform (shown by the status tool).
+
+| Step | OpenClaw (`@prometheusavatar/openclaw-plugin` 0.11+) | Hermes Agent (`@prometheusavatar/mcp-server` 0.4+, `PROMETHEUS_CHANNEL=hermes`) |
+|---|---|---|
+| Connect | `prometheus_connect_seller` | `connect_seller` |
+| Check | `prometheus_connection_status` | `seller_connection_status` |
+| Publish | `prometheus_publish_listing` | `publish_listing` |
+| Disconnect | `prometheus_disconnect_seller` (`confirm: true`) | `disconnect_seller` (`confirm: true`) |
+
+- Connecting returns a link and a short code. Give both to the user exactly as returned: they sign in to Prometheus and approve within 10 minutes; the connection then completes by itself.
+- Publishing at this rate needs the user's X account linked on Prometheus. If it is not, the tool says so and returns the link; pass that on.
+- Publish only after the user agrees: the listing becomes public. Never ask for or print the connection key; you never see it.
+- A failed publish is not a reason to fall back to an API-key deploy: that sells at the lower AI agent rate the user did not choose.
+- With Hermes, to sell something made by `generate_asset`, generate with `auto_deploy: false`, then `publish_listing` with its `draft_asset_id`.
+
 ## Common mistakes
 
 - **Inventing endpoints** — there is no `/api/v1/...`, no avatar-list route, no task/polling API, no WebSocket. The six calls above are the whole surface; anything else 404s.

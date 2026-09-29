@@ -6,7 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
+## [Unreleased] — core 0.11.4 · mcp-server 0.4.0 · openclaw-plugin 0.11.0
+
+### ⚠️ Release order (hard dependency — do not publish out of order)
+
+1. **Backend first**: Prometheus must be running the build with `POST /api/channels/link/start`, `/link/token`,
+   `/publish`, `GET /whoami` and `POST /unlink-self` (seller channels). Without it, connecting says the channel
+   is not available yet (the clients handle a 404 and gateway errors in plain words).
+2. **`@prometheusavatar/core@0.11.4`** — must reach npm **before** the plugin: `openclaw-plugin@0.11.0`
+   declares `^0.11.4`, so publishing the plugin first makes every fresh install fail with ETARGET.
+3. **`@prometheusavatar/mcp-server@0.4.0`** (independent of core), then **`@prometheusavatar/openclaw-plugin@0.11.0`**.
+
+### Why the plugin is a rewrite
+`openclaw-plugin@0.10.2` cannot be installed on OpenClaw 2026.9.6 (`package.json missing openclaw.extensions`) and
+its entry only exported a legacy `activate`. 0.11.0 is written for the current OpenClaw plugin API: a plain default
+export with a synchronous `register(api)` and object-form tools, a manifest with `contracts.tools`, and a JSON-Schema
+config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `test/loader.real-openclaw.test.mjs`.
+
+### Added
+- **core**: `SellerChannelApi` (device-flow client for the seller channels), `SellerChannelError`,
+  `AssetCreator.publishViaChannel()` / `publishDraftViaChannel()`; `AssetDeployConfig` gains `price_points`,
+  `price_currency`, `persona_config`, `bundle_items`.
+- **openclaw-plugin**: seller channel tools `prometheus_connect_seller`, `prometheus_connection_status`,
+  `prometheus_publish_listing`, `prometheus_disconnect_seller`; `prometheus_deploy_asset` kept as an alias (publishes
+  through the connection when connected, else the API-key deploy). The channel key is kept in OpenClaw plugin state
+  when OpenClaw allows it to a third-party plugin, otherwise in a 0600 file under the OpenClaw state directory.
+  New config `containerSelector`. Requires OpenClaw 2026.9.6+.
+- **mcp-server**: Hermes Agent seller channel: `connect_seller`, `seller_connection_status`, `publish_listing`,
+  `disconnect_seller` (14 tools total). Checks `PROMETHEUS_CHANNEL=hermes`, a Hermes ancestor process and the MCP client
+  handshake; key in `~/.prometheus/channel-hermes.json` (0600).
+- **skills**: "Sell on Prometheus" in `prometheus-companion` and the plugin's bundled skill.
+
+### Changed
+- **openclaw-plugin**: the avatar display now runs only where the host gives the plugin a page element
+  (`containerSelector`); the OpenClaw gateway has none, so it logs once and skips. README no longer claims a merge
+  into the OpenClaw community registry.
+
+---
+
+## [Released 2026-07-30] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
 
 ### ⚠️ Release order (hard dependency — do not publish out of order)
 
