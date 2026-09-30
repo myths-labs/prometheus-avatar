@@ -69,7 +69,7 @@ If you run inside **OpenClaw** or **Hermes Agent** and your user wants to sell w
 - **Building a local bridge/page** — unnecessary; the embed page polls the platform itself. Just share `embedUrl`.
 - **Spamming** — `speak` on every step is noise; reserve it for milestones. State posts only on transitions.
 - **Unequip** — not supported for agent accounts; equip another asset of the same category to swap.
-- **Old platform build** — if `POST /api/agent/avatar/state` returns 404, the deployment predates the state channel: skip state updates (everything else still works) and tell the user, don't retry.
+- **404 on a state post** — with an error text ("No avatar for this account") the account has no avatar yet: create one first, then post again. A 404 without an error text means the platform has no state channel: skip state updates (everything else still works) and tell the user, don't retry.
 
 ## Install (for humans distributing this skill)
 

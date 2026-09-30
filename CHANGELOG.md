@@ -35,7 +35,7 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
 - **mcp-server**: Hermes Agent seller channel: `connect_seller`, `seller_connection_status`, `publish_listing`,
   `disconnect_seller` (14 tools total). Checks `PROMETHEUS_CHANNEL=hermes`, a Hermes ancestor process and the MCP client
   handshake; key in `~/.prometheus/channel-hermes.json` (0600).
-- **openclaw-plugin**: avatar state updates: with an agent API key, `model_call_started`, `message_sent` and `model_call_ended` push `thinking` / the emotion of the sent message / `surprised` to `POST /api/agent/avatar/state` (the channel `set_avatar_state` uses), so any open avatar page follows even though the gateway has no page. Transitions only, spaced out; off by itself on a 404 or a rejected key; `companionState: false` turns it off.
+- **openclaw-plugin**: avatar state updates: with an agent API key, `model_call_started`, `message_sent` and `model_call_ended` push `thinking` / the emotion of the sent message / `surprised` to `POST /api/agent/avatar/state` (the channel `set_avatar_state` uses), so any open avatar page follows even though the gateway has no page. Transitions only, spaced out; off by itself when the route does not exist or the key is rejected (an account with no avatar yet is tried again once a minute); `companionState: false` turns it off.
 - **core / openclaw-plugin / mcp-server**: the token response's `account_hint` (masked account email) is kept with the key and shown by the connection status ("connected to the Prometheus account a***@…"), so someone tricked into approving another person's connection can see the account is wrong; the skills tell the agent to say so and to disconnect on a mismatch.
 - **core / openclaw-plugin / mcp-server**: contract v1.4: receiving a key no longer sets the account type. The token response's `next_step` (`link_x`) and `registration_note` (`ACCOUNT_HAS_SELLER_HISTORY`, `IDENTITY_LOCKED`) are told to the user right after approval and by the status (the account becomes an OpenClaw / Hermes seller only once the X account is linked; or why the account will not become one), and the note is kept in the saved key record.
 - **skills**: "Sell on Prometheus" in `prometheus-companion` and the plugin's bundled skill.
@@ -66,7 +66,7 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
 - **Keys**: a saved key is only sent back to the address that issued it; an API key from the environment goes only to
   the production host (the plugin's tools followed the configured address before); `prometheus_deploy_asset` no longer
   switches to the API key when a connection exists but a check failed, or while an approval is pending; a half-written key
-  file is removed when saving fails; text from the server is cleaned (control characters, length) before it reaches a model.
+  file is removed when saving fails; text from the server is cleaned before it reaches a model (control, format and direction characters, length; links must be one line and short; the account hint, X handle and dates are reduced to plain characters).
 - **Publishing**: after a timeout or a gateway error the result says the listing may already exist instead of "try again"
   (a publish is public and not idempotent). Waits are shown in seconds, minutes or hours, and read from the body's
   `retry_after` when there is no `Retry-After` header.
@@ -75,6 +75,7 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
   behind a request still in flight; failed pushes are retried for up to 30 s; a 404 with an error text ("no avatar yet")
   pauses the pushes for a minute instead of switching them off for good.
 - **Hermes detection**: the process-table probe has a per-call and a total time budget, so it cannot stall the stdio server.
+- **Second review pass** (of the fixes above, against contract v1.6): an account that already has the other channel's tier is told it will not become this channel's seller, and an unlinked X is described as needed to *publish* (not to "become" a seller), and is not mentioned at all for an account that will not become one; `unlink-self`'s `kept` (listings with buyers stay visible) is shown, and asking to hide listings with an already inactive key says nothing was hidden; "the listing may already exist" is said only when the request may have been processed (dropped connection, an answer cut off after the status line, 500/502/504), not for a missing route or 503, and the server's own message stays; the API-key deploy keeps the server's explanation, fix link and wait; invisible and direction-changing Unicode characters are removed; the test double now keeps the tier once set and applies the X and daily gates only to a tiered account.
 - **Docs**: configuration paths follow the real host (`plugins.entries.prometheus-avatar.config`), tool counts are current,
   and the two version badges in the root README now read npm.
 

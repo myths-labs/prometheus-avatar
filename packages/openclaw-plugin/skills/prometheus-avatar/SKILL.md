@@ -20,7 +20,7 @@ Each Marketplace bundle is a complete digital body assembled by **Forge** — th
 
 Browse bundles at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-Where the host gives the plugin a page element, the plugin renders the character there and connects it to the agent's events. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus 3 marketplace creator tools.
+Where the host gives the plugin a page element, the plugin renders the character there and connects it to the agent's events. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus the seller-channel and image tools.
 
 ## When to use
 
@@ -43,7 +43,7 @@ Use this skill when the user asks for any of:
 
 ### `prometheus_generate_image_pro` (primary creator tool)
 
-Generates AAA-quality images via the Prometheus image engine. Supports 14 style presets: `anime` · `cel-shade` · `cyberpunk` · `kawaii` · `fantasy` · `cartoon` · `realistic` · `photorealistic` · `pixar` · `chibi` · `gacha-aaa` · `guofeng` · `ghibli` · `pixel`.
+Generates AAA-quality images via the Prometheus image engine. Supports these style presets: `anime` · `cel-shade` · `cyberpunk` · `kawaii` · `fantasy` · `cartoon` · `realistic` · `photorealistic` · `pixar`.
 
 **Sizes**:
 - `1024x1024` — square (default)
@@ -93,7 +93,7 @@ With an agent API key (`apiKey` or `PROMETHEUS_API_KEY`) the plugin pushes what 
 | OpenClaw hook | Avatar state update | On-screen avatar (page element only) |
 |-------------|----------------|----------------|
 | `model_call_started` | state `thinking` | Thinking expression |
-| `message_sent` | state `done` + the message's emotion | Speaks the message with lip-sync |
+| `message_sent` | the message's emotion (state `done` only when `enableEmotion` is off) | Speaks the message with lip-sync |
 | `model_call_ended` (error) | emotion `surprised` | Surprised expression |
 
 The agent does NOT need to call a tool to trigger these. Turn the state updates off with `companionState: false`.

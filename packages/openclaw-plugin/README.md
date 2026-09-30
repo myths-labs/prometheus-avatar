@@ -22,7 +22,7 @@ Connect this OpenClaw to your Prometheus seller account once. When your account 
 
 1. Tell your agent: **`Connect my Prometheus seller account`**. It answers with a link and a short code.
 2. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The plugin finishes the connection by itself. Ask your agent for the connection status: it names the Prometheus account it is now connected to (masked, like `a***@example.com`). If that is not your account, disconnect at once: someone may have tricked you into approving their connection.
-3. On the Prometheus site, choose OpenClaw as the account's registration type (Dashboard → Seller types → OpenClaw, or `/join?type=openclaw`) and link your X account. The account becomes an OpenClaw seller only once it has chosen the type, has no earlier sales or listings, has a linked X account (at least 30 days old) and holds a connected key. Until then the connection status says what is missing, and listings are sold at the account's current rate. If the approving account already has sales or listings, or its account type is already set, it will not become an OpenClaw seller: the agent says so.
+3. On the Prometheus site, choose OpenClaw as the account's registration type (open `/join?type=openclaw` on the Prometheus site, sign in and press **Register**; or use Dashboard → Seller types → OpenClaw) and link your X account. The account becomes an OpenClaw seller only once it has chosen the type, has no earlier sales or listings, has a linked X account (at least 30 days old) and holds a connected key. Until then the connection status says what is missing, and listings are sold at the account's current rate. If the approving account already has sales or listings, or its account type is already set, it will not become an OpenClaw seller: the agent says so.
 4. Tell your agent: **`Publish this to Prometheus Marketplace`**.
 
 If a check fails (X not linked, daily limit, a suspended connection…), nothing is published and the agent tells you why and where to fix it. Publishing is public and cannot be withdrawn from the agent loop, so your agent should confirm with you first.
@@ -129,10 +129,10 @@ OpenClaw's hooks are observation-only here: they never change what is delivered.
 | OpenClaw hook | Avatar state update (any open avatar page follows within a few seconds) | On-screen avatar (only with a page element, `containerSelector`) |
 |------------|----------------|----------------|
 | `model_call_started` | state `thinking` | thinking expression |
-| `message_sent` | state `done` and the emotion of the message | speaks the message with lip-sync |
+| `message_sent` | the emotion of the message (state `done` only when `enableEmotion` is off) | speaks the message with lip-sync |
 | `model_call_ended` with an error | emotion `surprised` | surprised expression |
 
-State updates need an agent API key (`apiKey` or `PROMETHEUS_API_KEY`), are sent only on transitions (repeats are dropped, pushes are spaced out), and turn themselves off for the rest of the process if the platform has no state channel or rejects the key. The OpenClaw gateway has no page, so the on-screen avatar is skipped there (one log line); the state updates and every tool still work.
+State updates need an agent API key (`apiKey` or `PROMETHEUS_API_KEY`), are sent only on transitions (repeats are dropped, pushes are spaced out), and turn themselves off for the rest of the process if the platform has no state channel (the route does not exist) or rejects the key. An account that has no avatar yet is tried again once a minute, and a failed push is retried for up to 30 seconds. An API key from `PROMETHEUS_API_KEY` is used only when the plugin talks to the production address. The OpenClaw gateway has no page, so the on-screen avatar is skipped there (one log line); the state updates and every tool still work.
 
 ## 🌍 Ecosystem
 
