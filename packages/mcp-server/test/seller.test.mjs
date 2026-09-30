@@ -459,3 +459,13 @@ test('an account that has no tier yet can publish, at its own rate, without an X
     assert.equal(r.isError, false, r.text);
     assert.match(r.text, /Sold at your account's human rate: platform fee 25%, 15% for members/);
 });
+
+test('asking to hide listings when the server hides none says so instead of implying they are withdrawn', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1, noIntent: true });
+    const h = await start(HERMES);
+    await connected(h);
+    await h.call('publish_listing', PUB);
+    const r = await h.call('disconnect_seller', { confirm: true, hide_listings: true });
+    assert.match(r.text, /The server hid no listing \(you can withdraw listings from the Prometheus dashboard\)/);
+});

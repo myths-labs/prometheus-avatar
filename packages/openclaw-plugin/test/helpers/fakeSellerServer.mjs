@@ -182,8 +182,9 @@ export async function startFakeSellerServer(opts = {}) {
         if (path === '/api/channels/unlink-self' && req.method === 'POST') {
             if (await fault('unlink', req, res)) return;
             kr.active = false;
-            const kept = body?.hide_listings ? Math.min(state.kept, state.published.length) : 0;
-            return send(res, 200, { ok: true, channel: kr.channel, hidden: body?.hide_listings ? state.published.length - kept : 0, kept });
+            const canHide = body?.hide_listings && tierOf(kr.channel);      // seen on the real server: an account with no tier yet hides nothing
+            const kept = canHide ? Math.min(state.kept, state.published.length) : 0;
+            return send(res, 200, { ok: true, channel: kr.channel, hidden: canHide ? state.published.length - kept : 0, kept });
         }
         return err(res, 404, 'NOT_FOUND', 'No such route.');
     });

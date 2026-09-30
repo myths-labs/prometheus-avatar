@@ -435,9 +435,10 @@ export class SellerConnection {
         }
         const hidden = count(r.hidden);
         const kept = count(r.kept);
+        const none = hideListings && !hidden && !kept ? 'The server hid no listing (you can withdraw listings from the Prometheus dashboard). ' : '';
         return {
             ok: true,
-            text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ''}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ''}${hideListings ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.`,
+            text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ''}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ''}${none}${hideListings ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.`,
             details: { ok: true, hidden, kept },
         };
     }

@@ -667,3 +667,17 @@ test('an account that has no tier yet can publish, at its own rate, without an X
     assert.match(r.text, /Sold at your account's human rate: platform fee 25%, 15% for members/);
     assert.equal(server.state.published.length, 1);
 });
+
+test('asking to hide listings when the server hides none (an account with no tier yet) says so instead of implying they are withdrawn', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1, noIntent: true });
+    const h = boot();
+    await connectAndApprove(h);
+    await call(h.tools, 'prometheus_publish_listing', PUB);
+    const r = await call(h.tools, 'prometheus_disconnect_seller', { confirm: true, hide_listings: true });
+    assert.match(r.text, /The server hid no listing \(you can withdraw listings from the Prometheus dashboard\)/);
+    assert.equal(r.details.hidden, 0);
+    const plain = boot();
+    await connectAndApprove(plain);
+    assert.doesNotMatch((await call(plain.tools, 'prometheus_disconnect_seller', { confirm: true })).text, /hid no listing/, 'not said when nobody asked to hide');
+});

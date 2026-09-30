@@ -593,7 +593,8 @@ ${doubt}` };
         }
         const hidden = count(r.hidden);
         const kept = count(r.kept);
-        return { ok: true, text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ""}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ""}${hide ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.` };
+        const none = hide && !hidden && !kept ? "The server hid no listing (you can withdraw listings from the Prometheus dashboard). " : "";
+        return { ok: true, text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ""}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ""}${none}${hide ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.` };
     }
 }
 
