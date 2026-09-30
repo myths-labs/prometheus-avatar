@@ -180,10 +180,12 @@ export class AssetCreator {
     }
 
     /**
-     * Publish an asset through a seller channel (OpenClaw / Hermes Agent). The listing gets the
-     * channel's tier only if the server's checks pass at this moment; a failed check throws a
-     * `SellerChannelError` (CHANNEL_X_REQUIRED, CHANNEL_DAILY_CAP, ...) and never publishes at a
-     * different tier. `creator_type` is deliberately not sent: the account decides it.
+     * Publish an asset through a seller channel (OpenClaw / Hermes Agent). The listing is sold at the
+     * rate of the key's account: the tier belongs to the account (the server sets it once the account
+     * chose the type, has no earlier sales, has a linked X account and holds a valid key), and
+     * publishing never changes it. A failed check throws a `SellerChannelError` (CHANNEL_X_REQUIRED,
+     * CHANNEL_DAILY_CAP, ...) and publishes nothing. `creator_type` is deliberately not sent: the
+     * account decides it.
      */
     async publishViaChannel(
         config: AssetDeployConfig,

@@ -11,10 +11,10 @@ import { startFakeSellerServer } from './helpers/fakeSellerServer.mjs';
 
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/index.js');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(fn, ms = 6000) { const end = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > end) throw new Error('timed out'); await sleep(25); } }
+async function until(fn, ms = 12000) { const end = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > end) throw new Error('timed out'); await sleep(25); } }
 
 let server, home, clients;
-beforeEach(async () => { server = await startFakeSellerServer({ intervalSec: 0.05 }); home = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-home-')); clients = []; });
+beforeEach(async () => { delete process.env.PROMETHEUS_API_KEY; server = await startFakeSellerServer({ intervalSec: 1 }); home = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-home-')); clients = []; });
 afterEach(async () => { for (const c of clients) await c.close().catch(() => {}); await server.close(); fs.rmSync(home, { recursive: true, force: true }); });
 
 /**
@@ -24,7 +24,7 @@ afterEach(async () => { for (const c of clients) await c.close().catch(() => {})
  *   The real process table depends on how the tests were launched (a shell command that merely mentions hermes would
  *   match), so the "no Hermes above it" case must not use it.
  */
-async function start({ underHermes = false, psRow = null, channelEnv = 'hermes', sampling = true } = {}) {
+async function start({ underHermes = false, psRow = null, channelEnv = 'hermes', sampling = true, url = null } = {}) {
     let command = process.execPath, args = [dist];
     let PATH = process.env.PATH;
     const bin = path.join(home, 'bin'); fs.mkdirSync(bin, { recursive: true });
@@ -35,7 +35,7 @@ async function start({ underHermes = false, psRow = null, channelEnv = 'hermes',
         fs.writeFileSync(path.join(bin, 'ps'), `#!/bin/sh\necho "1 ${psRow}"\n`, { mode: 0o755 });
         PATH = `${bin}:${PATH}`;
     }
-    const env = { PATH, HOME: home, PROMETHEUS_API_URL: server.url, ...(channelEnv ? { PROMETHEUS_CHANNEL: channelEnv } : {}) };
+    const env = { PATH, HOME: home, PROMETHEUS_API_URL: url ?? server.url, ...(channelEnv ? { PROMETHEUS_CHANNEL: channelEnv } : {}) };
     const client = new Client({ name: 'test-hermes-client', version: '1.2.3' }, { capabilities: sampling ? { sampling: {} } : {} });
     await client.connect(new StdioClientTransport({ command, args, env, stderr: 'pipe' }));
     clients.push(client);
@@ -104,7 +104,7 @@ test('publish: fields go through with the bearer key; a draft id is sent alone; 
     const p = await h.call('publish_listing', { name: 'Cat', category: 'skins', file_data: 'https://cdn.example/a.zip', thumbnail_data: 'data:image/png;base64,AAAA', price: 5 });
     assert.equal(p.isError, false, p.text);
     assert.match(p.text, /marketplace\?asset=asset_1/);
-    assert.match(p.text, /seller rate: platform fee 12%, 6% for members/);
+    assert.match(p.text, /Sold at your account's hermes rate: platform fee 12%, 6% for members/);
     assert.deepEqual(server.state.published[0], { name: 'Cat', category: 'skins', price: 5, file_url: 'https://cdn.example/a.zip', thumbnail_base64: 'data:image/png;base64,AAAA' });
     const req = server.state.requests.filter((r) => r.path === '/api/channels/publish').at(-1);
     assert.match(req.headers.authorization, /^Bearer pch_/);
@@ -156,7 +156,7 @@ test('a plain-http PROMETHEUS_API_URL to another host is refused so the key neve
 
 test('next_step link_x and registration_note are told to the user (Hermes wording), also when whoami cannot answer yet', async () => {
     await server.close();
-    server = await startFakeSellerServer({ intervalSec: 0.05, xLinked: false, whoamiMissing: true });
+    server = await startFakeSellerServer({ intervalSec: 1, xLinked: false, whoamiMissing: true });
     const h = await start({ psRow: '/usr/local/bin/hermes chat' });
     await h.call('connect_seller');
     server.approve();
@@ -166,7 +166,7 @@ test('next_step link_x and registration_note are told to the user (Hermes wordin
     assert.match(st.text, /becomes a Hermes Agent seller only once X is linked/);
 
     await server.close();
-    server = await startFakeSellerServer({ intervalSec: 0.05, registrationNote: 'ACCOUNT_HAS_SELLER_HISTORY' });
+    server = await startFakeSellerServer({ intervalSec: 1, registrationNote: 'ACCOUNT_HAS_SELLER_HISTORY' });
     fs.rmSync(home, { recursive: true, force: true });                    // a fresh home, so there is no saved key from the first half
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-home-'));
     const h2 = await start({ psRow: '/usr/local/bin/hermes chat' });
@@ -176,4 +176,194 @@ test('next_step link_x and registration_note are told to the user (Hermes wordin
     const st2 = await h2.call('seller_connection_status');
     assert.match(st2.text, /This account will not become a Hermes Agent seller: it already has sales or listings\./);
     assert.equal(JSON.parse(fs.readFileSync(h2.keyFile, 'utf8')).registration_note, 'ACCOUNT_HAS_SELLER_HISTORY');
+});
+
+const HERMES = { psRow: '/usr/local/bin/hermes chat' };
+const PUB = { name: 'Cat', category: 'skins', file_data: 'https://cdn.example/a.zip' };
+const keyOf = (h) => JSON.parse(fs.readFileSync(h.keyFile, 'utf8')).key;
+async function connected(h) {
+    await h.call('connect_seller');
+    server.approve();
+    await until(() => fs.existsSync(h.keyFile));
+    await until(async () => !/^To connect/.test((await h.call('seller_connection_status')).text));      // the key is on disk a moment before the pending state is cleared
+}
+
+test('the account is not called a Hermes Agent seller until the server says so: the status says what is missing, then follows the server', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1, noIntent: true });
+    const h = await start(HERMES);
+    await connected(h);
+    const st = await h.call('seller_connection_status');
+    assert.doesNotMatch(st.text, /Connected as a Hermes Agent seller/);
+    assert.match(st.text, /not a Hermes Agent seller yet \(account type: human\)/);
+    assert.match(st.text, /Platform fee 25%, 15% for members/);
+    assert.ok(st.text.includes(`${server.url}/join?type=hermes`));
+    server.state.noIntent = false;
+    assert.match((await h.call('seller_connection_status')).text, /^Connected as a Hermes Agent seller/);
+});
+
+test('a hiccup while waiting (a 5xx, a rate limit, a gateway page) does not end the attempt; a refusal that will not go away does', async () => {
+    const h = await start(HERMES);
+    await h.call('connect_seller');
+    server.inject('token', { status: 503 }, { status: 429, body: { error: 'RATE_LIMITED', message: 'Slow down.', fix_url: null }, headers: { 'Retry-After': '1' } }, { status: 502, text: '<html>Bad gateway</html>' });
+    server.approve();
+    await until(() => fs.existsSync(h.keyFile), 25000);
+    assert.match((await h.call('seller_connection_status')).text, /^Connected/);
+
+    const h2 = await start(HERMES);
+    fs.rmSync(h.keyFile, { force: true });
+    await h2.call('connect_seller', { relink: true });
+    server.inject('token', { status: 400, body: { error: 'CHANNEL_CLIENT_UNSUPPORTED', message: 'Update the server.', fix_url: null } });
+    const st = await until(async () => { const r = await h2.call('seller_connection_status'); return /Connecting failed/.test(r.text) ? r : null; }, 15000);
+    assert.match(st.text, /Connecting failed: Update the server\./);
+});
+
+test('two connect calls at once share one start; an interval of zero does not become a busy loop', async () => {
+    const h = await start(HERMES);
+    const [a, b] = await Promise.all([h.call('connect_seller'), h.call('connect_seller')]);
+    assert.equal(server.state.startCount, 1);
+    assert.equal(a.text, b.text);
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 0 });
+    const z = await start(HERMES);
+    await z.call('connect_seller');
+    await sleep(2500);
+    const polls = server.state.requests.filter((r) => r.path === '/api/channels/link/token').length;
+    assert.ok(polls >= 1 && polls <= 4, `polls in 2.5 s: ${polls}`);
+});
+
+test('disconnecting while a poll is out drops that approval: nothing is saved', async () => {
+    const h = await start(HERMES);
+    await h.call('connect_seller');
+    server.approve();
+    server.inject('token', { delayMs: 1500, passThrough: true });
+    await sleep(1300);
+    const d = await h.call('disconnect_seller', { confirm: true });
+    assert.equal(d.isError, false);
+    await sleep(2500);
+    assert.equal(fs.existsSync(h.keyFile), false);
+});
+
+test('a key is only sent back to the address that issued it', async () => {
+    const h = await start(HERMES);
+    await connected(h);
+    assert.equal(JSON.parse(fs.readFileSync(h.keyFile, 'utf8')).base_url, server.url);
+    const other = await startFakeSellerServer({ intervalSec: 1 });
+    try {
+        const h2 = await start({ ...HERMES, url: other.url });
+        const st = await h2.call('seller_connection_status');
+        assert.equal(st.isError, true);
+        assert.match(st.text, /made with http:\/\/127\.0\.0\.1:\d+, but this server now talks to http:\/\/127\.0\.0\.1:\d+, so nothing was sent/);
+        assert.equal((await h2.call('publish_listing', PUB)).isError, true);
+        assert.equal(other.state.requests.length, 0, 'the other server saw no request at all');
+        const gone = await h2.call('disconnect_seller', { confirm: true });
+        assert.match(gone.text, /did not contact anyone/);
+        assert.equal(other.state.requests.length, 0);
+        assert.equal(fs.existsSync(h.keyFile), false);
+    } finally {
+        await other.close();
+    }
+});
+
+test('publish: a possible duplicate is flagged, a voice is refused with its explanation, a cap says how long to wait', async () => {
+    const h = await start(HERMES);
+    await connected(h);
+    server.inject('publish', { drop: true });
+    const r = await h.call('publish_listing', PUB);
+    assert.equal(r.isError, true);
+    assert.match(r.text, /may already have gone through/);
+    assert.doesNotMatch(r.text, /try again/i);
+    assert.equal(server.state.published.length, 1);
+    const v = await h.call('publish_listing', { ...PUB, category: 'voices' });
+    assert.match(v.text, /Voice Creator/);
+    assert.match(v.text, /VOICE_CANONICAL_PUBLICATION_REQUIRED/);
+    server.state.dailyCap = 0;
+    assert.match((await h.call('publish_listing', PUB)).text, /Try again in about 3 hours/);
+});
+
+test('declined and expired approvals, and a rate-limited start, are reported plainly', async () => {
+    const h = await start(HERMES);
+    const settled = (re) => until(async () => { const r = await h.call('seller_connection_status'); return re.test(r.text) ? r : null; }, 15000);
+    await h.call('connect_seller');
+    server.deny();
+    await settled(/declined on the approval page/);
+    await h.call('connect_seller');
+    server.expire();
+    await settled(/approval code expired/);
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1, startLimit: 0 });
+    const limited = await (await start(HERMES)).call('connect_seller');
+    assert.equal(limited.isError, true);
+    assert.match(limited.text, /Could not start the connection: Too many attempts\. Try again later\. Try again in about 2 minutes\. \[RATE_LIMITED\]/);
+});
+
+test('a stale "key inactive" answer does not delete a newer connection', async () => {
+    const h = await start(HERMES);
+    await connected(h);
+    const keyA = keyOf(h);
+    server.inject('publish', { status: 401, body: { error: 'CHANNEL_KEY_INACTIVE', message: 'This key is no longer active.', fix_url: null }, delayMs: 3500 });
+    const slow = h.call('publish_listing', PUB);
+    await sleep(200);
+    await h.call('connect_seller', { relink: true });
+    server.approve();
+    await until(() => fs.existsSync(h.keyFile) && keyOf(h) !== keyA, 15000);
+    const r = await slow;
+    assert.match(r.text, /CHANNEL_KEY_INACTIVE/);
+    assert.equal(fs.existsSync(h.keyFile), true, 'the newer key stays');
+});
+
+test('an approval link that is not https (or http on this computer) is not shown and nothing is started', async () => {
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1, verificationUri: 'http://evil.example/steal' });
+    const h = await start(HERMES);
+    const r = await h.call('connect_seller');
+    assert.equal(r.isError, true);
+    assert.ok(!r.text.includes('evil.example'));
+    assert.match((await h.call('seller_connection_status')).text, /^Not connected/);
+});
+
+test('the three copies of the seller-channel test double are identical (they are copied by hand)', () => {
+    const here = fs.readFileSync(new URL('./helpers/fakeSellerServer.mjs', import.meta.url), 'utf8');
+    assert.equal(here, fs.readFileSync(new URL('../../sdk/tests/helpers/fakeSellerServer.mjs', import.meta.url), 'utf8'));
+    assert.equal(here, fs.readFileSync(new URL('../../openclaw-plugin/test/helpers/fakeSellerServer.mjs', import.meta.url), 'utf8'));
+});
+
+test('slow_down: the next poll waits the interval the server names', async () => {
+    const h = await start(HERMES);
+    await h.call('connect_seller');
+    server.inject('token', { status: 400, body: { error: 'slow_down', message: 'Polling too fast.', fix_url: null, interval: 2.5 } });
+    await until(() => server.state.requests.filter((r) => r.path === '/api/channels/link/token').length >= 2, 15000);
+    const [a, b] = server.state.requests.filter((r) => r.path === '/api/channels/link/token');
+    assert.ok(b.at - a.at >= 2300, `the second poll came ${b.at - a.at} ms after the slow_down`);
+});
+
+test('a disconnect the server could not carry out keeps the saved key; hide_listings is passed on and counted', async () => {
+    const h = await start(HERMES);
+    await connected(h);
+    server.inject('unlink', { status: 503 });
+    const r = await h.call('disconnect_seller', { confirm: true });
+    assert.equal(r.isError, true);
+    assert.match(r.text, /Could not disconnect/);
+    assert.equal(fs.existsSync(h.keyFile), true);
+    await h.call('publish_listing', PUB);
+    await h.call('publish_listing', { ...PUB, name: 'Dog' });
+    const ok = await h.call('disconnect_seller', { confirm: true, hide_listings: true });
+    assert.match(ok.text, /2 listing\(s\) hidden/);
+    assert.equal(server.state.requests.find((x) => x.path === '/api/channels/unlink-self' && x.body.hide_listings === true) !== undefined, true);
+    assert.equal(fs.existsSync(h.keyFile), false);
+});
+
+test('a base64 file and a thumbnail URL go into their own fields; right after approval the user hears why the account will not become a seller', async () => {
+    const h = await start(HERMES);
+    await connected(h);
+    await h.call('publish_listing', { name: 'Cat', category: 'skins', file_data: 'QUJD', thumbnail_data: 'https://cdn.example/t.png' });
+    assert.deepEqual(server.state.published[0], { name: 'Cat', category: 'skins', file_base64: 'QUJD', thumbnail_url: 'https://cdn.example/t.png' });
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1, whoamiMissing: true, registrationNote: 'ACCOUNT_HAS_SELLER_HISTORY' });
+    fs.rmSync(h.keyFile, { force: true });
+    const h2 = await start(HERMES);
+    await connected(h2);
+    const st = await h2.call('seller_connection_status');
+    assert.match(st.text, /^Approved by the Prometheus account a\*\*\*@example\.com; the key is saved\./);
+    assert.match(st.text, /will not become a Hermes Agent seller: it already has sales or listings\./);
 });

@@ -24,7 +24,7 @@
         "start": "node dist/index.js",
         "clean": "rm -rf dist",
         "lint": "tsc --noEmit",
-        "test": "tsup src/index.ts src/sellerChannel.ts --format esm --clean && node --test test/*.test.mjs",
+        "test": "tsup src/index.ts src/sellerChannel.ts --format esm --dts --clean && node --test test/*.test.mjs",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

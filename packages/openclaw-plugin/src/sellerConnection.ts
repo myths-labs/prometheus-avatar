@@ -3,6 +3,7 @@ import type {
 } from '@prometheusavatar/core';
 import type { KeyStore, StoredChannel } from './keyStore';
 import type { PluginLogger } from './types';
+import { DEFAULT_BASE, safeOrigin } from './hostRules';
 
 /** The pieces of @prometheusavatar/core this file needs, loaded lazily so registering the plugin stays instant. */
 export interface CoreModule {
@@ -68,6 +69,35 @@ function noteText(note: string, seller: string): string {
 
 const fee = (n: number) => `${Math.round(n * 1000) / 10}%`;
 
+const DEFAULT_ORIGIN = new URL(DEFAULT_BASE).origin;
+
+/** A number from the server, held inside sane bounds; the fallback when it is missing or not a number. */
+const num = (v: unknown, fallback: number, lo: number, hi: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
+
+/** A failure worth waiting out while the device flow is open: the approval may still come. */
+function isTransient(err: unknown): boolean {
+    if (!isChannelError(err)) return false;
+    return ['CHANNEL_NETWORK', 'CHANNEL_UNAVAILABLE', 'TEMPORARILY_UNAVAILABLE', 'RATE_LIMITED'].includes(err.code) || err.status === 429 || err.status >= 500;
+}
+
+/** The request may have reached the server before it failed, so a publish may already exist. */
+function isAmbiguous(err: unknown): boolean {
+    return isChannelError(err) && (err.code === 'CHANNEL_NETWORK' || err.code === 'CHANNEL_UNAVAILABLE' || err.status >= 500);
+}
+
+function waitText(sec: number): string {
+    if (sec < 120) return `${Math.max(1, Math.ceil(sec))} seconds`;
+    if (sec < 7200) return `${Math.ceil(sec / 60)} minutes`;
+    return `${Math.ceil(sec / 3600)} hours`;
+}
+
+/** A short word from the server (an account type), reduced to plain characters before it is shown. */
+const word = (v: unknown) => String(v).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
+
+/** An address from the server that is shown to the user only when a key could safely go there: https, or http on this machine. */
+const shownLink = (u: unknown) => (typeof u === 'string' && safeOrigin(u) ? u : undefined);
+
 export class SellerConnection {
     private pending?: Pending;
     private polling = false;
@@ -75,6 +105,7 @@ export class SellerConnection {
     private lastApproved?: { x_linked: boolean; next_url: string; next_step: string | null };
     private hint?: string;
     private cached?: SellerChannelApi;
+    private starting?: Promise<Outcome>;
 
     constructor(private readonly o: ConnectionOptions) {}
 
@@ -100,16 +131,57 @@ export class SellerConnection {
             if (err.fixUrl) bits.push(`Fix it here: ${err.fixUrl}`);
             if (err.permanent) bits.push('This suspension is permanent.');
             else if (err.until) bits.push(`Suspended until ${err.until}.`);
-            if (err.retryAfterSec) bits.push(`Try again in about ${Math.ceil(err.retryAfterSec / 60)} minute(s).`);
+            if (err.retryAfterSec) bits.push(`Try again in about ${waitText(err.retryAfterSec)}.`);
             bits.push(`[${err.code}]`);
             return { ok: false, text: bits.join(' '), details: { ok: false, code: err.code, fix_url: err.fixUrl } };
         }
         return { ok: false, text: `${what}: ${(err as Error)?.message ?? String(err)}`, details: { ok: false, code: 'UNEXPECTED' } };
     }
 
-    /** Start (or repeat) the device flow. The reply tells the user where to approve. */
-    async connect(relink = false): Promise<Outcome> {
+    private origin(): string { return safeOrigin(this.o.baseUrl) ?? DEFAULT_ORIGIN; }
+
+    /** The saved connection, and whether it was made against another Prometheus address than this plugin uses now. */
+    private async saved(): Promise<{ stored: StoredChannel | null; mismatch: boolean }> {
         const stored = await this.o.store.get();
+        if (!stored) return { stored: null, mismatch: false };
+        return { stored, mismatch: (stored.base_url ?? DEFAULT_ORIGIN) !== this.origin() };
+    }
+
+    private mismatchOutcome(stored: StoredChannel): Outcome {
+        return {
+            ok: false,
+            text: `The saved connection was made with ${stored.base_url ?? DEFAULT_ORIGIN}, but this plugin now talks to ${this.origin()}, so nothing was sent. Connect again for this address (relink=true), or point the plugin back.`,
+            details: { ok: false, state: 'other_host' },
+        };
+    }
+
+    /** Drop the saved key only if it is still the one that just failed (a new connection may have replaced it meanwhile). */
+    private async clearIfSame(key: string): Promise<void> {
+        const cur = await this.o.store.get();
+        if (cur && cur.key === key) await this.o.store.clear();
+    }
+
+    /** 'none': no key saved. 'usable': a key for this address. 'other_host': a key that belongs to another address. No network. */
+    async keyState(): Promise<'none' | 'usable' | 'other_host'> {
+        const { stored, mismatch } = await this.saved();
+        return !stored ? 'none' : mismatch ? 'other_host' : 'usable';
+    }
+
+    /** The "waiting for approval" answer while a code is open, else null. */
+    pendingOutcome(): Outcome | null {
+        const p = this.pending;
+        return p && p.state === 'waiting' && this.now() < p.expiresAt ? this.waitingText(p) : null;
+    }
+
+    /** Start (or repeat) the device flow. The reply tells the user where to approve. */
+    connect(relink = false): Promise<Outcome> {
+        // Two calls at once (a model can issue them in one turn) share one start: one code, one request to the server.
+        this.starting ??= this.startConnect(relink).finally(() => { this.starting = undefined; });
+        return this.starting;
+    }
+
+    private async startConnect(relink: boolean): Promise<Outcome> {
+        const { stored } = await this.saved();
         if (stored && !relink) {
             const st = await this.status();
             return { ...st, text: `${st.text}\nTo connect a different account, call this tool again with relink=true.` };
@@ -118,10 +190,16 @@ export class SellerConnection {
         if (p && p.state === 'waiting' && this.now() < p.expiresAt) return this.waitingText(p);   // same code, no new start (the server rate-limits starts)
         try {
             const s = await (await this.api()).startLink();
+            const link = shownLink(s.verification_uri);
+            const code = typeof s.user_code === 'string' ? s.user_code.replace(/[^A-Za-z0-9-]/g, '').slice(0, 16) : '';
+            if (!link || !code || typeof s.device_code !== 'string' || !s.device_code) {
+                return { ok: false, text: 'Could not start the connection: Prometheus sent an approval link or code I do not trust (a link must be https, or http on this computer). Nothing was started; try again later.', details: { ok: false, code: 'BAD_APPROVAL_LINK' } };
+            }
             const t = this.now();
+            const interval = num(s.interval, 5, 1, 60);
             this.pending = {
-                device_code: s.device_code, user_code: s.user_code, verification_uri: s.verification_uri,
-                expiresAt: t + s.expires_in * 1000, interval: s.interval, nextPollAt: t + s.interval * 1000, state: 'waiting',
+                device_code: s.device_code, user_code: code, verification_uri: link,
+                expiresAt: t + num(s.expires_in, 600, 30, 1800) * 1000, interval, nextPollAt: t + interval * 1000, state: 'waiting',
             };
             this.schedule();
             return this.waitingText(this.pending);
@@ -134,7 +212,7 @@ export class SellerConnection {
         const mins = Math.max(1, Math.ceil((p.expiresAt - this.now()) / 60000));
         return {
             ok: true,
-            text: `To connect, open ${p.verification_uri} and approve code ${p.user_code} within ${mins} minutes. Sign in to Prometheus first if the page asks. I will finish the connection as soon as you approve; you can also ask me for the connection status.`,
+            text: `To connect, open ${p.verification_uri} and approve code ${p.user_code} within ${mins} minutes. Sign in to Prometheus first if the page asks. I will finish the connection as soon as you approve (keep this gateway running until then: a pending approval is lost when it restarts); you can also ask me for the connection status.`,
             details: { ok: true, state: 'waiting', user_code: p.user_code, verification_uri: p.verification_uri, expires_in_min: mins },
         };
     }
@@ -156,11 +234,16 @@ export class SellerConnection {
         this.polling = true;
         try {
             const r = await (await this.api()).pollToken(p.device_code);
+            if (this.pending !== p) {              // disconnected, or a new connection started, while this poll was out
+                if (r.status === 'approved') this.o.log.warn(`A connection (key ${r.key.key_prefix}...) was approved just as the connection was cancelled, so it is not saved. Revoke it under Dashboard > Seller types if it should not stay active.`);
+                return;
+            }
             switch (r.status) {
                 case 'approved': {
                     const stored: StoredChannel = {
                         key: r.key.key, key_prefix: r.key.key_prefix, channel: 'openclaw',
                         linked_at: new Date(this.now()).toISOString(), client_version: this.o.pluginVersion,
+                        base_url: this.origin(),
                         ...(safeHint(r.key.account_hint) ? { account_hint: safeHint(r.key.account_hint) } : {}),
                         ...(typeof r.key.registration_note === 'string' && r.key.registration_note ? { registration_note: r.key.registration_note.slice(0, 64) } : {}),
                     };
@@ -172,14 +255,21 @@ export class SellerConnection {
                     return;
                 }
                 case 'pending': p.nextPollAt = this.now() + p.interval * 1000; break;
-                case 'slow_down': p.interval = r.interval ?? p.interval + 5; p.nextPollAt = this.now() + p.interval * 1000; break;
+                case 'slow_down': p.interval = num(r.interval, p.interval + 5, 1, 120); p.nextPollAt = this.now() + p.interval * 1000; break;
                 case 'denied': p.state = 'denied'; break;
                 case 'expired': p.state = 'expired'; break;
                 case 'invalid': p.state = 'invalid'; break;
             }
         } catch (err) {
-            if (isChannelError(err) && err.code === 'CHANNEL_NETWORK') p.nextPollAt = this.now() + p.interval * 1000;   // transient: keep waiting
-            else { p.state = 'failed'; p.failure = this.failure(err, 'Connecting failed').text; }
+            if (this.pending !== p) return;
+            if (isTransient(err)) {
+                // A network drop, a 5xx or a rate limit while waiting: the approval may still come, so keep waiting until the code expires.
+                const wait = Math.min(120, Math.max(p.interval, isChannelError(err) ? err.retryAfterSec ?? 0 : 0));
+                p.nextPollAt = this.now() + wait * 1000;
+            } else {
+                p.state = 'failed';
+                p.failure = this.failure(err, 'Connecting failed').text;
+            }
         } finally {
             this.polling = false;
             this.schedule();
@@ -201,16 +291,17 @@ export class SellerConnection {
                 }
             }
         }
-        const stored = await this.o.store.get();
+        const { stored, mismatch } = await this.saved();
         if (!stored) {
-            return { ok: false, text: 'Not connected to a Prometheus seller account. Ask me to "Connect my Prometheus seller account" to start.', details: { ok: false, state: 'not_connected' } };
+            return { ok: false, text: 'Not connected to a Prometheus seller account. Ask me to "Connect my Prometheus seller account" to start. (An approval that was still pending when this gateway restarted is lost: connect again for a new code.)', details: { ok: false, state: 'not_connected' } };
         }
+        if (mismatch) return this.mismatchOutcome(stored);
         try {
             const w = await (await this.api()).whoami(stored.key);
             return this.connectedText(w, safeHint(stored.account_hint) ?? this.hint, stored.registration_note);
         } catch (err) {
             if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') {
-                await this.o.store.clear();
+                await this.clearIfSame(stored.key);
                 return { ok: false, text: 'The saved connection is no longer active (it was revoked or replaced). Ask me to connect again.', details: { ok: false, state: 'key_inactive' } };
             }
             const f = this.failure(err, 'Could not check the connection');
@@ -223,28 +314,41 @@ export class SellerConnection {
     private approvalText(hintRaw?: string, note?: string): string {
         const hint = safeHint(hintRaw) ?? this.hint;
         const lines = [`Approved${hint ? ` by the Prometheus account ${hint}` : ''}; the key is saved.`];
-        if (this.lastApproved?.next_step === 'link_x') lines.push(`Next: link your X account on the Prometheus dashboard (${this.lastApproved.next_url}). The account becomes an OpenClaw seller only once X is linked.`);
+        const next = shownLink(this.lastApproved?.next_url);
+        if (this.lastApproved?.next_step === 'link_x') lines.push(`Next: link your X account on the Prometheus dashboard${next ? ` (${next})` : ''}. The account becomes an OpenClaw seller only once X is linked.`);
         if (note) lines.push(noteText(note, 'an OpenClaw seller'));
         return lines.join('\n');
     }
 
+    /**
+     * The tier is decided on the server, and only once several things are true at the same time, so the status says what
+     * the server says the account is (whoami.account.identity_type), never more.
+     */
     private connectedText(w: SellerChannelWhoami, hint?: string, note?: string): Outcome {
-        const lines = [`Connected as an OpenClaw seller${hint ? ` to the Prometheus account ${hint}` : ''} (key ${w.key_prefix}...). Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`];
+        const type = w.account.identity_type;
+        const seller = type === 'openclaw';
+        const who = hint ? ` to the Prometheus account ${hint}` : '';
+        const rate = `Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`;
+        const lines = [seller
+            ? `Connected as an OpenClaw seller${who} (key ${w.key_prefix}...). ${rate}`
+            : `Connected${who} with an OpenClaw key (key ${w.key_prefix}...), but the account is not an OpenClaw seller yet${type ? ` (account type: ${word(type)})` : ''}. Listings are sold at the account's current rate. ${rate}`];
         if (note) lines.push(noteText(note, 'an OpenClaw seller'));
+        else if (!seller) lines.push(`The account becomes an OpenClaw seller once all of these are true: it chose OpenClaw as its registration type (${this.origin()}/join?type=openclaw), it has no earlier sales or listings, and an X account at least 30 days old is linked.`);
         if (w.suspension) lines.push(w.suspension.permanent ? 'This connection is suspended permanently.' : `This connection is suspended until ${w.suspension.until}.`);
+        const next = shownLink(w.next_url);
         if (w.x_link.linked) lines.push(`X account linked (${w.x_link.handle}).`);
-        else lines.push(`X account not linked yet: tier publishes need it. Link it at ${w.next_url}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ''}.`);
+        else lines.push(`X account not linked yet: it is needed to become an OpenClaw seller and to publish at that rate.${next ? ` Link it at ${next}` : ''}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ''}.`);
         lines.push(`Publishes today: ${w.today.used} of ${w.today.cap}. Listings: ${w.listings.active} active, ${w.listings.hidden} hidden.`);
-        if (this.lastApproved?.next_step === 'link_x' && !w.x_link.linked) lines.push('The account becomes an OpenClaw seller only once the X account is linked; finish that, then publish.');
-        return { ok: true, text: lines.join('\n'), details: { ok: true, state: 'connected', key_prefix: w.key_prefix, ...(hint ? { account_hint: hint } : {}), fee: w.account.fee, x_linked: w.x_link.linked, today: w.today, listings: w.listings, suspension: w.suspension } };
+        return { ok: true, text: lines.join('\n'), details: { ok: true, state: 'connected', is_seller: seller, account_type: type ?? null, key_prefix: w.key_prefix, ...(hint ? { account_hint: hint } : {}), fee: w.account.fee, x_linked: w.x_link.linked, today: w.today, listings: w.listings, suspension: w.suspension } };
     }
 
     /** Publish through the channel. Never falls back to another tier or to an API key. */
     async publish(args: PublishArgs): Promise<Outcome> {
-        const stored = await this.o.store.get();
+        const { stored, mismatch } = await this.saved();
         if (!stored) {
             return { ok: false, text: 'Not connected to a Prometheus seller account, so this cannot be published through the channel. Ask me to "Connect my Prometheus seller account" first.', details: { ok: false, state: 'not_connected' } };
         }
+        if (mismatch) return this.mismatchOutcome(stored);
         const creator = new (await this.o.loadCore()).AssetCreator(this.o.baseUrl);
         const opts = {
             channelKey: stored.key, client: { name: CLIENT_NAME, version: this.o.pluginVersion },
@@ -265,31 +369,53 @@ export class SellerConnection {
             const held = r.bonus_hold_days > 0 ? ` On points sales, the extra points above the normal creator rate are held for ${r.bonus_hold_days} days.` : '';
             return {
                 ok: true,
-                text: `Published to Prometheus Marketplace: ${r.url}\nSold at your account's ${r.creator_type} seller rate: platform fee ${fee(r.fee.platform)}, ${fee(r.fee.member)} for members.${held}`,
+                text: `Published to Prometheus Marketplace: ${shownLink(r.url) ?? r.asset_id}\nSold at your account's ${word(r.creator_type)} rate: platform fee ${fee(r.fee.platform)}, ${fee(r.fee.member)} for members.${held}`,
                 details: { ok: true, asset_id: r.asset_id, url: r.url, creator_type: r.creator_type, fee: r.fee, bonus_hold_days: r.bonus_hold_days },
             };
         } catch (err) {
-            if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') await this.o.store.clear();
+            if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') {
+                await this.clearIfSame(stored.key);
+                const o = this.failure(err, 'Publish failed');
+                return { ...o, text: `${o.text}\nThe saved connection is gone. Ask the user to connect again (prometheus_connect_seller); do not publish another way without asking them first.` };
+            }
+            if (isAmbiguous(err)) {
+                // A publish is public and not idempotent: after a timeout or a gateway error the listing may already exist.
+                const code = (err as SellerChannelError).code;
+                return {
+                    ok: false,
+                    text: `Publish did not finish: Prometheus could not be reached, or did not answer in time. The request may already have gone through, so the listing may exist. Before publishing again, check the marketplace or the listing counts in the connection status, so the same listing is not published twice. [${code}]`,
+                    details: { ok: false, code, maybe_published: true },
+                };
+            }
             return this.failure(err, 'Publish failed');
         }
     }
 
     /** Revoke this connection at once (already published listings keep their rate). */
     async disconnect(hideListings = false): Promise<Outcome> {
-        const stored = await this.o.store.get();
         this.pending = undefined;
+        const { stored, mismatch } = await this.saved();
         if (!stored) return { ok: true, text: 'Already disconnected.', details: { ok: true, state: 'not_connected' } };
-        try {
-            const r = await (await this.api()).unlinkSelf(stored.key, hideListings);
+        if (mismatch) {
             await this.o.store.clear();
-            return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ''}Your account's rate and the listings already published are unchanged. To publish through the channel again, connect again.`, details: { ok: true, hidden: r.hidden } };
+            return { ok: true, text: `The saved connection belongs to ${stored.base_url ?? DEFAULT_ORIGIN}, not to the address this plugin uses now, so I did not contact anyone; it is removed from this computer. To revoke that key, disconnect from a plugin set to that address, or use the Prometheus dashboard.`, details: { ok: true, state: 'not_connected', revoked: false } };
+        }
+        let r: { hidden: number };
+        try {
+            r = await (await this.api()).unlinkSelf(stored.key, hideListings);
         } catch (err) {
             if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') {
-                await this.o.store.clear();
+                await this.clearIfSame(stored.key);
                 return { ok: true, text: 'The connection was already inactive; the saved key is removed.', details: { ok: true, state: 'not_connected' } };
             }
             return this.failure(err, 'Could not disconnect');
         }
+        try {
+            await this.o.store.clear();
+        } catch (err) {
+            return { ok: false, text: `Disconnected on Prometheus: the key is revoked. But I could not delete the saved copy (${(err as Error).message}); delete ${this.o.store.location()} yourself.`, details: { ok: false, revoked: true, code: 'KEY_FILE_NOT_REMOVED' } };
+        }
+        return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ''}Your account's rate and the listings already published are unchanged. To publish through the channel again, connect again.`, details: { ok: true, hidden: r.hidden } };
     }
 }
 

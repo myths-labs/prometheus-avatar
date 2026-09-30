@@ -1,5 +1,6 @@
 import type { PluginTool, PluginToolResult, PluginConfig } from './types';
 import type { CoreModule, Outcome, PublishArgs, SellerConnection } from './sellerConnection';
+import { DEFAULT_BASE, agentApiKey, safeOrigin } from './hostRules';
 
 const text = (o: Outcome | { text: string; details: Record<string, unknown> }): PluginToolResult => ({
     content: [{ type: 'text', text: o.text }],
@@ -10,7 +11,7 @@ const CATEGORIES = ['skins', 'voices', 'effects', 'motions', 'accessories', 'sce
 
 const publishProps = {
     name: { type: 'string' },
-    category: { type: 'string', enum: CATEGORIES },
+    category: { type: 'string', enum: CATEGORIES, description: 'Launch categories: skins, motions, expressions, personas. voices are published in the Voice Creator on the site, so a voice is refused here. accessories and effects are coming soon.' },
     description: { type: 'string', description: 'Required for personas.' },
     price: { type: 'number', description: 'Price in USD.' },
     price_points: { type: 'number', description: 'Price in platform points.' },
@@ -32,11 +33,13 @@ interface ToolDeps {
 }
 
 export function buildTools(d: ToolDeps): PluginTool[] {
-    const configuredApiKey = () =>
-        d.config.apiKey ?? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PROMETHEUS_API_KEY;
+    // An API key from the environment only ever goes to the production host; a key set in the plugin config goes where the config points.
+    const configuredApiKey = () => agentApiKey(d.config);
     const creator = async () => {
+        const base = (d.config.channelBaseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
+        if (!safeOrigin(base)) throw new Error('channelBaseUrl must be https (or http on localhost): an API key is never sent over plain HTTP.');
         const core = await d.loadCore();
-        return new core.AssetCreator(d.config.channelBaseUrl ?? 'https://prometheus.mythslabs.ai', configuredApiKey());
+        return new core.AssetCreator(base, configuredApiKey());
     };
 
     return [
@@ -60,7 +63,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
         {
             name: 'prometheus_publish_listing',
             label: 'Publish to Prometheus Marketplace',
-            description: 'Publish an asset (skin, voice, effect, motion, accessory, scene, persona, expression, bundle) to Prometheus Marketplace through the connected seller account; the listing is sold at the account\'s seller rate. Needs a connection (prometheus_connect_seller). Use when the user says "Publish this to Prometheus Marketplace". The listing becomes public and cannot be withdrawn from the agent loop, so confirm with the user first. If a check fails (for example the X account is not linked), nothing is published and it says why and how to fix it.',
+            description: 'Publish an asset (launch categories: skins, motions, expressions, personas; voices are published in the Voice Creator on the site and are refused here; accessories and effects are coming soon) to Prometheus Marketplace through the connected seller account; the listing is sold at the account\'s rate. Needs a connection (prometheus_connect_seller). Use when the user says "Publish this to Prometheus Marketplace". The listing becomes public and cannot be withdrawn from the agent loop, so confirm with the user first. If a check fails (for example the X account is not linked), nothing is published and it says why and how to fix it.',
             parameters: { type: 'object', additionalProperties: false, properties: publishProps },
             async execute(_id, params) { return text(await d.conn.publish(params as PublishArgs)); },
         },
@@ -71,9 +74,12 @@ export function buildTools(d: ToolDeps): PluginTool[] {
             parameters: { type: 'object', additionalProperties: false, properties: publishProps },
             async execute(_id, params) {
                 const args = params as PublishArgs;
-                const st = await d.conn.status();
-                if (st.details.state === 'connected' || st.details.state === 'waiting') {
-                    if (st.details.state === 'connected') return text(await d.conn.publish(args));
+                // A saved connection decides. Publish through it, and if that fails say so: never switch quietly to the API key,
+                // which sells at another rate (and a failed status check must not look like "not connected").
+                if ((await d.conn.keyState()) !== 'none') return text(await d.conn.publish(args));
+                const waiting = d.conn.pendingOutcome();
+                if (waiting) {
+                    return text({ text: `A connection is waiting for approval, so I did not deploy with the API key (that sells at a different rate). ${waiting.text}`, details: { ...waiting.details, ok: false } });
                 }
                 // Not connected: the original API-key deploy.
                 const apiKey = configuredApiKey();

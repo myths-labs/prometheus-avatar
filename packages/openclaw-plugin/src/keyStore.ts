@@ -13,6 +13,8 @@ export interface StoredChannel {
     account_hint?: string;
     /** Why the account will not become an OpenClaw seller (from the approval), if the server said so. */
     registration_note?: string;
+    /** Origin of the Prometheus server that issued the key. The key is only ever sent back to it. */
+    base_url?: string;
 }
 
 export interface KeyStore {
@@ -48,9 +50,14 @@ export class FileKeyStore implements KeyStore {
     async set(value: StoredChannel): Promise<void> {
         await fs.mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
         const tmp = `${this.file}.${process.pid}.tmp`;
-        await fs.writeFile(tmp, JSON.stringify(value), { mode: 0o600 });
-        await fs.chmod(tmp, 0o600);
-        await fs.rename(tmp, this.file);
+        try {
+            await fs.writeFile(tmp, JSON.stringify(value), { mode: 0o600 });
+            await fs.chmod(tmp, 0o600);
+            await fs.rename(tmp, this.file);
+        } catch (err) {
+            await fs.rm(tmp, { force: true }).catch(() => undefined);      // never leave a half-written copy of the key behind
+            throw err;
+        }
     }
 
     async clear(): Promise<void> {

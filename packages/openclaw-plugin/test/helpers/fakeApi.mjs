@@ -44,7 +44,7 @@ export async function call(tools, name, params = {}) {
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function until(fn, ms = 4000, step = 20) {
+export async function until(fn, ms = 10000, step = 20) {
     const end = Date.now() + ms;
     for (;;) {
         const v = await fn();

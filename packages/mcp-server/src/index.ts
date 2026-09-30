@@ -2,7 +2,7 @@
 /**
  * Prometheus Avatar MCP Server (S068 · Phase 11 Day 3 — version lives in package.json only, see PKG_VERSION below)
  *
- * Model Context Protocol server that exposes 10 tools for AI agents
+ * Model Context Protocol server that exposes 14 tools for AI agents
  * to interact with the Prometheus Avatar platform:
  *
  *   1. create_avatar       — Initialize an avatar instance

@@ -2,7 +2,7 @@
  * The small part of the OpenClaw plugin API this plugin uses, written as structural types.
  * Typing against OpenClaw itself would need the whole `openclaw` package (hundreds of MB) at build time,
  * and the entry stays loadable without importing anything from the host.
- * Verified against OpenClaw 2026.9.6 by test/loader.test.mjs.
+ * Verified against OpenClaw 2026.9.6 by test/loader.real-openclaw.test.mjs.
  */
 
 export interface PluginToolResult {

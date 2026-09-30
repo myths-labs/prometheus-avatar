@@ -83,7 +83,8 @@ export interface SellerChannelPublishResult {
     success: true;
     asset_id: string;
     url: string;
-    creator_type: SellerChannelName;
+    /** The account's tier at publish time: openclaw / hermes once verified, otherwise the account's own type. */
+    creator_type: SellerChannelName | (string & {});
     fee: { platform: number; member: number };
     bonus_hold_days: number;
 }
@@ -116,6 +117,12 @@ export class SellerChannelError extends Error {
 export function channelClientHeader(client: SellerChannelClient, runtime: SellerChannelRuntime): string {
     const rt = runtime.version ? `${runtime.name} ${runtime.version}` : runtime.name;
     return `${client.name}/${client.version} (${rt})`;
+}
+
+/** Text that came from the server and may end up in a tool result a model reads: no control characters, capped. */
+function cleanText(v: string, max = 300): string {
+    const t = v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
 function isLoopbackHttp(url: URL): boolean {
@@ -181,10 +188,13 @@ export class SellerChannelApi {
             throw new SellerChannelError('CHANNEL_UNAVAILABLE', `The Prometheus seller channel is not available right now (HTTP ${status}). It may not have launched yet; try again later.`, { status, retryAfterSec: retryAfter });
         }
         const fix = typeof data?.fix_url === 'string' && data.fix_url.startsWith('https://') ? data.fix_url : null;
+        // The wait is in the Retry-After header and, in the contract, also in the body as `retry_after` (seconds).
+        const bodyWait = Number(data?.retry_after);
+        const wait = retryAfter ?? (Number.isFinite(bodyWait) && bodyWait > 0 ? bodyWait : undefined);
         throw new SellerChannelError(
-            typeof data?.error === 'string' ? data.error : `HTTP_${status}`,
-            typeof data?.message === 'string' && data.message ? data.message : `Prometheus answered HTTP ${status}.`,
-            { status, fixUrl: fix, until: data?.until, permanent: data?.permanent, retryAfterSec: retryAfter },
+            typeof data?.error === 'string' ? cleanText(data.error, 64) : `HTTP_${status}`,
+            typeof data?.message === 'string' && data.message ? cleanText(data.message) : `Prometheus answered HTTP ${status}.`,
+            { status, fixUrl: fix, until: typeof data?.until === 'string' ? cleanText(data.until, 40) : null, permanent: data?.permanent === true, retryAfterSec: wait },
         );
     }
 

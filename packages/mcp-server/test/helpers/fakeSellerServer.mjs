@@ -1,11 +1,12 @@
-// A small stand-in for the Prometheus seller-channel routes, written from the Prometheus seller-channel API contract v1.1.
+// A small stand-in for the Prometheus seller-channel routes, written from the Prometheus seller-channel API contract (v1.1 to v1.5).
 // It is a test double, not the real server: it enforces the rules the clients must respect
 // (headers, no browser headers, one-time key, slow_down, per-key client name, error bodies).
-// The same file is copied into the plugin and MCP server tests.
+// The same file is copied into the plugin and MCP server tests (a test in each checks the copies are identical).
 import http from 'node:http';
 import crypto from 'node:crypto';
 
 const MIN_VERSION = { 'prometheus-openclaw-plugin': '0.11.0', 'prometheus-mcp-server': '0.4.0' };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const cmp = (a, b) => {
     const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
     for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); }
@@ -23,8 +24,12 @@ export async function startFakeSellerServer(opts = {}) {
         published: [],         // bodies accepted by /publish
         deployed: [],          // bodies accepted by the old API-key deploy route
         avatarStates: [],      // bodies accepted by the companion-state route
-        stateRoute: opts.stateRoute ?? 'ok',   // 'ok' | 'missing' (older platform build: 404, no error code) | 'reject' (401)
+        stateRoute: opts.stateRoute ?? 'ok',   // 'ok' | 'missing' (older platform build: 404, no error code) | 'no_avatar' (404 with an error text) | 'reject' (401)
+        stateDelayMs: opts.stateDelayMs ?? 0,  // how long the state route holds a request before it answers
+        stateFail: opts.stateFail ?? 0,        // the next N state requests answer 503
+        inject: { token: [], whoami: [], publish: [], start: [], unlink: [] },   // one-shot faults, consumed in order: { status, body?, headers? } or { drop: true } (accept, then cut the connection)
         xLinked: opts.xLinked ?? true,
+        noIntent: opts.noIntent ?? false,      // the account never chose OpenClaw / Hermes as its registration type: the tier is not set
         dailyUsed: 0,
         dailyCap: opts.dailyCap ?? 4,
     };
@@ -33,6 +38,19 @@ export async function startFakeSellerServer(opts = {}) {
         res.end(JSON.stringify(body));
     };
     const err = (res, status, error, message, fix = null, extra = {}) => send(res, status, { error, message, fix_url: fix, ...extra });
+    /** The account is an OpenClaw / Hermes seller only when the server would have set the tier: intent chosen, no history, X linked. */
+    const isSeller = () => state.xLinked && !opts.registrationNote && !state.noIntent;
+    /** Returns true when a one-shot fault was served (the request is finished or cut). */
+    const fault = async (route, req, res, onDrop) => {
+        const f = state.inject[route].shift();
+        if (!f) return false;
+        if (f.delayMs) await sleep(f.delayMs);
+        if (f.passThrough) return false;       // only delay: the request is then served normally
+        if (f.drop) { onDrop?.(); req.socket.destroy(); return true; }
+        if (f.text) { res.writeHead(f.status, { 'Content-Type': 'text/html', ...(f.headers || {}) }); res.end(f.text); return true; }
+        send(res, f.status, f.body ?? { error: 'TEMPORARILY_UNAVAILABLE', message: 'Try again in a moment.', fix_url: null }, f.headers || {});
+        return true;
+    };
 
     const server = http.createServer(async (req, res) => {
         const chunks = [];
@@ -41,7 +59,7 @@ export async function startFakeSellerServer(opts = {}) {
         let body = null;
         try { body = raw ? JSON.parse(raw) : null; } catch { return err(res, 400, 'invalid_request', 'bad json'); }
         const path = req.url.split('?')[0];
-        state.requests.push({ method: req.method, path, headers: { ...req.headers }, body });
+        state.requests.push({ method: req.method, path, headers: { ...req.headers }, body, at: Date.now() });
 
         if (req.headers.origin || req.headers['sec-fetch-site']) {
             return err(res, 403, 'CHANNEL_KEY_BROWSER_USE', 'This key cannot be used from a browser.');
@@ -55,10 +73,13 @@ export async function startFakeSellerServer(opts = {}) {
         // The companion-state route (pak_ key; state / emotion whitelists as on the platform).
         if (path === '/api/agent/avatar/state' && req.method === 'POST') {
             if (state.stateRoute === 'missing') { res.writeHead(404, { 'Content-Type': 'text/html' }); return res.end('<html>Not Found</html>'); }
+            if (state.stateRoute === 'no_avatar') return err(res, 404, 'No avatar for this account — create one via POST /api/agent/avatar first', 'No avatar.');
             if (state.stateRoute === 'reject' || !/^Bearer pak_\w+$/.test(String(req.headers.authorization || ''))) return err(res, 401, 'UNAUTHORIZED', 'A pak_ agent key is required.');
             const okState = !body?.state || ['listening', 'thinking', 'acting', 'done'].includes(body.state);
             const okEmotion = !body?.emotion || ['happy', 'sad', 'angry', 'surprised', 'thinking', 'neutral'].includes(body.emotion);
             if (!okState || !okEmotion || (!body?.state && !body?.emotion)) return err(res, 400, 'INVALID_STATE', 'state or emotion not allowed');
+            if (state.stateFail > 0) { state.stateFail--; return err(res, 503, 'UNAVAILABLE', 'Try again in a moment.'); }
+            if (state.stateDelayMs) await sleep(state.stateDelayMs);
             state.avatarStates.push({ ...body, at: Date.now() });
             return send(res, 200, { avatarId: 'av_1', companionState: body });
         }
@@ -68,6 +89,7 @@ export async function startFakeSellerServer(opts = {}) {
         const [, hName, hVersion, hRuntime, hRuntimeVersion] = m;
 
         if (path === '/api/channels/link/start' && req.method === 'POST') {
+            if (await fault('start', req, res)) return;
             if (++state.startCount > state.startLimit) return send(res, 429, { error: 'RATE_LIMITED', message: 'Too many attempts. Try again later.', fix_url: null }, { 'Retry-After': '120' });
             if (!body?.client || body.client.name !== hName || body.client.version !== hVersion) {
                 return err(res, 400, 'CHANNEL_CLIENT_MISMATCH', 'Header and body client differ.');
@@ -89,10 +111,11 @@ export async function startFakeSellerServer(opts = {}) {
             const device_code = 'dc_' + crypto.randomBytes(12).toString('hex');
             const user_code = 'KQ7M-4TZP';
             state.codes.set(device_code, { user_code, channel: body.channel, client_name: hName, status: 'pending', lastPoll: 0, interval: state.intervalSec, claimed: false });
-            return send(res, 200, { device_code, user_code, verification_uri: `https://prometheus.mythslabs.ai/link?code=${user_code}`, expires_in: 600, interval: state.intervalSec });
+            return send(res, 200, { device_code, user_code, verification_uri: opts.verificationUri ?? `https://prometheus.mythslabs.ai/link?code=${user_code}`, expires_in: 600, interval: state.intervalSec });
         }
 
         if (path === '/api/channels/link/token' && req.method === 'POST') {
+            if (await fault('token', req, res)) return;
             if (body?.grant_type && body.grant_type !== 'urn:ietf:params:oauth:grant-type:device_code') return err(res, 400, 'invalid_request', 'grant_type');
             const rec = state.codes.get(body?.device_code);
             if (!rec || rec.claimed) return err(res, 400, 'invalid_grant', 'Unknown or used code.');
@@ -108,7 +131,7 @@ export async function startFakeSellerServer(opts = {}) {
             rec.claimed = true;
             const key = 'pch_' + crypto.randomBytes(16).toString('hex');
             state.keys.set(key, { channel: rec.channel, client_name: rec.client_name, active: true });
-            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: (state.xLinked && !opts.registrationNote) ? rec.channel : null, next_step: (state.xLinked || opts.registrationNote) ? null : 'link_x', registration_note: opts.registrationNote ?? null, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}`, account_hint: 'a***@example.com' });
+            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: isSeller() ? rec.channel : null, next_step: (state.xLinked || opts.registrationNote || state.noIntent) ? null : 'link_x', registration_note: opts.registrationNote ?? null, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}`, account_hint: 'a***@example.com' });
         }
 
         // Bearer routes
@@ -119,17 +142,21 @@ export async function startFakeSellerServer(opts = {}) {
 
         if (path === '/api/channels/whoami' && opts.whoamiMissing) { res.writeHead(404, { 'Content-Type': 'text/html' }); return res.end('<html>Not Found</html>'); }   // not built yet
         if (path === '/api/channels/whoami' && req.method === 'GET') {
+            if (await fault('whoami', req, res)) return;
             return send(res, 200, {
                 channel: kr.channel, client_name: kr.client_name, key_prefix: auth[1].slice(0, 8), linked_at: '2026-10-01T00:00:00Z',
-                account: { identity_type: kr.channel, is_member: false, fee: { platform: 0.12, member: 0.06 } },
+                account: { identity_type: isSeller() ? kr.channel : (opts.accountType ?? 'human'), is_member: false, fee: isSeller() ? { platform: 0.12, member: 0.06 } : { platform: 0.25, member: 0.15 } },
                 x_link: { linked: state.xLinked, handle: state.xLinked ? '@seller' : null, eligible_on: null },
                 today: { used: state.dailyUsed, cap: state.dailyCap }, listings: { active: state.published.length, hidden: 0 },
                 suspension: null, next_url: `https://prometheus.mythslabs.ai/dashboard#${kr.channel}`,
             });
         }
         if (path === '/api/channels/publish' && req.method === 'POST') {
+            // { drop: true }: the listing is created, then the connection is cut, like a timeout after the server accepted the request
+            if (await fault('publish', req, res, () => { if (body?.name) state.published.push(body); })) return;
+            if (body?.category === 'voices') return err(res, 409, 'VOICE_CANONICAL_PUBLICATION_REQUIRED', 'Voices are published in the Voice Creator on the site.');
             if (!state.xLinked) return err(res, 403, 'CHANNEL_X_REQUIRED', 'Link your X account first.', 'https://prometheus.mythslabs.ai/dashboard#openclaw');
-            if (state.dailyUsed >= state.dailyCap) return err(res, 429, 'CHANNEL_DAILY_CAP', 'Daily limit reached.');
+            if (state.dailyUsed >= state.dailyCap) return err(res, 429, 'CHANNEL_DAILY_CAP', 'Daily limit reached.', null, { retry_after: 9000 });
             if (!body?.draft_asset_id && (!body?.name || !body?.category)) return err(res, 400, 'VALIDATION_ERROR', 'name and category are required');
             state.dailyUsed++;
             state.published.push(body);
@@ -137,6 +164,7 @@ export async function startFakeSellerServer(opts = {}) {
             return send(res, 200, { success: true, asset_id: id, url: `https://prometheus.mythslabs.ai/marketplace?asset=${id}`, creator_type: kr.channel, fee: { platform: 0.12, member: 0.06 }, bonus_hold_days: opts.bonusHoldDays ?? 3 });
         }
         if (path === '/api/channels/unlink-self' && req.method === 'POST') {
+            if (await fault('unlink', req, res)) return;
             kr.active = false;
             return send(res, 200, { ok: true, channel: kr.channel, hidden: body?.hide_listings ? state.published.length : 0 });
         }
@@ -151,6 +179,8 @@ export async function startFakeSellerServer(opts = {}) {
         deny() { for (const r of state.codes.values()) if (r.status === 'pending') r.status = 'denied'; },
         expire() { for (const r of state.codes.values()) if (r.status === 'pending') r.status = 'expired'; },
         revokeKeys() { for (const k of state.keys.values()) k.active = false; },
+        /** Serve these faults, once each and in order, on the next requests to that route ('token' | 'whoami' | 'publish' | 'start' | 'unlink'). */
+        inject(route, ...faults) { state.inject[route].push(...faults); },
         async close() { await new Promise((r) => server.close(r)); },
     };
 }
