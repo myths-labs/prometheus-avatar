@@ -1,7 +1,9 @@
 import type { PluginApi, PluginConfig } from './types';
+import { DEFAULT_BASE, agentApiKey, safeOrigin } from './hostRules';
 
-const DEFAULT_BASE = 'https://prometheus.mythslabs.ai';
 const STATE_PATH = '/api/agent/avatar/state';
+/** A payload that could not be delivered this long after it was wanted is stale and is dropped. */
+const STALE_MS = 30_000;
 
 export interface CompanionPayload {
     state?: 'listening' | 'thinking' | 'acting' | 'done';
@@ -19,10 +21,8 @@ export interface CompanionDeps {
     now?: () => number;
     /** Lowest gap between two pushes, ms. */
     minIntervalMs?: number;
-}
-
-function isLoopbackHttp(u: URL) {
-    return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]');
+    /** How long to hold off after "this account has no avatar yet", ms. */
+    noAvatarBackoffMs?: number;
 }
 
 /**
@@ -30,41 +30,45 @@ function isLoopbackHttp(u: URL) {
  * (`POST /api/agent/avatar/state`, the same one the MCP `set_avatar_state` tool uses). Any avatar page the user has
  * open follows within a few seconds, so this works in the OpenClaw gateway, which has no page of its own.
  *
- * Pushes happen on transitions only: identical consecutive payloads are dropped and the rest are spaced out, with the
- * newest one winning. The hooks only observe; a failed push never touches the agent. On a 404 (a platform build without
- * the channel) or a rejected key the pushes turn off for the rest of the process, with one log line.
- * Needs an agent API key (`apiKey` config or PROMETHEUS_API_KEY). Turn it off with `companionState: false`.
+ * The plugin keeps the newest state it wants to show until the server has it. Pushes happen on transitions only (a
+ * state that is already on the server is not sent again), are spaced out, and a newer state replaces an older one that
+ * has not gone out yet. The server replaces the whole state on every push, so a finished message is sent as
+ * `{ emotion }` alone: that leaves "thinking" and shows the emotion (the avatar page reads `state` before `emotion`).
+ * The hooks only observe; a failed push never touches the agent, and one that keeps failing is dropped after 30 s.
+ * A 404 with an error text means the account has no avatar yet: pushes wait a minute and try again. A 404 without one
+ * (the route does not exist) or a rejected key turns the pushes off for the rest of the process, with one log line.
+ * Needs an agent API key (`apiKey` config, or PROMETHEUS_API_KEY for the production host). Turn it off with
+ * `companionState: false`.
  */
 export function attachCompanion(d: CompanionDeps): void {
     const { api, config } = d;
     if (config.companionState === false) return;
 
     const baseRaw = (config.channelBaseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
-    const isDefaultHost = baseRaw === DEFAULT_BASE;
-    // The env key only ever goes to the production host, like AssetCreator does.
-    const envKey = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PROMETHEUS_API_KEY;
-    const apiKey = config.apiKey ?? (isDefaultHost ? envKey : undefined);
+    const apiKey = agentApiKey(config);
     if (!apiKey) return;                       // no key, nothing to push with; the tools explain how to get one
-    let base: URL;
-    try { base = new URL(baseRaw); } catch { return; }
-    if (base.protocol !== 'https:' && !isLoopbackHttp(base)) {
+    if (!safeOrigin(baseRaw)) {
         api.logger.warn('Avatar state updates are off: the Prometheus address must be https (or http on localhost), so the API key is never sent unencrypted.');
         return;
     }
 
     const now = d.now ?? Date.now;
     const minInterval = d.minIntervalMs ?? 1500;
+    const noAvatarBackoff = d.noAvatarBackoffMs ?? 60_000;
     let disabled = false;
-    let last: string | null = null;          // last payload delivered (JSON)
+    let delivered: string | null = null;       // JSON of the last payload the server accepted
+    let desired: CompanionPayload | null = null;   // the newest payload still to deliver
+    let desiredAt = 0;
     let lastSentAt = 0;
-    let pending: CompanionPayload | null = null;
+    let notBefore = 0;                         // no attempt before this time after a refusal or a failure
+    let failures = 0;
     let timer: { unref?: () => void } | undefined;
     let inFlight = false;
     let networkWarned = false;
+    let noAvatarLogged = false;
 
-    const send = async (payload: CompanionPayload) => {
-        const body = JSON.stringify(payload);
-        if (body === last) return;
+    /** true = the server has it. */
+    const send = async (body: string): Promise<boolean> => {
         inFlight = true;
         lastSentAt = now();
         try {
@@ -74,17 +78,30 @@ export function attachCompanion(d: CompanionDeps): void {
                 body,
                 signal: AbortSignal.timeout(5000),
             });
-            if (res.ok) { last = body; networkWarned = false; return; }
+            if (res.ok) { delivered = body; failures = 0; networkWarned = false; return true; }
             if (res.status === 404) {
-                disabled = true;
-                api.logger.info('Avatar state updates are off: this Prometheus deployment has no companion state channel yet.');
+                const err = await res.json().then((j: { error?: unknown }) => j?.error, () => undefined);
+                if (typeof err === 'string') {
+                    notBefore = now() + noAvatarBackoff;
+                    if (!noAvatarLogged) {
+                        noAvatarLogged = true;
+                        api.logger.info('Avatar state updates are waiting: this Prometheus account has no avatar yet (create one on the site). I will keep trying.');
+                    }
+                } else {
+                    disabled = true;
+                    api.logger.info('Avatar state updates are off: this Prometheus deployment has no companion state channel yet.');
+                }
             } else if (res.status === 401 || res.status === 403) {
                 disabled = true;
                 api.logger.warn('Avatar state updates are off: Prometheus rejected the agent API key (check the apiKey setting; it must be a pak_… key from the Prometheus agent-keys page).');
             } else {
+                failures++;
+                notBefore = now() + Math.min(20_000, 1000 * 2 ** failures);
                 api.logger.debug?.(`Avatar state update failed (HTTP ${res.status}).`);
             }
         } catch (err) {
+            failures++;
+            notBefore = now() + Math.min(20_000, 1000 * 2 ** failures);
             if (!networkWarned) {
                 networkWarned = true;
                 api.logger.debug?.(`Avatar state update failed: ${(err as Error).message}`);
@@ -92,24 +109,31 @@ export function attachCompanion(d: CompanionDeps): void {
         } finally {
             inFlight = false;
         }
+        return false;
     };
 
     const flush = () => {
         timer = undefined;
-        const p = pending;
-        pending = null;
-        if (p && !disabled) void send(p).then(() => { if (pending) schedule(); });
+        if (disabled || inFlight || !desired) return;
+        if (now() - desiredAt > STALE_MS) { desired = null; return; }
+        const sending = desired;
+        const body = JSON.stringify(sending);
+        if (body === delivered) { desired = null; return; }      // already what the server shows
+        void send(body).then((ok) => {
+            if (ok && desired === sending) desired = null;        // a newer payload that arrived meanwhile stays
+            if (desired && !disabled) schedule();
+        });
     };
     const schedule = () => {
-        if (timer || inFlight) return;
-        const wait = Math.max(0, lastSentAt + minInterval - now());
+        if (timer || inFlight || disabled) return;
+        const wait = Math.max(0, lastSentAt + minInterval - now(), notBefore - now());
         timer = setTimeout(flush, wait) as unknown as { unref?: () => void };
         timer.unref?.();
     };
     const push = (p: CompanionPayload) => {
         if (disabled) return;
-        if (JSON.stringify(p) === last && !pending) return;     // no transition
-        pending = p;                                             // the newest payload wins
+        desired = p;                                             // the newest payload wins
+        desiredAt = now();
         schedule();
     };
 
@@ -125,7 +149,7 @@ export function attachCompanion(d: CompanionDeps): void {
         try {
             analyzer ??= d.loadAnalyzer();
             const { emotion } = (await analyzer).analyze(event.content);
-            push({ state: 'done', emotion });
+            push({ emotion });
         } catch {
             push({ state: 'done' });
         }
