@@ -44,6 +44,24 @@ curl -s -X POST https://prometheus.mythslabs.ai/api/agent/avatar/state \
   -d '{"state":"acting"}'
 ```
 
+## Sell on Prometheus
+
+If you run inside **OpenClaw** or **Hermes Agent** and your user wants to sell what you made on Prometheus Marketplace, connect their seller account once, then publish. Once the account is verified through OpenClaw or Hermes Agent, all of the account's listings are sold at that platform's seller rate: the rate follows the account, not each listing (the status tool shows it). An account that only uses an API key and has not been verified is at the AI agent rate.
+
+| Step | OpenClaw (`@prometheusavatar/openclaw-plugin` 0.11+) | Hermes Agent (`@prometheusavatar/mcp-server` 0.4+, `PROMETHEUS_CHANNEL=hermes`) |
+|---|---|---|
+| Connect | `prometheus_connect_seller` | `connect_seller` |
+| Check | `prometheus_connection_status` | `seller_connection_status` |
+| Publish | `prometheus_publish_listing` | `publish_listing` |
+| Disconnect | `prometheus_disconnect_seller` (`confirm: true`) | `disconnect_seller` (`confirm: true`) |
+
+- Connecting returns a link and a short code. Give both to the user exactly as returned: they sign in to Prometheus and approve within 10 minutes; the connection then completes by itself. Once they say they approved, check the status and tell them which Prometheus account (masked email) it is connected to; if it is not theirs, disconnect and warn them (someone may have tricked them into approving another connection). Relay the next step it names (the account becomes that kind of seller only once it chose that registration type on the site and has a linked X account; if the status says it is not that kind of seller yet, say what is missing and never call the user a seller) or the reason there is none (the account already has sales or listings, or its type is already set).
+- Publishing at this rate needs the user's X account linked on Prometheus. If it is not, the tool says so and returns the link; pass that on.
+- **Publishing is public and cannot be withdrawn from the agent loop: confirm with the user first.** Never ask for or print the connection key; you never see it.
+- Forge launch scope for publishing: `skins`, `voices`, `motions`, `expressions`, `personas`; `accessories` and `effects` are coming soon (the API still accepts them; do not promise them). Voices are published in the Voice Creator on the site; the publish tools are refused for them.
+- A failed check is not a reason to try an API-key deploy: the same checks apply.
+- With Hermes, to publish something made by `generate_asset` through the channel, generate with `auto_deploy: false`, then `publish_listing` with its `draft_asset_id`.
+
 ## Common mistakes
 
 - **Inventing endpoints** — there is no `/api/v1/...`, no avatar-list route, no task/polling API, no WebSocket. The six calls above are the whole surface; anything else 404s.
@@ -51,7 +69,7 @@ curl -s -X POST https://prometheus.mythslabs.ai/api/agent/avatar/state \
 - **Building a local bridge/page** — unnecessary; the embed page polls the platform itself. Just share `embedUrl`.
 - **Spamming** — `speak` on every step is noise; reserve it for milestones. State posts only on transitions.
 - **Unequip** — not supported for agent accounts; equip another asset of the same category to swap.
-- **Old platform build** — if `POST /api/agent/avatar/state` returns 404, the deployment predates the state channel: skip state updates (everything else still works) and tell the user, don't retry.
+- **404 on a state post** — with an error text ("No avatar for this account") the account has no avatar yet: create one first, then post again. A 404 without an error text means the platform has no state channel: skip state updates (everything else still works) and tell the user, don't retry.
 
 ## Install (for humans distributing this skill)
 

@@ -1,62 +1,75 @@
 {
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
-    "version": "0.10.2",
-    "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation for marketplace skin previews. 3 agent tools + bundled skill.",
+    "description": "Sell on Prometheus Marketplace from OpenClaw at the OpenClaw seller rate, generate AAA-quality images for skin previews, and give your agent an avatar.",
+    "categories": [
+        "media"
+    ],
     "skills": [
         "skills/prometheus-avatar"
     ],
-    "type": "tool",
-    "author": "Myths Labs",
-    "license": "MIT",
-    "repository": "https://github.com/myths-labs/prometheus-avatar",
-    "configSchema": {
-        "avatarId": {
-            "type": "string",
-            "description": "Reserved: marketplace avatar ID. ID-based model resolution is not available yet — use modelUrl (a .model3.json URL) to pick a model; when only avatarId is set the default model is used.",
-            "required": false
-        },
-        "apiKey": {
-            "type": "string",
-            "description": "Prometheus agent API key (pak_...) used for marketplace deploys. Falls back to the PROMETHEUS_API_KEY environment variable. Get one at prometheus.mythslabs.ai/settings/agent-keys.",
-            "required": false
-        },
-        "modelUrl": {
-            "type": "string",
-            "description": "Direct URL to a Live2D model file (.model3.json)",
-            "required": false
-        },
-        "ttsProvider": {
-            "type": "string",
-            "deprecated": true,
-            "description": "DEPRECATED in v0.10.0 — this field is ignored. TTS is now delegated to the Prometheus SDK (@prometheusavatar/core) which uses the Prometheus voice backend. Kept for backward compat only."
-        },
-        "ttsVoice": {
-            "type": "string",
-            "description": "Prometheus Marketplace voice ID (e.g. saturn_zh_female_keainvsheng_tob). Browse available voices at prometheus.mythslabs.ai/marketplace.",
-            "required": false
-        },
-        "enableLipSync": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable audio-driven lip synchronization"
-        },
-        "enableEmotion": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable emotion analysis from text"
-        }
-    },
-    "events": {
-        "listens": [
-            "agent:message",
-            "agent:thinking",
-            "agent:error"
-        ],
-        "emits": [
-            "avatar:speak",
-            "avatar:emotion",
-            "avatar:ready"
+    "contracts": {
+        "tools": [
+            "prometheus_connect_seller",
+            "prometheus_connection_status",
+            "prometheus_publish_listing",
+            "prometheus_deploy_asset",
+            "prometheus_disconnect_seller",
+            "prometheus_generate_thumbnail",
+            "prometheus_generate_image_pro"
         ]
+    },
+    "activation": {
+        "onStartup": true
+    },
+    "configSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "apiKey": {
+                "type": "string",
+                "description": "Prometheus agent API key (pak_...), used for the AI agent rate deploys and the image tools. Falls back to the PROMETHEUS_API_KEY environment variable. Get one at prometheus.mythslabs.ai/settings/agent-keys. Not needed for the seller channel: connect with prometheus_connect_seller instead."
+            },
+            "avatarId": {
+                "type": "string",
+                "description": "Reserved: marketplace avatar ID. ID-based model resolution is not available yet; use modelUrl."
+            },
+            "modelUrl": {
+                "type": "string",
+                "description": "Direct URL to a Live2D model file (.model3.json)."
+            },
+            "containerSelector": {
+                "type": "string",
+                "description": "CSS selector of the page element to draw the avatar into. Only used by browser-hosted OpenClaw UIs; the gateway has no page."
+            },
+            "companionState": {
+                "type": "boolean",
+                "default": true,
+                "description": "Push what the agent is doing (thinking, done, emotion) to your Prometheus avatar, which any open avatar page follows within a few seconds. Needs an agent API key (apiKey or PROMETHEUS_API_KEY). Set false to turn it off."
+            },
+            "ttsProvider": {
+                "type": "string",
+                "deprecated": true,
+                "description": "DEPRECATED since 0.10.0 and ignored. TTS goes through the Prometheus SDK."
+            },
+            "ttsVoice": {
+                "type": "string",
+                "description": "Prometheus Marketplace voice ID (e.g. saturn_zh_female_keainvsheng_tob)."
+            },
+            "enableLipSync": {
+                "type": "boolean",
+                "default": true,
+                "description": "Audio-driven lip synchronization."
+            },
+            "enableEmotion": {
+                "type": "boolean",
+                "default": true,
+                "description": "Emotion analysis from text."
+            },
+            "channelBaseUrl": {
+                "type": "string",
+                "description": "Testing only: point the seller channel at another Prometheus server. Must be https (or http on localhost)."
+            }
+        }
     }
 }

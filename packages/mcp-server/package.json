@@ -1,7 +1,7 @@
 {
     "name": "@prometheusavatar/mcp-server",
-    "version": "0.3.5",
-    "description": "MCP Server for Prometheus Avatar — Give any AI agent an embodied avatar + AAA image generation via Model Context Protocol. 10 tools.",
+    "version": "0.4.0",
+    "description": "MCP Server for Prometheus Avatar — Give any AI agent an embodied avatar + AAA image generation via Model Context Protocol. 14 tools, including the Hermes Agent seller channel: connect a seller account and publish listings at the Hermes Agent rate.",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -23,7 +23,9 @@
         "dev": "tsup src/index.ts --format esm --dts --watch",
         "start": "node dist/index.js",
         "clean": "rm -rf dist",
-        "lint": "tsc --noEmit"
+        "lint": "tsc --noEmit",
+        "test": "tsup src/index.ts src/sellerChannel.ts --format esm --dts --clean && node --test test/*.test.mjs",
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "zod": "^4.3.6",
