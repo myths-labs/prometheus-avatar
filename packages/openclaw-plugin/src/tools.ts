@@ -70,7 +70,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
         {
             name: 'prometheus_deploy_asset',
             label: 'Deploy asset to Prometheus Marketplace',
-            description: 'Older name of prometheus_publish_listing, kept for compatibility. When this OpenClaw is connected to a Prometheus seller account it publishes through the connection; otherwise it deploys with the configured agent API key (pak_...). Either way the listing is sold at the account\'s seller rate (the AI agent rate for an account that has not been verified through OpenClaw or Hermes). Public and not withdrawable from the agent loop: confirm with the user first.',
+            description: 'Older name of prometheus_publish_listing, kept for compatibility. When this OpenClaw is connected to a Prometheus seller account it publishes through the connection; otherwise it deploys with the configured agent API key (pak_...). Either way the listing is sold at the account\'s current rate (prometheus_connection_status shows it). Public and not withdrawable from the agent loop: confirm with the user first.',
             parameters: { type: 'object', additionalProperties: false, properties: publishProps },
             async execute(_id, params) {
                 const args = params as PublishArgs;
@@ -85,7 +85,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
                 const apiKey = configuredApiKey();
                 if (!apiKey) {
                     return text({
-                        text: 'This OpenClaw is not connected to a Prometheus seller account and has no agent API key. Either ask me to "Connect my Prometheus seller account" (this verifies the account through OpenClaw), or set the `apiKey` plugin config (or PROMETHEUS_API_KEY) to a pak_... key from https://prometheus.mythslabs.ai/settings/agent-keys.',
+                        text: 'This OpenClaw is not connected to a Prometheus seller account and has no agent API key. Either ask me to "Connect my Prometheus seller account" (this verifies the account through OpenClaw), or set the `apiKey` plugin config to a pak_... key from https://prometheus.mythslabs.ai/settings/agent-keys (PROMETHEUS_API_KEY is only used when the plugin talks to the production address).',
                         details: { ok: false, code: 'NO_CREDENTIALS' },
                     });
                 }
@@ -97,7 +97,8 @@ export function buildTools(d: ToolDeps): PluginTool[] {
                     const res = await (await creator()).deployAsset(config as never, fileData, thumbnailData);
                     return text({ text: `Deployed to Prometheus Marketplace${res.asset?.url ? `: ${res.asset.url}` : ''}.`, details: { ...res } });
                 } catch (err) {
-                    return text({ text: `Deploy failed: ${(err as Error).message}`, details: { ok: false, code: 'DEPLOY_FAILED' } });
+                    const why = (err as Error).message;
+                    return text({ text: why.startsWith('Deployment failed') ? why : `Deploy failed: ${why}`, details: { ok: false, code: 'DEPLOY_FAILED' } });
                 }
             },
         },

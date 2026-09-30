@@ -2,12 +2,12 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import plugin from '../dist/index.js';
 import { startFakeSellerServer } from './helpers/fakeSellerServer.mjs';
-import { makeApi, sleep, until } from './helpers/fakeApi.mjs';
+import { makeApi, sleep, until, cleanupDirs } from './helpers/fakeApi.mjs';
 
 let server;
 const opened = [];
 beforeEach(async () => { server = await startFakeSellerServer({ intervalSec: 1 }); });
-afterEach(async () => { await server.close(); delete process.env.PROMETHEUS_API_KEY; });
+afterEach(async () => { await server.close(); delete process.env.PROMETHEUS_API_KEY; cleanupDirs(); });
 
 function boot(pluginConfig = {}) {
     const h = makeApi({ pluginConfig: { channelBaseUrl: server.url, apiKey: 'pak_test123', ...pluginConfig } });
@@ -133,4 +133,10 @@ test('the key is never sent over plain http to a non-local address, and the env 
     process.env.PROMETHEUS_API_KEY = 'pak_fromenv';
     const other = boot({ apiKey: undefined });                 // channelBaseUrl = the local double, not the production host
     assert.equal(other.hooks.length, 0, 'an environment key is not used for another host');
+});
+
+test('the counterpart: an environment key IS used when the plugin talks to the production address', () => {
+    process.env.PROMETHEUS_API_KEY = 'pak_fromenv';
+    const h = boot({ apiKey: undefined, channelBaseUrl: undefined });     // no address set: the production host (nothing is sent until a hook fires)
+    assert.deepEqual(h.hooks.map(([n]) => n).sort(), ['message_sent', 'model_call_ended', 'model_call_started']);
 });

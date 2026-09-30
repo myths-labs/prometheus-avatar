@@ -4,8 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
+const made = [];
+/** Remove the state folders (they hold saved test keys) that makeApi created. */
+export function cleanupDirs() { for (const d of made.splice(0)) fs.rmSync(d, { recursive: true, force: true }); }
+
 export function makeApi({ trusted = false, pluginConfig = {}, version = '2026.9.6', stateDir } = {}) {
     const dir = stateDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'oc-plugin-test-'));
+    if (!stateDir) made.push(dir);
     const logs = [];
     const tools = new Map();
     const hooks = [];

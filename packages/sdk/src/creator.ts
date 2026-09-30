@@ -171,12 +171,21 @@ export class AssetCreator {
             body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({} as Record<string, unknown>));
         if (!res.ok || !data.success) {
-            throw new Error(`Deployment failed: ${data.error || res.statusText}`);
+            // The deploy route answers with the same refusals as the channel (a daily limit, a missing X link, ...): keep the
+            // server's own explanation, its fix link and how long to wait, cleaned of anything a model should not be handed raw.
+            const clean = (v: unknown, max: number) => String(v).replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+            const wait = Number(res.headers.get('retry-after') ?? (data as { retry_after?: unknown }).retry_after);
+            const parts = [`Deployment failed: ${data.error ? clean(data.error, 120) : res.statusText}.`];
+            if (typeof data.message === 'string' && data.message) parts.push(clean(data.message, 300));
+            if (Number.isFinite(wait) && wait > 0) parts.push(`Try again in about ${Math.ceil(wait)} seconds.`);
+            const fix = (data as { fix_url?: unknown }).fix_url;
+            if (typeof fix === 'string' && fix.length <= 300 && fix.startsWith('https://') && !/[\s\p{Cc}\p{Cf}]/u.test(fix)) parts.push(`Fix it here: ${fix}`);
+            throw new Error(parts.join(' '));
         }
 
-        return data;
+        return data as unknown as DeploymentResult;
     }
 
     /**

@@ -54,8 +54,15 @@ export function findHermesAncestor(startPid: number, ps: PsRunner = defaultPs, m
 
 /** Text that came from the server and may end up in a tool result a model reads: no control characters, capped. */
 function cleanText(v: string, max = 300): string {
-    const t = v.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+    const t = v.replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " ").replace(/\s+/g, " ").trim();
     return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+/** A link from the server that may be shown to a user: https, one line, no control or format characters, not absurdly long. */
+function safeHttpsUrl(v: unknown): string | null {
+    if (typeof v !== "string" || v.length > 300 || !v.startsWith("https://") || /[\s\p{Cc}\p{Cf}]/u.test(v)) return null;
+    try { new URL(v); } catch { return null; }
+    return v;
 }
 
 export class ChannelError extends Error {
@@ -110,7 +117,13 @@ export class ChannelApi {
         } catch (err) {
             throw new ChannelError("CHANNEL_NETWORK", `Could not reach Prometheus (${err instanceof Error ? err.message : String(err)}). Check the network and try again.`);
         }
-        const text = await res.text();
+        let text: string;
+        try {
+            text = await res.text();
+        } catch (err) {
+            // The status line arrived but the body did not: for a publish the server has probably acted already.
+            throw new ChannelError("CHANNEL_NETWORK", `Prometheus answered, but the answer was cut off (${err instanceof Error ? err.message : String(err)}).`);
+        }
         let data: any = null;
         try { data = text ? JSON.parse(text) : null; } catch { data = null; }
         const ra = Number(res.headers.get("retry-after"));
@@ -128,7 +141,7 @@ export class ChannelApi {
         throw new ChannelError(
             typeof data?.error === "string" ? cleanText(data.error, 64) : `HTTP_${status}`,
             typeof data?.message === "string" && data.message ? cleanText(data.message) : `Prometheus answered HTTP ${status}.`,
-            { status, fixUrl: typeof data?.fix_url === "string" && data.fix_url.startsWith("https://") ? data.fix_url : null, until: typeof data?.until === "string" ? cleanText(data.until, 40) : null, permanent: data?.permanent === true, retryAfterSec: wait },
+            { status, fixUrl: safeHttpsUrl(data?.fix_url), until: typeof data?.until === "string" ? cleanText(data.until, 40) : null, permanent: data?.permanent === true, retryAfterSec: wait },
         );
     }
 
@@ -169,7 +182,7 @@ export class ChannelApi {
     async unlinkSelf(key: string, hide: boolean) {
         const r = await this.call("/api/channels/unlink-self", { method: "POST", key, body: { hide_listings: hide } });
         if (r.status !== 200 || r.data?.ok !== true) this.fail(r.status, r.data, r.retryAfter);
-        return r.data as { ok: true; hidden: number };
+        return r.data as { ok: true; hidden: number; kept?: number };
     }
 }
 
@@ -226,7 +239,7 @@ interface Pending { device_code: string; user_code: string; verification_uri: st
 /** The masked account email from the server, cleaned for display (short, no control characters). */
 function safeHint(v: unknown): string | undefined {
     if (typeof v !== "string") return undefined;
-    const t = v.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+    const t = v.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, "").trim();     // control and format characters (bidi overrides, zero-width, tags)
     return t && t.length <= 80 ? t : undefined;
 }
 
@@ -263,9 +276,13 @@ function isTransient(err: unknown): boolean {
     return ["CHANNEL_NETWORK", "CHANNEL_UNAVAILABLE", "TEMPORARILY_UNAVAILABLE", "RATE_LIMITED"].includes(err.code) || st === 429 || st >= 500;
 }
 
-/** The request may have reached the server before it failed, so a publish may already exist. */
+/**
+ * The request may have reached the server before it failed, so a publish may already exist: a dropped connection, a cut-off
+ * answer, a gateway timeout, an internal error. A missing route (404) or "unavailable" (503) was not processed.
+ */
 function isAmbiguous(err: unknown): boolean {
-    return err instanceof ChannelError && (err.code === "CHANNEL_NETWORK" || err.code === "CHANNEL_UNAVAILABLE" || (err.extra.status ?? 0) >= 500);
+    const st = err instanceof ChannelError ? err.extra.status ?? 0 : 0;
+    return err instanceof ChannelError && (err.code === "CHANNEL_NETWORK" || st === 500 || st === 502 || st === 504);
 }
 
 function waitText(sec: number): string {
@@ -277,8 +294,14 @@ function waitText(sec: number): string {
 /** A short word from the server (an account type), reduced to plain characters before it is shown. */
 const word = (v: unknown) => String(v).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24);
 
+/** Other short values the server sends for display (an X handle, a date, an id): plain characters only, short. */
+const plain = (v: unknown, max = 40) => String(v ?? "").replace(/[^A-Za-z0-9@._:+\- ]/g, "").slice(0, max);
+
+/** A count from the server, shown as a number whatever it arrives as. */
+const count = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
 /** An address from the server that is shown to the user only when a key could safely go there. */
-const shownLink = (u: unknown) => (typeof u === "string" && safeOrigin(u) ? u : undefined);
+const shownLink = (u: unknown) => (typeof u === "string" && u.length <= 300 && !/[\s\p{Cc}\p{Cf}]/u.test(u) && safeOrigin(u) ? u : undefined);
 
 export class SellerConnection {
     private pending?: Pending;
@@ -473,24 +496,31 @@ export class SellerConnection {
     }
 
     /**
-     * The tier is decided on the server, and only once several things are true at the same time, so the status says what
-     * the server says the account is (whoami.account.identity_type), never more.
+     * The tier is decided on the server, and only once several things are true at the same time, and then it is set once,
+     * so the status says what the server says the account is (whoami.account.identity_type), never more.
      */
-    private connectedText(w: Whoami, hint?: string, note?: string): Outcome {
+    private connectedText(w: Whoami, hint?: string, noteSaved?: string): Outcome {
         const type = w.account.identity_type;
         const seller = type === "hermes";
+        const otherSeller = type === "openclaw";                        // another channel got the tier first
+        const note = seller ? undefined : noteSaved;                    // the saved note is a snapshot from the approval; the server's account type is the truth
         const who = hint ? ` to the Prometheus account ${hint}` : "";
+        const key = `key ${plain(w.key_prefix, 16)}...`;
         const rate = `Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`;
         const lines = [seller
-            ? `Connected as a Hermes Agent seller${who} (key ${w.key_prefix}...). ${rate}`
-            : `Connected${who} with a Hermes Agent key (key ${w.key_prefix}...), but the account is not a Hermes Agent seller yet${type ? ` (account type: ${word(type)})` : ""}. Listings are sold at the account's current rate. ${rate}`];
+            ? `Connected as a Hermes Agent seller${who} (${key}). ${rate}`
+            : otherSeller
+                ? `Connected${who} with a Hermes Agent key (${key}), but the account is an OpenClaw seller, so it will not become a Hermes Agent seller (an account's seller type is set once). Listings are sold at the account's rate. ${rate}`
+                : `Connected${who} with a Hermes Agent key (${key}), but the account is not a Hermes Agent seller${note ? "" : " yet"}${type ? ` (account type: ${word(type)})` : ""}. Listings are sold at the account's current rate. ${rate}`];
         if (note) lines.push(noteText(note, "a Hermes Agent seller"));
-        else if (!seller) lines.push(`The account becomes a Hermes Agent seller once all of these are true: it chose Hermes Agent as its registration type (${this.origin()}/join?type=hermes), it has no earlier sales or listings, and an X account at least 30 days old is linked.`);
-        if (w.suspension) lines.push(w.suspension.permanent ? "This connection is suspended permanently." : `This connection is suspended until ${w.suspension.until}.`);
+        else if (!seller && !otherSeller) lines.push(`The account becomes a Hermes Agent seller once all of these are true: it chose Hermes Agent as its registration type (open ${this.origin()}/join?type=hermes, sign in and press Register), it has no earlier sales or listings, and an X account at least 30 days old is linked.`);
+        if (w.suspension) lines.push(w.suspension.permanent ? "This connection is suspended permanently." : `This connection is suspended until ${plain(w.suspension.until)}.`);
         const next = shownLink(w.next_url);
-        if (w.x_link.linked) lines.push(`X account linked (${w.x_link.handle}).`);
-        else lines.push(`X account not linked yet: it is needed to become a Hermes Agent seller and to publish at that rate.${next ? ` Link it at ${next}` : ""}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ""}.`);
-        lines.push(`Publishes today: ${w.today.used} of ${w.today.cap}. Listings: ${w.listings.active} active, ${w.listings.hidden} hidden.`);
+        const eligible = w.x_link.eligible_on ? ` (eligible from ${plain(w.x_link.eligible_on)})` : "";
+        if (w.x_link.linked) lines.push(`X account linked (${plain(w.x_link.handle)}).`);
+        else if (seller) lines.push(`X account not linked yet: publishing at your seller rate needs it.${next ? ` Link it at ${next}` : ""}${eligible}.`);
+        else if (!note && !otherSeller) lines.push(`X account not linked yet.${next ? ` Link it at ${next}` : ""}${eligible}.`);
+        lines.push(`Publishes today: ${count(w.today.used)} of ${count(w.today.cap)}. Listings: ${count(w.listings.active)} active, ${count(w.listings.hidden)} hidden.`);
         return { ok: true, text: lines.join("\n") };
     }
 
@@ -525,8 +555,13 @@ export class SellerConnection {
                 return { ...o, text: `${o.text}\nThe saved connection is gone. Ask the user to connect again (connect_seller); do not publish another way without asking them first.` };
             }
             if (isAmbiguous(err)) {
-                // A publish is public and not idempotent: after a timeout or a gateway error the listing may already exist.
-                return { ok: false, text: `Publish did not finish: Prometheus could not be reached, or did not answer in time. The request may already have gone through, so the listing may exist. Before publishing again, check the marketplace or the listing counts in the connection status, so the same listing is not published twice. [${(err as ChannelError).code}]` };
+                // A publish is public and not idempotent: after a timeout, a cut-off answer or a gateway error the listing may already exist.
+                const e = err as ChannelError;
+                const doubt = "The request may already have gone through, so the listing may exist. Before publishing again, check the marketplace or the listing counts in the connection status, so the same listing is not published twice.";
+                if (e.code === "CHANNEL_NETWORK") return { ok: false, text: `Publish did not finish: Prometheus could not be reached, or did not answer in time. ${doubt} [${e.code}]` };
+                const f = this.failure(err, "Publish failed");
+                return { ...f, text: `${f.text}
+${doubt}` };
             }
             return this.failure(err, "Publish failed");
         }
@@ -540,13 +575,14 @@ export class SellerConnection {
             await this.d.keyFile.clear();
             return { ok: true, text: `The saved connection belongs to ${stored.base_url ?? DEFAULT_ORIGIN}, not to the address this server uses now, so I did not contact anyone; it is removed from this computer. To revoke that key, disconnect from a server set to that address, or use the Prometheus dashboard.` };
         }
-        let r: { hidden: number };
+        let r: { hidden: number; kept?: number };
         try {
             r = await this.client().unlinkSelf(stored.key, hide);
         } catch (err) {
             if (err instanceof ChannelError && err.code === "CHANNEL_KEY_INACTIVE") {
                 await this.clearIfSame(stored.key);
-                return { ok: true, text: "The connection was already inactive; the saved key is removed." };
+                const unhidden = hide ? " No listing was hidden, because the key was already inactive: hide them from the dashboard (Seller types) if you want them withdrawn." : "";
+                return { ok: true, text: `The connection was already inactive; the saved key is removed.${unhidden}` };
             }
             return this.failure(err, "Could not disconnect");
         }
@@ -555,7 +591,9 @@ export class SellerConnection {
         } catch (err) {
             return { ok: false, text: `Disconnected on Prometheus: the key is revoked. But I could not delete the saved copy (${err instanceof Error ? err.message : String(err)}); delete ${this.d.keyFile.location()} yourself.` };
         }
-        return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ""}Your account's rate and the listings already published are unchanged. To publish through the channel again, connect again.` };
+        const hidden = count(r.hidden);
+        const kept = count(r.kept);
+        return { ok: true, text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ""}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ""}${hide ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.` };
     }
 }
 

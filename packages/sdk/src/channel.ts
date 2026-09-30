@@ -121,8 +121,15 @@ export function channelClientHeader(client: SellerChannelClient, runtime: Seller
 
 /** Text that came from the server and may end up in a tool result a model reads: no control characters, capped. */
 function cleanText(v: string, max = 300): string {
-    const t = v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const t = v.replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, ' ').replace(/\s+/g, ' ').trim();
     return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+/** A link from the server that may be shown to a user: https, one line, no control or format characters, not absurdly long. */
+function safeHttpsUrl(v: unknown): string | null {
+    if (typeof v !== 'string' || v.length > 300 || !v.startsWith('https://') || /[\s\p{Cc}\p{Cf}]/u.test(v)) return null;
+    try { new URL(v); } catch { return null; }
+    return v;
 }
 
 function isLoopbackHttp(url: URL): boolean {
@@ -174,7 +181,14 @@ export class SellerChannelApi {
             throw new SellerChannelError('CHANNEL_NETWORK', `Could not reach Prometheus (${reason}). Check the network and try again.`);
         }
         let data: any = null;
-        const text = await res.text();
+        let text: string;
+        try {
+            text = await res.text();
+        } catch (err) {
+            // The status line arrived but the body did not: for a publish the server has probably acted already.
+            const reason = err instanceof Error ? err.message : String(err);
+            throw new SellerChannelError('CHANNEL_NETWORK', `Prometheus answered, but the answer was cut off (${reason}).`);
+        }
         if (text) {
             try { data = JSON.parse(text); } catch { data = null; }
         }
@@ -187,7 +201,7 @@ export class SellerChannelApi {
         if (typeof data?.error !== 'string' && (status === 404 || status === 502 || status === 503 || status === 504)) {
             throw new SellerChannelError('CHANNEL_UNAVAILABLE', `The Prometheus seller channel is not available right now (HTTP ${status}). It may not have launched yet; try again later.`, { status, retryAfterSec: retryAfter });
         }
-        const fix = typeof data?.fix_url === 'string' && data.fix_url.startsWith('https://') ? data.fix_url : null;
+        const fix = safeHttpsUrl(data?.fix_url);
         // The wait is in the Retry-After header and, in the contract, also in the body as `retry_after` (seconds).
         const bodyWait = Number(data?.retry_after);
         const wait = retryAfter ?? (Number.isFinite(bodyWait) && bodyWait > 0 ? bodyWait : undefined);
@@ -242,7 +256,7 @@ export class SellerChannelApi {
     }
 
     /** Revokes this key at once. Published listings keep their tier. */
-    async unlinkSelf(key: string, hideListings = false): Promise<{ ok: true; channel: SellerChannelName; hidden: number }> {
+    async unlinkSelf(key: string, hideListings = false): Promise<{ ok: true; channel: SellerChannelName; hidden: number; /** Listings that already have buyers are not hidden. */ kept?: number }> {
         const r = await this.call('/api/channels/unlink-self', { method: 'POST', key, body: { hide_listings: hideListings } });
         if (r.status !== 200 || r.data?.ok !== true) this.fail(r.status, r.data, r.retryAfter);
         return r.data;

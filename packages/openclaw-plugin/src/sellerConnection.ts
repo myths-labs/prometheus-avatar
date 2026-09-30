@@ -56,7 +56,7 @@ export interface Outcome {
 /** The masked account email from the server, cleaned for display (short, no control characters). */
 function safeHint(v: unknown): string | undefined {
     if (typeof v !== 'string') return undefined;
-    const t = v.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+    const t = v.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, '').trim();     // control and format characters (bidi overrides, zero-width, tags)
     return t && t.length <= 80 ? t : undefined;
 }
 
@@ -81,9 +81,12 @@ function isTransient(err: unknown): boolean {
     return ['CHANNEL_NETWORK', 'CHANNEL_UNAVAILABLE', 'TEMPORARILY_UNAVAILABLE', 'RATE_LIMITED'].includes(err.code) || err.status === 429 || err.status >= 500;
 }
 
-/** The request may have reached the server before it failed, so a publish may already exist. */
+/**
+ * The request may have reached the server before it failed, so a publish may already exist: a dropped connection, a cut-off
+ * answer, a gateway timeout, an internal error. A missing route (404) or "unavailable" (503) was not processed.
+ */
 function isAmbiguous(err: unknown): boolean {
-    return isChannelError(err) && (err.code === 'CHANNEL_NETWORK' || err.code === 'CHANNEL_UNAVAILABLE' || err.status >= 500);
+    return isChannelError(err) && (err.code === 'CHANNEL_NETWORK' || err.status === 500 || err.status === 502 || err.status === 504);
 }
 
 function waitText(sec: number): string {
@@ -95,8 +98,14 @@ function waitText(sec: number): string {
 /** A short word from the server (an account type), reduced to plain characters before it is shown. */
 const word = (v: unknown) => String(v).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
 
-/** An address from the server that is shown to the user only when a key could safely go there: https, or http on this machine. */
-const shownLink = (u: unknown) => (typeof u === 'string' && safeOrigin(u) ? u : undefined);
+/** Other short values the server sends for display (an X handle, a date, an id): plain characters only, short. */
+const plain = (v: unknown, max = 40) => String(v ?? '').replace(/[^A-Za-z0-9@._:+\- ]/g, '').slice(0, max);
+
+/** A count from the server, shown as a number whatever it arrives as. */
+const count = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+/** An address from the server that is shown to the user only when a key could safely go there (https, or http on this machine), on one line and not absurdly long. */
+const shownLink = (u: unknown) => (typeof u === 'string' && u.length <= 300 && !/[\s\p{Cc}\p{Cf}]/u.test(u) && safeOrigin(u) ? u : undefined);
 
 export class SellerConnection {
     private pending?: Pending;
@@ -321,25 +330,32 @@ export class SellerConnection {
     }
 
     /**
-     * The tier is decided on the server, and only once several things are true at the same time, so the status says what
-     * the server says the account is (whoami.account.identity_type), never more.
+     * The tier is decided on the server, and only once several things are true at the same time, and then it is set once,
+     * so the status says what the server says the account is (whoami.account.identity_type), never more.
      */
-    private connectedText(w: SellerChannelWhoami, hint?: string, note?: string): Outcome {
+    private connectedText(w: SellerChannelWhoami, hint?: string, noteSaved?: string): Outcome {
         const type = w.account.identity_type;
         const seller = type === 'openclaw';
+        const otherSeller = type === 'hermes';                          // another channel got the tier first
+        const note = seller ? undefined : noteSaved;                    // the saved note is a snapshot from the approval; the server's account type is the truth
         const who = hint ? ` to the Prometheus account ${hint}` : '';
+        const key = `key ${plain(w.key_prefix, 16)}...`;
         const rate = `Platform fee ${fee(w.account.fee.platform)}, ${fee(w.account.fee.member)} for members.`;
         const lines = [seller
-            ? `Connected as an OpenClaw seller${who} (key ${w.key_prefix}...). ${rate}`
-            : `Connected${who} with an OpenClaw key (key ${w.key_prefix}...), but the account is not an OpenClaw seller yet${type ? ` (account type: ${word(type)})` : ''}. Listings are sold at the account's current rate. ${rate}`];
+            ? `Connected as an OpenClaw seller${who} (${key}). ${rate}`
+            : otherSeller
+                ? `Connected${who} with an OpenClaw key (${key}), but the account is a Hermes Agent seller, so it will not become an OpenClaw seller (an account's seller type is set once). Listings are sold at the account's rate. ${rate}`
+                : `Connected${who} with an OpenClaw key (${key}), but the account is not an OpenClaw seller${note ? '' : ' yet'}${type ? ` (account type: ${word(type)})` : ''}. Listings are sold at the account's current rate. ${rate}`];
         if (note) lines.push(noteText(note, 'an OpenClaw seller'));
-        else if (!seller) lines.push(`The account becomes an OpenClaw seller once all of these are true: it chose OpenClaw as its registration type (${this.origin()}/join?type=openclaw), it has no earlier sales or listings, and an X account at least 30 days old is linked.`);
-        if (w.suspension) lines.push(w.suspension.permanent ? 'This connection is suspended permanently.' : `This connection is suspended until ${w.suspension.until}.`);
+        else if (!seller && !otherSeller) lines.push(`The account becomes an OpenClaw seller once all of these are true: it chose OpenClaw as its registration type (open ${this.origin()}/join?type=openclaw, sign in and press Register), it has no earlier sales or listings, and an X account at least 30 days old is linked.`);
+        if (w.suspension) lines.push(w.suspension.permanent ? 'This connection is suspended permanently.' : `This connection is suspended until ${plain(w.suspension.until)}.`);
         const next = shownLink(w.next_url);
-        if (w.x_link.linked) lines.push(`X account linked (${w.x_link.handle}).`);
-        else lines.push(`X account not linked yet: it is needed to become an OpenClaw seller and to publish at that rate.${next ? ` Link it at ${next}` : ''}${w.x_link.eligible_on ? ` (eligible from ${w.x_link.eligible_on})` : ''}.`);
-        lines.push(`Publishes today: ${w.today.used} of ${w.today.cap}. Listings: ${w.listings.active} active, ${w.listings.hidden} hidden.`);
-        return { ok: true, text: lines.join('\n'), details: { ok: true, state: 'connected', is_seller: seller, account_type: type ?? null, key_prefix: w.key_prefix, ...(hint ? { account_hint: hint } : {}), fee: w.account.fee, x_linked: w.x_link.linked, today: w.today, listings: w.listings, suspension: w.suspension } };
+        const eligible = w.x_link.eligible_on ? ` (eligible from ${plain(w.x_link.eligible_on)})` : '';
+        if (w.x_link.linked) lines.push(`X account linked (${plain(w.x_link.handle)}).`);
+        else if (seller) lines.push(`X account not linked yet: publishing at your seller rate needs it.${next ? ` Link it at ${next}` : ''}${eligible}.`);
+        else if (!note && !otherSeller) lines.push(`X account not linked yet.${next ? ` Link it at ${next}` : ''}${eligible}.`);
+        lines.push(`Publishes today: ${count(w.today.used)} of ${count(w.today.cap)}. Listings: ${count(w.listings.active)} active, ${count(w.listings.hidden)} hidden.`);
+        return { ok: true, text: lines.join('\n'), details: { ok: true, state: 'connected', is_seller: seller, account_type: type ? word(type) : null, key_prefix: plain(w.key_prefix, 16), ...(hint ? { account_hint: hint } : {}), fee: w.account.fee, x_linked: w.x_link.linked, today: w.today, listings: w.listings, suspension: w.suspension } };
     }
 
     /** Publish through the channel. Never falls back to another tier or to an API key. */
@@ -379,13 +395,14 @@ export class SellerConnection {
                 return { ...o, text: `${o.text}\nThe saved connection is gone. Ask the user to connect again (prometheus_connect_seller); do not publish another way without asking them first.` };
             }
             if (isAmbiguous(err)) {
-                // A publish is public and not idempotent: after a timeout or a gateway error the listing may already exist.
-                const code = (err as SellerChannelError).code;
-                return {
-                    ok: false,
-                    text: `Publish did not finish: Prometheus could not be reached, or did not answer in time. The request may already have gone through, so the listing may exist. Before publishing again, check the marketplace or the listing counts in the connection status, so the same listing is not published twice. [${code}]`,
-                    details: { ok: false, code, maybe_published: true },
-                };
+                // A publish is public and not idempotent: after a timeout, a cut-off answer or a gateway error the listing may already exist.
+                const e = err as SellerChannelError;
+                const doubt = 'The request may already have gone through, so the listing may exist. Before publishing again, check the marketplace or the listing counts in the connection status, so the same listing is not published twice.';
+                if (e.code === 'CHANNEL_NETWORK') {
+                    return { ok: false, text: `Publish did not finish: Prometheus could not be reached, or did not answer in time. ${doubt} [${e.code}]`, details: { ok: false, code: e.code, maybe_published: true } };
+                }
+                const f = this.failure(err, 'Publish failed');
+                return { ...f, text: `${f.text}\n${doubt}`, details: { ...f.details, maybe_published: true } };
             }
             return this.failure(err, 'Publish failed');
         }
@@ -400,13 +417,14 @@ export class SellerConnection {
             await this.o.store.clear();
             return { ok: true, text: `The saved connection belongs to ${stored.base_url ?? DEFAULT_ORIGIN}, not to the address this plugin uses now, so I did not contact anyone; it is removed from this computer. To revoke that key, disconnect from a plugin set to that address, or use the Prometheus dashboard.`, details: { ok: true, state: 'not_connected', revoked: false } };
         }
-        let r: { hidden: number };
+        let r: { hidden: number; kept?: number };
         try {
             r = await (await this.api()).unlinkSelf(stored.key, hideListings);
         } catch (err) {
             if (isChannelError(err) && err.code === 'CHANNEL_KEY_INACTIVE') {
                 await this.clearIfSame(stored.key);
-                return { ok: true, text: 'The connection was already inactive; the saved key is removed.', details: { ok: true, state: 'not_connected' } };
+                const unhidden = hideListings ? ' No listing was hidden, because the key was already inactive: hide them from the dashboard (Seller types) if you want them withdrawn.' : '';
+                return { ok: true, text: `The connection was already inactive; the saved key is removed.${unhidden}`, details: { ok: true, state: 'not_connected', hidden: 0 } };
             }
             return this.failure(err, 'Could not disconnect');
         }
@@ -415,7 +433,13 @@ export class SellerConnection {
         } catch (err) {
             return { ok: false, text: `Disconnected on Prometheus: the key is revoked. But I could not delete the saved copy (${(err as Error).message}); delete ${this.o.store.location()} yourself.`, details: { ok: false, revoked: true, code: 'KEY_FILE_NOT_REMOVED' } };
         }
-        return { ok: true, text: `Disconnected. ${r.hidden ? `${r.hidden} listing(s) hidden. ` : ''}Your account's rate and the listings already published are unchanged. To publish through the channel again, connect again.`, details: { ok: true, hidden: r.hidden } };
+        const hidden = count(r.hidden);
+        const kept = count(r.kept);
+        return {
+            ok: true,
+            text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ''}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ''}${hideListings ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.`,
+            details: { ok: true, hidden, kept },
+        };
     }
 }
 

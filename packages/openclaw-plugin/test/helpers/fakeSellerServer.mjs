@@ -1,4 +1,6 @@
-// A small stand-in for the Prometheus seller-channel routes, written from the Prometheus seller-channel API contract (v1.1 to v1.5).
+// A small stand-in for the Prometheus seller-channel routes, written from the Prometheus seller-channel API contract (v1.1 to v1.6):
+// the account's tier is set once (when the account chose the type, has no history, has a linked X account and holds a key), the X and
+// daily gates apply only to a tiered account, and the fee follows the account.
 // It is a test double, not the real server: it enforces the rules the clients must respect
 // (headers, no browser headers, one-time key, slow_down, per-key client name, error bodies).
 // The same file is copied into the plugin and MCP server tests (a test in each checks the copies are identical).
@@ -30,6 +32,8 @@ export async function startFakeSellerServer(opts = {}) {
         inject: { token: [], whoami: [], publish: [], start: [], unlink: [] },   // one-shot faults, consumed in order: { status, body?, headers? } or { drop: true } (accept, then cut the connection)
         xLinked: opts.xLinked ?? true,
         noIntent: opts.noIntent ?? false,      // the account never chose OpenClaw / Hermes as its registration type: the tier is not set
+        tier: opts.tier ?? null,               // 'openclaw' | 'hermes' once set; it never changes afterwards (set it up front to model an account that already has the other channel's tier)
+        kept: opts.kept ?? 0,                  // listings with buyers: not hidden by hide_listings
         dailyUsed: 0,
         dailyCap: opts.dailyCap ?? 4,
     };
@@ -38,14 +42,24 @@ export async function startFakeSellerServer(opts = {}) {
         res.end(JSON.stringify(body));
     };
     const err = (res, status, error, message, fix = null, extra = {}) => send(res, status, { error, message, fix_url: fix, ...extra });
-    /** The account is an OpenClaw / Hermes seller only when the server would have set the tier: intent chosen, no history, X linked. */
-    const isSeller = () => state.xLinked && !opts.registrationNote && !state.noIntent;
+    /** The tier is set the first time the server would set it (intent chosen, no history, X linked, a key exists) and then stays. */
+    const tierOf = (channel) => {
+        if (!state.tier && state.xLinked && !opts.registrationNote && !state.noIntent) state.tier = channel;
+        return state.tier;
+    };
     /** Returns true when a one-shot fault was served (the request is finished or cut). */
     const fault = async (route, req, res, onDrop) => {
         const f = state.inject[route].shift();
         if (!f) return false;
         if (f.delayMs) await sleep(f.delayMs);
         if (f.passThrough) return false;       // only delay: the request is then served normally
+        if (f.cutBody) {                       // the server acts on the request, sends the status line, then the connection dies mid-body
+            onDrop?.();
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': '400' });
+            res.write('{"success":true,');
+            setTimeout(() => req.socket.destroy(), 30);
+            return true;
+        }
         if (f.drop) { onDrop?.(); req.socket.destroy(); return true; }
         if (f.text) { res.writeHead(f.status, { 'Content-Type': 'text/html', ...(f.headers || {}) }); res.end(f.text); return true; }
         send(res, f.status, f.body ?? { error: 'TEMPORARILY_UNAVAILABLE', message: 'Try again in a moment.', fix_url: null }, f.headers || {});
@@ -67,6 +81,7 @@ export async function startFakeSellerServer(opts = {}) {
         // The old API-key deploy route (pak_ keys, no channel header).
         if (path === '/api/marketplace/deploy' && req.method === 'POST') {
             if (!/^Bearer pak_\w+$/.test(String(req.headers.authorization || ''))) return err(res, 401, 'UNAUTHORIZED', 'A pak_ agent key is required.');
+            if (opts.deployError) return send(res, opts.deployError.status, opts.deployError.body, opts.deployError.headers || {});
             state.deployed.push(body);
             return send(res, 200, { success: true, asset: { id: 'legacy_1', name: body?.name, url: 'https://prometheus.mythslabs.ai/marketplace?asset=legacy_1', file_url: '', thumbnail: '' } });
         }
@@ -131,7 +146,7 @@ export async function startFakeSellerServer(opts = {}) {
             rec.claimed = true;
             const key = 'pch_' + crypto.randomBytes(16).toString('hex');
             state.keys.set(key, { channel: rec.channel, client_name: rec.client_name, active: true });
-            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: isSeller() ? rec.channel : null, next_step: (state.xLinked || opts.registrationNote || state.noIntent) ? null : 'link_x', registration_note: opts.registrationNote ?? null, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}`, account_hint: 'a***@example.com' });
+            return send(res, 200, { key, key_prefix: key.slice(0, 8), channel: rec.channel, identity_type: tierOf(rec.channel) ?? null, next_step: (state.tier || state.xLinked || opts.registrationNote || state.noIntent) ? null : 'link_x', registration_note: opts.registrationNote ?? null, x_linked: state.xLinked, next_url: `https://prometheus.mythslabs.ai/dashboard#${rec.channel}`, account_hint: opts.accountHint ?? 'a***@example.com' });
         }
 
         // Bearer routes
@@ -145,8 +160,8 @@ export async function startFakeSellerServer(opts = {}) {
             if (await fault('whoami', req, res)) return;
             return send(res, 200, {
                 channel: kr.channel, client_name: kr.client_name, key_prefix: auth[1].slice(0, 8), linked_at: '2026-10-01T00:00:00Z',
-                account: { identity_type: isSeller() ? kr.channel : (opts.accountType ?? 'human'), is_member: false, fee: isSeller() ? { platform: 0.12, member: 0.06 } : { platform: 0.25, member: 0.15 } },
-                x_link: { linked: state.xLinked, handle: state.xLinked ? '@seller' : null, eligible_on: null },
+                account: { identity_type: tierOf(kr.channel) ?? (opts.accountType ?? 'human'), is_member: false, fee: tierOf(kr.channel) ? { platform: 0.12, member: 0.06 } : { platform: 0.25, member: 0.15 } },
+                x_link: { linked: state.xLinked, handle: state.xLinked ? (opts.handle ?? '@seller') : null, eligible_on: null },
                 today: { used: state.dailyUsed, cap: state.dailyCap }, listings: { active: state.published.length, hidden: 0 },
                 suspension: null, next_url: `https://prometheus.mythslabs.ai/dashboard#${kr.channel}`,
             });
@@ -155,18 +170,20 @@ export async function startFakeSellerServer(opts = {}) {
             // { drop: true }: the listing is created, then the connection is cut, like a timeout after the server accepted the request
             if (await fault('publish', req, res, () => { if (body?.name) state.published.push(body); })) return;
             if (body?.category === 'voices') return err(res, 409, 'VOICE_CANONICAL_PUBLICATION_REQUIRED', 'Voices are published in the Voice Creator on the site.');
-            if (!state.xLinked) return err(res, 403, 'CHANNEL_X_REQUIRED', 'Link your X account first.', 'https://prometheus.mythslabs.ai/dashboard#openclaw');
-            if (state.dailyUsed >= state.dailyCap) return err(res, 429, 'CHANNEL_DAILY_CAP', 'Daily limit reached.', null, { retry_after: 9000 });
+            const tier = tierOf(kr.channel);           // the gates are only for an account that has the tier
+            if (tier && !state.xLinked) return err(res, 403, 'CHANNEL_X_REQUIRED', 'Link your X account first.', 'https://prometheus.mythslabs.ai/dashboard#openclaw');
+            if (tier && state.dailyUsed >= state.dailyCap) return err(res, 429, 'CHANNEL_DAILY_CAP', 'Daily limit reached.', null, { retry_after: 9000 });
             if (!body?.draft_asset_id && (!body?.name || !body?.category)) return err(res, 400, 'VALIDATION_ERROR', 'name and category are required');
             state.dailyUsed++;
             state.published.push(body);
             const id = 'asset_' + state.published.length;
-            return send(res, 200, { success: true, asset_id: id, url: `https://prometheus.mythslabs.ai/marketplace?asset=${id}`, creator_type: kr.channel, fee: { platform: 0.12, member: 0.06 }, bonus_hold_days: opts.bonusHoldDays ?? 3 });
+            return send(res, 200, { success: true, asset_id: id, url: `https://prometheus.mythslabs.ai/marketplace?asset=${id}`, creator_type: tierOf(kr.channel) ?? (opts.accountType ?? 'human'), fee: tierOf(kr.channel) ? { platform: 0.12, member: 0.06 } : { platform: 0.25, member: 0.15 }, bonus_hold_days: opts.bonusHoldDays ?? 3 });
         }
         if (path === '/api/channels/unlink-self' && req.method === 'POST') {
             if (await fault('unlink', req, res)) return;
             kr.active = false;
-            return send(res, 200, { ok: true, channel: kr.channel, hidden: body?.hide_listings ? state.published.length : 0 });
+            const kept = body?.hide_listings ? Math.min(state.kept, state.published.length) : 0;
+            return send(res, 200, { ok: true, channel: kr.channel, hidden: body?.hide_listings ? state.published.length - kept : 0, kept });
         }
         return err(res, 404, 'NOT_FOUND', 'No such route.');
     });
