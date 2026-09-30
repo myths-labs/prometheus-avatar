@@ -575,6 +575,11 @@ ${doubt}` };
             await this.d.keyFile.clear();
             return { ok: true, text: `The saved connection belongs to ${stored.base_url ?? DEFAULT_ORIGIN}, not to the address this server uses now, so I did not contact anyone; it is removed from this computer. To revoke that key, disconnect from a server set to that address, or use the Prometheus dashboard.` };
         }
+        // Only listings that carry this channel's tier are hidden. To explain a "nothing hidden" answer, ask what the account is first.
+        let accountType: string | null | undefined;              // undefined: could not be read
+        if (hide) {
+            try { accountType = (await this.client().whoami(stored.key)).account.identity_type; } catch { accountType = undefined; }
+        }
         let r: { hidden: number; kept?: number };
         try {
             r = await this.client().unlinkSelf(stored.key, hide);
@@ -593,7 +598,9 @@ ${doubt}` };
         }
         const hidden = count(r.hidden);
         const kept = count(r.kept);
-        const none = hide && !hidden && !kept ? "The server hid no listing (you can withdraw listings from the Prometheus dashboard). " : "";
+        const none = !(hide && !hidden && !kept) || accountType === "hermes" ? ""      // a seller of this channel with nothing to hide needs no explanation
+            : accountType === undefined ? "The server hid no listing (you can withdraw listings from the Prometheus dashboard). "
+            : "This account is not a Hermes Agent seller, so the listings it published are not Hermes listings and disconnecting does not touch them. Withdraw them from the Prometheus dashboard if you want them off the marketplace. ";
         return { ok: true, text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ""}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ""}${none}${hide ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.` };
     }
 }

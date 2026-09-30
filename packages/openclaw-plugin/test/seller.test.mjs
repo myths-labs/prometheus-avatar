@@ -668,16 +668,29 @@ test('an account that has no tier yet can publish, at its own rate, without an X
     assert.equal(server.state.published.length, 1);
 });
 
-test('asking to hide listings when the server hides none (an account with no tier yet) says so instead of implying they are withdrawn', async () => {
+test('asking to hide listings when nothing is hidden: an account that is not an OpenClaw seller is told why, an unreadable account gets the plain sentence, a seller with no listings gets none', async () => {
     await server.close();
     server = await startFakeSellerServer({ intervalSec: 1, noIntent: true });
     const h = boot();
     await connectAndApprove(h);
     await call(h.tools, 'prometheus_publish_listing', PUB);
     const r = await call(h.tools, 'prometheus_disconnect_seller', { confirm: true, hide_listings: true });
-    assert.match(r.text, /The server hid no listing \(you can withdraw listings from the Prometheus dashboard\)/);
+    assert.match(r.text, /This account is not an OpenClaw seller, so the listings it published are not OpenClaw listings and disconnecting does not touch them\./);
     assert.equal(r.details.hidden, 0);
-    const plain = boot();
-    await connectAndApprove(plain);
-    assert.doesNotMatch((await call(plain.tools, 'prometheus_disconnect_seller', { confirm: true })).text, /hid no listing/, 'not said when nobody asked to hide');
+
+    const h2 = boot();
+    await connectAndApprove(h2);
+    server.inject('whoami', { status: 503 });                          // the account cannot be read
+    const plain = await call(h2.tools, 'prometheus_disconnect_seller', { confirm: true, hide_listings: true });
+    assert.match(plain.text, /The server hid no listing \(you can withdraw listings from the Prometheus dashboard\)/);
+
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1 });          // an OpenClaw seller with no listings at all
+    const h3 = boot();
+    await connectAndApprove(h3);
+    const none = await call(h3.tools, 'prometheus_disconnect_seller', { confirm: true, hide_listings: true });
+    assert.doesNotMatch(none.text, /hid no listing|is not an OpenClaw seller/);
+    const h4 = boot();
+    await connectAndApprove(h4);
+    assert.doesNotMatch((await call(h4.tools, 'prometheus_disconnect_seller', { confirm: true })).text, /hid no listing|is not an OpenClaw seller/, 'not said when nobody asked to hide');
 });

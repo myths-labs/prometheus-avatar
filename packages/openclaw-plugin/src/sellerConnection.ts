@@ -417,6 +417,11 @@ export class SellerConnection {
             await this.o.store.clear();
             return { ok: true, text: `The saved connection belongs to ${stored.base_url ?? DEFAULT_ORIGIN}, not to the address this plugin uses now, so I did not contact anyone; it is removed from this computer. To revoke that key, disconnect from a plugin set to that address, or use the Prometheus dashboard.`, details: { ok: true, state: 'not_connected', revoked: false } };
         }
+        // Only listings that carry this channel's tier are hidden. To explain a "nothing hidden" answer, ask what the account is first.
+        let accountType: string | null | undefined;              // undefined: could not be read
+        if (hideListings) {
+            try { accountType = (await (await this.api()).whoami(stored.key)).account.identity_type; } catch { accountType = undefined; }
+        }
         let r: { hidden: number; kept?: number };
         try {
             r = await (await this.api()).unlinkSelf(stored.key, hideListings);
@@ -435,7 +440,9 @@ export class SellerConnection {
         }
         const hidden = count(r.hidden);
         const kept = count(r.kept);
-        const none = hideListings && !hidden && !kept ? 'The server hid no listing (you can withdraw listings from the Prometheus dashboard). ' : '';
+        const none = !(hideListings && !hidden && !kept) || accountType === 'openclaw' ? ''      // a seller of this channel with nothing to hide needs no explanation
+            : accountType === undefined ? 'The server hid no listing (you can withdraw listings from the Prometheus dashboard). '
+            : "This account is not an OpenClaw seller, so the listings it published are not OpenClaw listings and disconnecting does not touch them. Withdraw them from the Prometheus dashboard if you want them off the marketplace. ";
         return {
             ok: true,
             text: `Disconnected. ${hidden ? `${hidden} listing(s) hidden. ` : ''}${kept ? `${kept} listing(s) that already have buyers stay visible. ` : ''}${none}${hideListings ? "Your account's rate is unchanged." : "Your account's rate and the listings already published are unchanged."} To publish through the channel again, connect again.`,

@@ -460,12 +460,23 @@ test('an account that has no tier yet can publish, at its own rate, without an X
     assert.match(r.text, /Sold at your account's human rate: platform fee 25%, 15% for members/);
 });
 
-test('asking to hide listings when the server hides none says so instead of implying they are withdrawn', async () => {
+test('asking to hide listings when nothing is hidden: an account that is not a Hermes Agent seller is told why, an unreadable account gets the plain sentence, a seller with no listings gets none', async () => {
     await server.close();
     server = await startFakeSellerServer({ intervalSec: 1, noIntent: true });
     const h = await start(HERMES);
     await connected(h);
     await h.call('publish_listing', PUB);
     const r = await h.call('disconnect_seller', { confirm: true, hide_listings: true });
-    assert.match(r.text, /The server hid no listing \(you can withdraw listings from the Prometheus dashboard\)/);
+    assert.match(r.text, /This account is not a Hermes Agent seller, so the listings it published are not Hermes listings and disconnecting does not touch them\./);
+
+    const h2 = await start(HERMES);
+    await connected(h2);
+    server.inject('whoami', { status: 503 });
+    assert.match((await h2.call('disconnect_seller', { confirm: true, hide_listings: true })).text, /The server hid no listing \(you can withdraw listings from the Prometheus dashboard\)/);
+
+    await server.close();
+    server = await startFakeSellerServer({ intervalSec: 1 });
+    const h3 = await start(HERMES);
+    await connected(h3);
+    assert.doesNotMatch((await h3.call('disconnect_seller', { confirm: true, hide_listings: true })).text, /hid no listing|is not a Hermes Agent seller/);
 });
