@@ -35,7 +35,7 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
 - **mcp-server**: Hermes Agent seller channel: `connect_seller`, `seller_connection_status`, `publish_listing`,
   `disconnect_seller` (14 tools total). Checks `PROMETHEUS_CHANNEL=hermes`, a Hermes ancestor process and the MCP client
   handshake; key in `~/.prometheus/channel-hermes.json` (0600).
-- **openclaw-plugin**: avatar state updates: with an agent API key, `model_call_started`, `message_sent` and `model_call_ended` push `thinking` / `done` + emotion / `surprised` to `POST /api/agent/avatar/state` (the channel `set_avatar_state` uses), so any open avatar page follows even though the gateway has no page. Transitions only, spaced out; off by itself on a 404 or a rejected key; `companionState: false` turns it off.
+- **openclaw-plugin**: avatar state updates: with an agent API key, `model_call_started`, `message_sent` and `model_call_ended` push `thinking` / the emotion of the sent message / `surprised` to `POST /api/agent/avatar/state` (the channel `set_avatar_state` uses), so any open avatar page follows even though the gateway has no page. Transitions only, spaced out; off by itself on a 404 or a rejected key; `companionState: false` turns it off.
 - **core / openclaw-plugin / mcp-server**: the token response's `account_hint` (masked account email) is kept with the key and shown by the connection status ("connected to the Prometheus account a***@…"), so someone tricked into approving another person's connection can see the account is wrong; the skills tell the agent to say so and to disconnect on a mismatch.
 - **core / openclaw-plugin / mcp-server**: contract v1.4: receiving a key no longer sets the account type. The token response's `next_step` (`link_x`) and `registration_note` (`ACCOUNT_HAS_SELLER_HISTORY`, `IDENTITY_LOCKED`) are told to the user right after approval and by the status (the account becomes an OpenClaw / Hermes seller only once the X account is linked; or why the account will not become one), and the note is kept in the saved key record.
 - **skills**: "Sell on Prometheus" in `prometheus-companion` and the plugin's bundled skill.
@@ -47,6 +47,36 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
   April 20, 2026).
 
 ---
+
+### Removed
+- **openclaw-plugin**: the `avatar:ready` / `avatar:speak` events and the `events` block of the manifest. They were emitted
+  through `context.emit` of the old `activate(context)` entry, which OpenClaw 2026.9.x never calls (its loader only runs
+  `register(api)`, checked on 2026.9.6), so they never fired on a current host. There is no replacement.
+
+### Fixed (found by an independent review before release)
+- **Status wording**: the connection status no longer calls an account an OpenClaw / Hermes seller unless the server says so
+  (`whoami.account.identity_type`). The tier is set only when the account chose the type, has no earlier sales or listings,
+  has a linked X account (30 days or older) and holds a valid key; until then the status says that, shows the account's
+  current rate, and names the address where the type is chosen (`/join?type=openclaw` or `hermes`). Publish results now say
+  "at your account's ... rate".
+- **Waiting for approval**: a network drop, a 5xx or a rate limit no longer ends the wait (the approval may still come);
+  the polling interval and expiry from the server are bounded (at least 1 s); an approval link that is not https (or http
+  on this computer) is refused. Two connect calls at once share one code. Disconnecting while a poll is out drops that
+  approval. An "inactive key" answer no longer deletes a key saved by a newer connection.
+- **Keys**: a saved key is only sent back to the address that issued it; an API key from the environment goes only to
+  the production host (the plugin's tools followed the configured address before); `prometheus_deploy_asset` no longer
+  switches to the API key when a connection exists but a check failed, or while an approval is pending; a half-written key
+  file is removed when saving fails; text from the server is cleaned (control characters, length) before it reaches a model.
+- **Publishing**: after a timeout or a gateway error the result says the listing may already exist instead of "try again"
+  (a publish is public and not idempotent). Waits are shown in seconds, minutes or hours, and read from the body's
+  `retry_after` when there is no `Retry-After` header.
+- **Avatar state**: a finished message pushes `{ emotion }` alone (the server replaces the whole state and the avatar page
+  reads `state` before `emotion`, so `done` + emotion always showed the same expression); a newer state is no longer lost
+  behind a request still in flight; failed pushes are retried for up to 30 s; a 404 with an error text ("no avatar yet")
+  pauses the pushes for a minute instead of switching them off for good.
+- **Hermes detection**: the process-table probe has a per-call and a total time budget, so it cannot stall the stdio server.
+- **Docs**: configuration paths follow the real host (`plugins.entries.prometheus-avatar.config`), tool counts are current,
+  and the two version badges in the root README now read npm.
 
 ## [Released 2026-07-30] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
 

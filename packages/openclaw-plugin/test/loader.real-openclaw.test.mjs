@@ -34,53 +34,59 @@ test('real OpenClaw loads the packed plugin and the seller flow works through it
         env: { ...process.env, HOME: home, OPENCLAW_STATE_DIR: path.join(home, 'state') }, encoding: 'utf8', timeout: 300_000,
     });
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-real-'));
-    const home = path.join(work, 'home');
-    fs.mkdirSync(home);
-
-    // 1. Pack core and plugin like npm would. The plugin tarball's core dependency points at the local core tarball
-    //    so this works before core is published.
-    const npm = (cwd, ...a) => execFileSync('npm', a, { cwd, encoding: 'utf8' });
-    execFileSync('npx', ['tsup', 'src/index.ts', '--format', 'esm', '--dts', '--clean'], { cwd: sdkDir, stdio: 'ignore' });
-    const coreTgz = path.join(work, npm(sdkDir, 'pack', '--pack-destination', work).trim().split('\n').at(-1));
-    execFileSync('npx', ['tsup', 'src/index.ts', '--format', 'esm', '--clean'], { cwd: pluginDir, stdio: 'ignore' });
-    const stage = path.join(work, 'plugin');
-    fs.mkdirSync(stage);
-    for (const f of ['dist', 'src', 'skills', 'openclaw.plugin.json', 'README.md', 'tsconfig.json', 'package.json']) fs.cpSync(path.join(pluginDir, f), path.join(stage, f), { recursive: true });
-    const pj = JSON.parse(fs.readFileSync(path.join(stage, 'package.json'), 'utf8'));
-    pj.dependencies['@prometheusavatar/core'] = `file:${coreTgz}`;
-    fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify(pj, null, 2));
-    const pluginTgz = path.join(work, npm(stage, 'pack', '--pack-destination', work).trim().split('\n').at(-1));
-
-    // 2. Install and inspect with the real host.
-    oc(home, 'plugins', 'install', `npm-pack:${pluginTgz}`, '--force', '--accept-capabilities');
-    const inspected = JSON.parse(oc(home, 'plugins', 'inspect', 'prometheus-avatar', '--runtime', '--json'));
-    const p = inspected.plugin ?? inspected;
-    assert.equal(p.status, 'loaded', `plugin status: ${p.status} ${p.error ?? ''}`);
-    assert.deepEqual([...p.toolNames].sort(), [...manifest.contracts.tools].sort());
-    assert.deepEqual(inspected.diagnostics ?? [], []);
-    assert.equal(p.hookCount, 0, 'without an API key the plugin registers no hooks');
-
-    // 3. Run the gateway (loopback, no auth, throwaway HOME) with the plugin pointed at the local test double.
-    const fake = await startFakeSellerServer({ intervalSec: 1 });
-    const port = await freePort();
-    for (const [k, v] of [['gateway.mode', 'local'], ['gateway.bind', 'loopback'], ['gateway.port', String(port)], ['gateway.auth.mode', 'none'],
-        ['plugins.entries.prometheus-avatar.config.channelBaseUrl', fake.url]]) oc(home, 'config', 'set', k, v);
-    // With an agent key (a dummy value; nothing calls the real platform) the host must accept the hooks the plugin registers.
-    oc(home, 'config', 'set', 'plugins.entries.prometheus-avatar.config.apiKey', 'pak_localtest');
-    const withKey = JSON.parse(oc(home, 'plugins', 'inspect', 'prometheus-avatar', '--runtime', '--json'));
-    const kp = withKey.plugin ?? withKey;
-    assert.equal(kp.status, 'loaded', `plugin status with a key: ${kp.status} ${kp.error ?? ''}`);
-    assert.equal(kp.hookCount, 3, 'message_sent, model_call_started and model_call_ended are registered');
-    assert.deepEqual(withKey.diagnostics ?? [], []);
-    oc(home, 'config', 'unset', 'plugins.entries.prometheus-avatar.config.apiKey');
-
-    const gw = spawn(NODE, [path.join(OPENCLAW_DIR, 'openclaw.mjs'), 'gateway', 'run', '--allow-unconfigured', '--port', String(port)], {
-        env: { ...process.env, HOME: home, OPENCLAW_STATE_DIR: path.join(home, 'state') }, stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let log = '';
-    gw.stdout.on('data', (d) => { log += d; });
-    gw.stderr.on('data', (d) => { log += d; });
+    let fake, gw;
     try {
+        const home = path.join(work, 'home');
+        fs.mkdirSync(home);
+
+        // 1. Pack core and plugin like npm would. Both are built into staging folders, never into the repo's own dist
+        //    (test files run in parallel and import it). The plugin tarball's core dependency points at the local core
+        //    tarball, so this works before core is published.
+        const npm = (cwd, ...a) => execFileSync('npm', a, { cwd, encoding: 'utf8' });
+        const stageOf = (name, from, files, ...buildFlags) => {
+            const dir = path.join(work, name);
+            fs.mkdirSync(dir);
+            for (const f of files) if (fs.existsSync(path.join(from, f))) fs.cpSync(path.join(from, f), path.join(dir, f), { recursive: true });
+            execFileSync('npx', ['tsup', 'src/index.ts', '--format', 'esm', ...buildFlags, '--out-dir', path.join(dir, 'dist')], { cwd: from, stdio: 'ignore' });
+            return dir;
+        };
+        const coreStage = stageOf('core', sdkDir, ['src', 'README.md', 'tsconfig.json', 'package.json'], '--dts');
+        const coreTgz = path.join(work, npm(coreStage, 'pack', '--pack-destination', work).trim().split('\n').at(-1));
+        const stage = stageOf('plugin', pluginDir, ['src', 'skills', 'openclaw.plugin.json', 'README.md', 'tsconfig.json', 'package.json']);
+        const pj = JSON.parse(fs.readFileSync(path.join(stage, 'package.json'), 'utf8'));
+        pj.dependencies['@prometheusavatar/core'] = `file:${coreTgz}`;
+        fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify(pj, null, 2));
+        const pluginTgz = path.join(work, npm(stage, 'pack', '--pack-destination', work).trim().split('\n').at(-1));
+
+        // 2. Install and inspect with the real host.
+        oc(home, 'plugins', 'install', `npm-pack:${pluginTgz}`, '--force', '--accept-capabilities');
+        const inspected = JSON.parse(oc(home, 'plugins', 'inspect', 'prometheus-avatar', '--runtime', '--json'));
+        const p = inspected.plugin ?? inspected;
+        assert.equal(p.status, 'loaded', `plugin status: ${p.status} ${p.error ?? ''}`);
+        assert.deepEqual([...p.toolNames].sort(), [...manifest.contracts.tools].sort());
+        assert.deepEqual(inspected.diagnostics ?? [], []);
+        assert.equal(p.hookCount, 0, 'without an API key the plugin registers no hooks');
+
+        // 3. Run the gateway (loopback, no auth, throwaway HOME) with the plugin pointed at the local test double.
+        fake = await startFakeSellerServer({ intervalSec: 1 });
+        const port = await freePort();
+        for (const [k, v] of [['gateway.mode', 'local'], ['gateway.bind', 'loopback'], ['gateway.port', String(port)], ['gateway.auth.mode', 'none'],
+            ['plugins.entries.prometheus-avatar.config.channelBaseUrl', fake.url]]) oc(home, 'config', 'set', k, v);
+        // With an agent key (a dummy value; nothing calls the real platform) the host must accept the hooks the plugin registers.
+        oc(home, 'config', 'set', 'plugins.entries.prometheus-avatar.config.apiKey', 'pak_localtest');
+        const withKey = JSON.parse(oc(home, 'plugins', 'inspect', 'prometheus-avatar', '--runtime', '--json'));
+        const kp = withKey.plugin ?? withKey;
+        assert.equal(kp.status, 'loaded', `plugin status with a key: ${kp.status} ${kp.error ?? ''}`);
+        assert.equal(kp.hookCount, 3, 'message_sent, model_call_started and model_call_ended are registered');
+        assert.deepEqual(withKey.diagnostics ?? [], []);
+        oc(home, 'config', 'unset', 'plugins.entries.prometheus-avatar.config.apiKey');
+
+        gw = spawn(NODE, [path.join(OPENCLAW_DIR, 'openclaw.mjs'), 'gateway', 'run', '--allow-unconfigured', '--port', String(port)], {
+            env: { ...process.env, HOME: home, OPENCLAW_STATE_DIR: path.join(home, 'state') }, stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let log = '';
+        gw.stdout.on('data', (d) => { log += d; });
+        gw.stderr.on('data', (d) => { log += d; });
         for (let i = 0; i < 120 && !/\[gateway\] ready/.test(log); i++) await sleep(500);
         assert.match(log, /\[gateway\] ready/, 'gateway did not become ready');
         const invoke = async (tool, args = {}) => {
@@ -110,9 +116,16 @@ test('real OpenClaw loads the packed plugin and the seller flow works through it
         assert.equal((await invoke('prometheus_disconnect_seller', { confirm: true })).details.ok, true);
         assert.equal(fs.existsSync(keyFile), false);
     } finally {
-        gw.kill('SIGTERM');           // only the child this test started
-        await new Promise((resolve) => { gw.once('exit', resolve); setTimeout(resolve, 20_000); });   // it writes state while stopping
-        await fake.close();
+        // Whatever failed above, leave nothing behind: only the child this test started, then its server and its folder.
+        if (gw && gw.exitCode === null && gw.signalCode === null) {
+            let force;
+            const exited = new Promise((resolve) => { gw.once('exit', resolve); });
+            gw.kill('SIGTERM');                                             // it writes state while stopping
+            force = setTimeout(() => gw.kill('SIGKILL'), 15_000);
+            await exited;
+            clearTimeout(force);
+        }
+        if (fake) await fake.close();
         fs.rmSync(work, { recursive: true, force: true });
     }
 });

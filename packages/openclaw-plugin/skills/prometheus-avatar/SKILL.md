@@ -75,8 +75,8 @@ Lighter thumbnails for non-AAA contexts. Faster and cheaper than `prometheus_gen
 
 Use when the user says "Connect my Prometheus seller account", "Publish this to Prometheus Marketplace", or asks to sell an asset they made. Once the account is verified through OpenClaw, all of the account's listings are sold at the OpenClaw seller rate: the rate follows the account, not each listing. An account that only uses an API key and has not been verified is at the AI agent rate.
 
-1. **`prometheus_connect_seller`** — starts the connection. Tell the user the link and the code exactly as returned (they have 10 minutes; they must sign in to Prometheus and approve). The plugin completes the connection by itself once they approve; `prometheus_connection_status` shows where it is. After they say they approved, call it and tell the user which Prometheus account it is connected to (masked email, like `a***@example.com`). If they say it is not their account, call `prometheus_disconnect_seller` (confirm: true) and warn them: someone may have tricked them into approving another connection. Also relay what the status says about the next step (the account becomes an OpenClaw seller only once the X account is linked on the dashboard) or why there is none (the account already has sales or listings, or its type is already set: it will not become an OpenClaw seller).
-2. **`prometheus_connection_status`** — connected or not, the seller rates, whether the X account is linked, today's publish count. If X is not linked, publishing through the channel fails: give the user the link the tool returned.
+1. **`prometheus_connect_seller`** — starts the connection. Tell the user the link and the code exactly as returned (they have 10 minutes; they must sign in to Prometheus and approve). The plugin completes the connection by itself once they approve; `prometheus_connection_status` shows where it is. After they say they approved, call it and tell the user which Prometheus account it is connected to (masked email, like `a***@example.com`). If they say it is not their account, call `prometheus_disconnect_seller` (confirm: true) and warn them: someone may have tricked them into approving another connection. Also relay what the status says about the next step (the account becomes an OpenClaw seller only once it chose that registration type on the site and has a linked X account; if the status says the account is not an OpenClaw seller yet, say what is missing and never call the user a seller) or why there is none (the account already has sales or listings, or its type is already set: it will not become an OpenClaw seller).
+2. **`prometheus_connection_status`** — connected or not, the seller rates, whether the X account is linked, today's publish count. If the status says the account is not an OpenClaw seller yet, tell the user what is missing (the registration type chosen on the site, a linked X account); listings published meanwhile are sold at the account's current rate. If a publish fails because X is not linked, give the user the link the tool returned.
 3. **`prometheus_publish_listing`** — needs `name`, `category`, the file (`fileData`: URL or base64) — or `draft_asset_id` for a draft the account already holds. Forge launch scope: `skins`, `voices`, `motions`, `expressions`, `personas`; `accessories` and `effects` are coming soon (the API still accepts them, but do not promise them). `personas` also need `description` and `persona_config`. Voices are published in the Voice Creator on the site; this tool is refused for them. **Publishing is public and cannot be withdrawn from the agent loop: confirm with the user before you call it.**
 4. **`prometheus_disconnect_seller`** — only when the user asks to disconnect; pass `confirm: true`. The account's rate and the listings already published are unchanged.
 
@@ -100,16 +100,20 @@ The agent does NOT need to call a tool to trigger these. Turn the state updates 
 
 ## Configuration
 
-Set via `openclaw.config.json`:
+Set an option with `openclaw config set plugins.entries.prometheus-avatar.config.<option> <value>`, or put the options in the OpenClaw config under the same path:
 
 ```json
 {
   "plugins": {
-    "prometheus-avatar": {
-      "avatarId": "<marketplace-bundle-id>",
-      "ttsVoice": "<marketplace-voice-id>",
-      "enableLipSync": true,
-      "enableEmotion": true
+    "entries": {
+      "prometheus-avatar": {
+        "config": {
+          "avatarId": "<marketplace-bundle-id>",
+          "ttsVoice": "<marketplace-voice-id>",
+          "enableLipSync": true,
+          "enableEmotion": true
+        }
+      }
     }
   }
 }

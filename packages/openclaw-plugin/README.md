@@ -22,7 +22,7 @@ Connect this OpenClaw to your Prometheus seller account once. When your account 
 
 1. Tell your agent: **`Connect my Prometheus seller account`**. It answers with a link and a short code.
 2. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The plugin finishes the connection by itself. Ask your agent for the connection status: it names the Prometheus account it is now connected to (masked, like `a***@example.com`). If that is not your account, disconnect at once: someone may have tricked you into approving their connection.
-3. Link your X account from Dashboard → Seller types → OpenClaw. The account becomes an OpenClaw seller only once X is linked (and Prometheus's automatic checks pass); the key is already saved, but the rate does not change before that. If the approving account already has sales or listings, or its account type is already set, it will not become an OpenClaw seller: the agent says so.
+3. On the Prometheus site, choose OpenClaw as the account's registration type (Dashboard → Seller types → OpenClaw, or `/join?type=openclaw`) and link your X account. The account becomes an OpenClaw seller only once it has chosen the type, has no earlier sales or listings, has a linked X account (at least 30 days old) and holds a connected key. Until then the connection status says what is missing, and listings are sold at the account's current rate. If the approving account already has sales or listings, or its account type is already set, it will not become an OpenClaw seller: the agent says so.
 4. Tell your agent: **`Publish this to Prometheus Marketplace`**.
 
 If a check fails (X not linked, daily limit, a suspended connection…), nothing is published and the agent tells you why and where to fix it. Publishing is public and cannot be withdrawn from the agent loop, so your agent should confirm with you first.
@@ -47,17 +47,21 @@ This plugin connects OpenClaw to the [Prometheus Avatar SDK](https://www.npmjs.c
 
 ## ⚙️ Configuration
 
-Add to your `openclaw.config.json`:
+Set an option with `openclaw config set plugins.entries.prometheus-avatar.config.<option> <value>`, or put the options in your OpenClaw config under the same path:
 
 ```json
 {
   "plugins": {
-    "prometheus-avatar": {
-      "modelUrl": "https://your-cdn.example/models/your-model.model3.json",
-      "containerSelector": "#avatar",
-      "apiKey": "pak_...",
-      "enableLipSync": true,
-      "enableEmotion": true
+    "entries": {
+      "prometheus-avatar": {
+        "config": {
+          "modelUrl": "https://your-cdn.example/models/your-model.model3.json",
+          "containerSelector": "#avatar",
+          "apiKey": "pak_...",
+          "enableLipSync": true,
+          "enableEmotion": true
+        }
+      }
     }
   }
 }
@@ -77,7 +81,7 @@ Add to your `openclaw.config.json`:
 
 ## 🎓 Bundled Skill (NEW v0.10)
 
-The plugin ships with a bundled OpenClaw Skill at `skills/prometheus-avatar/SKILL.md` so the agent knows **when** and **how** to use the 3 creator tools below without explicit user prompting. The Skill covers:
+The plugin ships with a bundled OpenClaw Skill at `skills/prometheus-avatar/SKILL.md` so the agent knows **when** and **how** to use the tools below without explicit user prompting. The Skill covers:
 
 - **When to use** — visible character / avatar mascot · real-time TTS with mouth movement · emotion reflection · AAA skin preview card · marketplace asset deploy
 - **When NOT to use** — plain audio TTS · low-fidelity thumbnails · deterministic image requirements
@@ -134,7 +138,7 @@ State updates need an agent API key (`apiKey` or `PROMETHEUS_API_KEY`), are sent
 
 - **OpenClaw** — listed in OpenClaw's community plugin list: [PR #52752](https://github.com/openclaw/openclaw/pull/52752), merged April 20, 2026 (UTC) by Peter Steinberger ([archived copy of the list](https://web.archive.org/web/20260423093903/https://docs.openclaw.ai/plugins/community)). Install with `openclaw plugins install @prometheusavatar/openclaw-plugin` (OpenClaw 2026.9.6+) or from ClawHub
 - **Hermes Agent** — Avatar skill PR submitted at [`NousResearch/hermes-agent#9754`](https://github.com/NousResearch/hermes-agent/pull/9754)
-- **Cursor / Claude Code / Any MCP Client** — Use the [`@prometheusavatar/mcp-server`](https://www.npmjs.com/package/@prometheusavatar/mcp-server) (10 tools) for direct MCP access to the same image engine
+- **Cursor / Claude Code / Any MCP Client** — Use the [`@prometheusavatar/mcp-server`](https://www.npmjs.com/package/@prometheusavatar/mcp-server) (14 tools) for direct MCP access to the same image engine
 
 ## 🔗 Links
 
