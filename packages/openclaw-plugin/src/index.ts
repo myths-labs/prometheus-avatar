@@ -63,7 +63,7 @@ export async function activate(context: {
 
         context.registerTool(
             "prometheus_generate_thumbnail",
-            "Generate an eye-catching thumbnail image for a marketplace asset (Live2D, Voice, Backdrop).",
+            "Generate an eye-catching thumbnail image for a marketplace asset (character, voice, motion, persona, backdrop).",
             {
                 type: "object",
                 properties: {
@@ -81,14 +81,17 @@ export async function activate(context: {
 
         context.registerTool(
             "prometheus_deploy_asset",
-            "Instantly deploy a new asset to the Prometheus Marketplace. Use this when you have created a new skin, voice, scene, motion, expression, accessory, effect, or persona.",
+            "Instantly deploy a new asset to the Prometheus Marketplace. Use this when you have created a new skin, voice, scene, motion, expression, accessory, effect, or persona. A persona needs its prompt in persona_config (or a persona JSON file as fileData); the public description is never the prompt. A motion needs source (original or licensed_resale) and body_type; library clips without resale rights cannot be listed.",
             {
                 type: "object",
                 properties: {
                     name: { type: "string" },
                     category: { type: "string", enum: ['skins', 'voices', 'effects', 'motions', 'accessories', 'scenes', 'personas', 'expressions'] },
-                    description: { type: "string" },
+                    description: { type: "string", description: "Public listing text. For a persona it is shown to buyers and is not the prompt." },
                     price: { type: "number" },
+                    persona_config: { type: "object", description: "Personas only: the private persona config, e.g. { systemPrompt, greeting, traits }. Required unless fileData is a persona JSON file that carries it." },
+                    source: { type: "string", enum: ["original", "licensed_resale"], description: "Motions only (required): original = you made it; licensed_resale = your licence allows reselling it on its own. Library clips without resale rights cannot be listed." },
+                    body_type: { type: "string", description: "Motions only: the body type the motion is made for, e.g. humanoid." },
                     fileData: { type: "string", description: "URL or Base64 string of the actual asset file" },
                     thumbnailData: { type: "string", description: "URL or Base64 string of the thumbnail (use generate_thumbnail first)" },
                     tags: { type: "array", items: { type: "string" } }
@@ -116,8 +119,11 @@ export async function activate(context: {
                     category: args.category as any,
                     description: args.description,
                     price: args.price,
-                    tags: args.tags
-                };
+                    tags: args.tags,
+                    ...(args.persona_config && typeof args.persona_config === 'object' ? { persona_config: args.persona_config } : {}),
+                    ...(typeof args.source === 'string' ? { source: args.source } : {}),
+                    ...(typeof args.body_type === 'string' ? { body_type: args.body_type } : {}),
+                } as AssetDeployConfig;
                 return await creator.deployAsset(config, args.fileData, args.thumbnailData);
             }
         );
@@ -197,7 +203,7 @@ export async function activate(context: {
     // /api/models route exists in production), so don't fabricate a URL that can
     // only 404 — warn and fall back to the default model instead.
     if (!config.modelUrl && config.avatarId) {
-        console.warn('[Prometheus Plugin] avatarId-based model resolution is not available yet — pass modelUrl (a .model3.json URL) instead. Using the default model.');
+        console.warn('[Prometheus Plugin] avatarId-based model resolution is not available yet — pass modelUrl (a 2D model file, .model3.json) instead. Using the default model.');
     }
     const modelUrl = config.modelUrl || '/models/haru/haru_greeter_t03.model3.json'; // default
 

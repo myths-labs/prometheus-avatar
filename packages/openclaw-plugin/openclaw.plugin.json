@@ -1,8 +1,8 @@
 {
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
-    "version": "0.10.2",
-    "description": "Give your OpenClaw agent a Live2D avatar (lip-sync · emotion · TTS) plus AAA image generation for marketplace skin previews. 3 agent tools + bundled skill.",
+    "version": "0.10.3",
+    "description": "Give your OpenClaw agent a 2D avatar (lip-sync · emotion · TTS) plus AAA image generation for marketplace skin previews. 3 agent tools + bundled skill.",
     "skills": [
         "skills/prometheus-avatar"
     ],
@@ -23,7 +23,7 @@
         },
         "modelUrl": {
             "type": "string",
-            "description": "Direct URL to a Live2D model file (.model3.json)",
+            "description": "Direct URL to a 2D model file (.model3.json). The hosted 3D character is shown through its embed URL instead (see README).",
             "required": false
         },
         "ttsProvider": {

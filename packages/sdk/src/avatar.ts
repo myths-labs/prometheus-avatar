@@ -2,7 +2,7 @@
  * PrometheusAvatar — Main orchestrator class
  *
  * Ties together renderer, TTS, lip sync, and emotion analysis into a
- * unified API for driving a Live2D avatar from LLM output.
+ * unified API for driving a 2D avatar (.model3.json) from LLM output.
  *
  * Usage:
  *   const avatar = await createAvatar({
@@ -12,7 +12,7 @@
  *   await avatar.speak('Hello! How are you today? 😊');
  */
 
-import { Live2DRenderer } from './renderer';
+import { AvatarRenderer } from './renderer';
 import { WebSpeechTTS } from './tts';
 import { LipSyncEngine } from './lip-sync';
 import { EmotionAnalyzer } from './emotion';
@@ -21,7 +21,7 @@ import type { PrometheusConfig, AvatarOptions, Emotion, EmotionResult, AvatarEve
 type EventCallback<T> = (data: T) => void;
 
 export class PrometheusAvatar {
-    private renderer: Live2DRenderer;
+    private renderer: AvatarRenderer;
     private tts: WebSpeechTTS;
     private lipSync: LipSyncEngine;
     private emotion: EmotionAnalyzer;
@@ -34,7 +34,7 @@ export class PrometheusAvatar {
         this.config = config;
 
         // Initialize renderer
-        this.renderer = new Live2DRenderer({
+        this.renderer = new AvatarRenderer({
             container: config.container,
             width: config.width,
             height: config.height,

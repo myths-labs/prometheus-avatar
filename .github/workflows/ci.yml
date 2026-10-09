@@ -32,6 +32,12 @@ jobs:
       - name: Test SDK
         run: pnpm --filter @prometheusavatar/core test
 
+      # Plain-node tests (embed bridge, public wording scan). They import src/*.ts
+      # directly, which needs Node's type stripping (22.6+), so only the 22 leg runs them.
+      - name: Test SDK (plain node)
+        if: matrix.node-version == 22
+        run: node --experimental-strip-types --test packages/sdk/tests-node/*.test.mjs
+
       # ws-proxy is where the relay's credential gate lives (S307 P0-1: tickets
       # verified here, platform keys never leave this Worker). Until now CI ran
       # only the SDK package, so the one directory that guards credentials was

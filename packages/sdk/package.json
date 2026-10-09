@@ -1,7 +1,7 @@
 {
     "name": "@prometheusavatar/core",
-    "version": "0.11.3",
-    "description": "Give your AI agent an embodied avatar — Live2D rendering, TTS, lip-sync, and emotion analysis in one SDK",
+    "version": "0.11.4",
+    "description": "Give your AI agent an embodied avatar — an embed bridge for the hosted 3D character, a 2D model renderer, TTS, lip-sync and emotion analysis in one SDK",
     "type": "module",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -20,6 +20,7 @@
         "build": "tsup src/index.ts --format esm --dts --clean",
         "dev": "tsup src/index.ts --format esm --dts --watch",
         "test": "vitest run",
+        "test:node": "node --experimental-strip-types --test tests-node/*.test.mjs",
         "test:watch": "vitest",
         "clean": "rm -rf dist",
         "lint": "tsc --noEmit"
@@ -38,8 +39,10 @@
         "vitest": "^4.0.18"
     },
     "keywords": [
-        "live2d",
         "avatar",
+        "3d-avatar",
+        "2d-avatar",
+        "embed",
         "ai",
         "llm",
         "tts",

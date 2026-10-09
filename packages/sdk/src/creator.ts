@@ -9,14 +9,31 @@ export interface AssetDeployConfig {
     name: string;
     /** Marketplace category — must be one of the server's accepted values.
      *  ("bundles" also exists server-side but needs a bundle_items list this
-     *  payload cannot express, so it is not offered here. "personas" requires
-     *  `description`.) */
+     *  payload cannot express, so it is not offered here.)
+     *  - "personas": the prompt comes from `persona_config` or from a persona
+     *    file (the JSON sent as the file); the public `description` is never
+     *    used as the prompt.
+     *  - "motions": `source` is required (`original` or `licensed_resale`);
+     *    library clips without resale rights cannot be listed. */
     category: 'skins' | 'voices' | 'effects' | 'motions' | 'accessories' | 'scenes' | 'personas' | 'expressions';
+    /** Public listing text. For personas this is shown to buyers and is not the prompt. */
     description?: string;
     price?: number;
     tags?: string[];
     creator_id?: string;
-    license?: 'personal' | 'commercial' | 'cc-by';
+    /** Listing licence. The marketplace accepts `personal`, `commercial` and `mit`. */
+    license?: 'personal' | 'commercial' | 'mit' | 'cc-by';
+    /** Personas: the private persona config, e.g. `{ systemPrompt, greeting, traits }`.
+     *  Required unless the persona file itself carries it. */
+    persona_config?: Record<string, unknown>;
+    /** Motions: where the motion comes from. `original` = you made it;
+     *  `licensed_resale` = your licence allows reselling it on its own.
+     *  A library clip (Mixamo or similar) or an unsure source cannot be listed:
+     *  the server answers 400 MOTION_SOURCE_NOT_LISTABLE, and a missing source
+     *  400 MOTION_SOURCE_REQUIRED. */
+    source?: 'original' | 'licensed_resale';
+    /** Motions: the body type the motion is made for (e.g. `humanoid`). */
+    body_type?: string;
 }
 
 export interface ImageGenerationOptions {
