@@ -46,7 +46,7 @@ export interface LipSyncFrame {
 export interface PrometheusConfig {
     /** DOM element to mount the avatar canvas into */
     container: HTMLElement;
-    /** URL to the Live2D model file (.model3.json) */
+    /** URL to a 2D model file (.model3.json). For the hosted 3D character, use the embed bridge (connectEmbed). */
     modelUrl: string;
     /** Optional TTS engine (defaults to Web Speech API) */
     ttsEngine?: ITTSEngine;

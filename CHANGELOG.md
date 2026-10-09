@@ -6,6 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased] — core 0.11.4 · mcp-server 0.3.6 · openclaw-plugin 0.10.3
+
+Not published. npm republish waits for JC, together with the unpublished bumps above
+and on `feat/voice-asr-realtime`. Publish order stays core → mcp-server → openclaw-plugin.
+
+### Added
+- **core**: `connectEmbed` / `EmbedBridge` drive the hosted embed page from a parent page.
+  Emotion and state are queued until the embed posts `prometheus:ready`, then sent once in
+  order; `speak` is held until it posts `prometheus:loaded`; messages go to the embed's own
+  origin only, and incoming ones are accepted only from that origin and that iframe. If no
+  `prometheus:ready` arrives within 8 s (an older embed), everything is sent as before; if
+  `prometheus:loaded` does not follow within 30 s, held `speak` messages are sent anyway.
+- **core**: `AssetDeployConfig` gains `persona_config`, `source` and `body_type`; `license`
+  accepts `mit`. **openclaw-plugin**: `prometheus_deploy_asset` passes them through.
+- **mcp-server**: `create_avatar` passes the Agent API's `warning` through.
+
+### Changed
+- Public text in core, mcp-server and openclaw-plugin no longer names the 2D runtime: it says
+  "2D avatar" / "2D model file (.model3.json)", or describes the default 3D character and a
+  `.glb` / `.vrm` URL. The renderer class is now `AvatarRenderer`; the old class name is a
+  deprecated alias.
+
+### Agent API contract (marketplace)
+- `POST /api/agent/avatar`: omit `model` for the default 3D character or pass a `.glb` / `.vrm`
+  URL. The 2D sample names are still accepted but currently fall back to the default character,
+  and the response carries `warning`.
+- `POST /api/marketplace/deploy`, category `personas`: the prompt comes from `persona_config` or
+  a persona file; the public description is never the prompt.
+- Motions need `source` (`original` | `licensed_resale`); library clips without resale rights
+  cannot be listed.
+
 ## [Unreleased] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
 
 ### ⚠️ Release order (hard dependency — do not publish out of order)

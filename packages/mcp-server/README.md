@@ -1,6 +1,6 @@
 # @prometheusavatar/mcp-server
 
-Give any AI agent an embodied Live2D avatar via [Model Context Protocol](https://modelcontextprotocol.io).
+Give any AI agent an embodied 3D avatar via [Model Context Protocol](https://modelcontextprotocol.io).
 
 ```bash
 npx @prometheusavatar/mcp-server
@@ -10,7 +10,7 @@ npx @prometheusavatar/mcp-server
 
 | Tool | Description |
 |------|-------------|
-| `create_avatar` | Initialize a new avatar instance with model, voice, and persona |
+| `create_avatar` | Initialize a new avatar instance with model, voice, and persona. Leave `model` out for the default 3D character or pass a `.glb` / `.vrm` URL |
 | `set_avatar_state` | **NEW v0.3.5** Push companion state (thinking/acting/listening/done) + emotion to live embeds — open embed pages pick it up within ~3s |
 | `equip_asset` | Equip a purchased marketplace asset (skins, voices, effects, etc.) — unequip is not supported for agent accounts yet; equipping in the same category replaces |
 | `generate_asset` | AI-generate new assets from text prompts (persona, expression, scene, etc.) |
@@ -82,6 +82,12 @@ Add to `claude_desktop_config.json`:
 > 1. Calls `generate_image_pro` with `{ style: 'cyberpunk', task: 'aaa_skin', size: '1024x1536', quality: 'high', prompt: '3D cel-shaded engine render, cyberpunk anime girl, neon hair...' }` (Twin Prompt-Is-The-Ceiling rule — recommend ≥100-word prompt with explicit AAA benchmark named for best quality)
 > 2. Returns 1024×1536 base64 image (or `publicUrl` when `upload: true`) — ready to ship to marketplace as a skin preview card
 > 3. Cost reported per call (Free quota / Pro Credits / BYOK $0)
+
+## Changes in 0.3.6
+
+- `create_avatar`: leave `model` out for the default 3D character, or pass an https `.glb` / `.vrm` URL. The 2D sample names (`haru`, `shizuku`, `koharu`) are still accepted but currently show the default 3D character; the result then carries `warning` (passed through from `POST /api/agent/avatar`).
+- `speak` / `share_avatar`: a page that frames the embed sends `prometheus:speak` only after the embed's `prometheus:loaded` message (or greets with `?speak=`); emotion and state wait for `prometheus:ready`. `connectEmbed` in `@prometheusavatar/core` 0.11.4 does this for you.
+- Deploying a persona through the Agent API needs `persona_config` or a persona file; the public description is never the prompt. Motions need `source` (`original` or `licensed_resale`).
 
 ## Links
 
