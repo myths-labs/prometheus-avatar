@@ -151,6 +151,30 @@ Returns `CreateImageResult`:
 
 **Forge UI live at** [prometheus.mythslabs.ai/marketplace/create](https://prometheus.mythslabs.ai/marketplace/create) — visual 7-style picker reference.
 
+## MemoryBridge (Node.js)
+
+Shares a local memory file (JSON / TXT / MD) with the Prometheus app over a local WebSocket. The app reads the file
+when it connects and whenever it changes, and appends each conversation to it at the end of a session.
+
+```ts
+import { MemoryBridge } from '@prometheusavatar/core';
+
+const bridge = new MemoryBridge({ memoryFilePath: './memory.md' }); // ws://127.0.0.1:8765
+await bridge.start();
+```
+
+Then in the app: Settings → SDK Memory Bridge → on (default URL `ws://localhost:8765`).
+
+Defaults that protect the file (since 0.11.4):
+
+| Option | Default | What it does |
+|--------|---------|--------------|
+| `host` | `"127.0.0.1"` | Listens on this machine only. A non-loopback value such as `"0.0.0.0"` prints a warning; use it only on a network you trust. |
+| `allowedOrigins` | `MEMORY_BRIDGE_DEFAULT_ORIGINS` | Browser pages allowed to connect: `https://prometheus.mythslabs.ai` and pages served from `localhost` / `127.0.0.1` / `[::1]` on any port. Other sites get HTTP 403. Spread the default list to add your own origin. Connections without an `Origin` header (Node clients) are allowed. |
+| `allowedHosts` | — | Extra names accepted in the `Host` header besides `localhost`, `127.0.0.1`, `[::1]` and an explicit `host`. |
+| `maxPayloadBytes` | 1 MiB | Larger messages close the connection. |
+| `maxMemoryFileBytes` | 10 MiB | A conversation that would grow the file past this is not written; the client gets `{ type: "error", data: { code: "memory_file_full" } }`. |
+
 ## Architecture
 
 ```
