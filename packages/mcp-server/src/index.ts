@@ -2,7 +2,7 @@
 /**
  * Prometheus Avatar MCP Server (S068 · Phase 11 Day 3 — version lives in package.json only, see PKG_VERSION below)
  *
- * Model Context Protocol server that exposes 10 tools for AI agents
+ * Model Context Protocol server that exposes 17 tools for AI agents
  * to interact with the Prometheus Avatar platform:
  *
  *   1. create_avatar       — Initialize an avatar instance
@@ -15,6 +15,15 @@
  *   5. get_avatar_status   — Get current avatar state
  *   6. share_avatar        — Generate a shareable link for an avatar
  *   7. speak               — Make the avatar speak text with TTS
+ *
+ *  Workspace tools (workspace-tools.ts) — what the agent produces lands in the user's
+ *  Prometheus workspace panes:
+ *   8. save_work            — Save Markdown work output (Work pane)
+ *   9. upsert_task          — Add or update a to-do (To-do pane)
+ *  10. complete_task        — Mark a to-do done
+ *  11. log_visited_page     — Record a page the agent visited (browse list)
+ *  12-14. prometheus_read_workspace / prometheus_save_workspace_entry /
+ *         prometheus_get_workspace_operation — low-level read, exact save, receipt lookup
  * 
  * Usage:
  *   npx @prometheusavatar/mcp-server
@@ -34,6 +43,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { createRequire } from "node:module";
+import { registerWorkspaceTools } from "./workspace-tools.js";
 
 // Read the version from package.json at runtime. It used to be typed in by
 // hand in two places and both had drifted: serverInfo said 0.3.2 while the
@@ -729,6 +739,8 @@ MIT — Myths Labs
 // ═══════════════════════════════════════════════════════════════
 
 async function main() {
+    // Workspace tools are built lazily inside, so a bad PROMETHEUS_API_URL cannot stop the other tools from starting.
+    toolCount += registerWorkspaceTools(server, API_BASE, API_KEY, PKG_VERSION);
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error(`[Prometheus MCP] Server started — ${toolCount} tools available`);
