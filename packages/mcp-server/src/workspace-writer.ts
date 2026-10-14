@@ -21,6 +21,12 @@ export interface WriterOptions {
     newId?: () => string;
     /** How many pages (of 20 entries, newest first) are read back when an entry has to be found. Default 15, i.e. the 300 newest entries. */
     maxScanPages?: number;
+    /**
+     * Total time one call may spend on everything it reads before it writes: the account lookup and the read-back
+     * that finds an entry (complete_task, or after a 409). Default 60 000 ms. When it runs out the call stops with
+     * `workspace_lookup_timeout`, and nothing has been changed. The single write that may follow keeps its own request timeout.
+     */
+    lookupTimeoutMs?: number;
     /** An identical call within this window of a success is answered from memory. Default 120 000 ms. */
     recentWindowMs?: number;
 }
@@ -117,6 +123,7 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
     const clock = options.now ?? (() => new Date());
     const newId = options.newId ?? newWorkspaceUuid;
     const maxScanPages = options.maxScanPages ?? 15;
+    const lookupTimeoutMs = options.lookupTimeoutMs ?? 60_000;
     const recentWindowMs = options.recentWindowMs ?? 120_000;
     let accountMemo: string | undefined;
     let categoriesMemo: WorkspaceCategory[] | undefined;
@@ -129,7 +136,7 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
     const recent = new Map<string, { result: WriteResult; at: number }>();
     const inflight = new Map<string, Promise<WriteResult>>();
 
-    /** The account behind the key: memory, then the state file, then one read (which also tells which categories exist). */
+    /** The account behind the key: memory, then the state folder, then one read (which also tells which categories exist). */
     async function ensureAccount(signal: AbortSignal, force = false): Promise<string> {
         if (!force) {
             accountMemo ??= state.getAccount();
@@ -155,6 +162,29 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
         const read = refresh || !categoriesMemo;
         if (read) await ensureAccount(signal, true);
         return { list: categoriesMemo ?? [], fresh: read };
+    }
+
+    /** One shared time budget for the reads a single call makes before it writes. Aborting it is not the caller cancelling. */
+    function lookupBudget(signal: AbortSignal) {
+        const timer = AbortSignal.timeout(lookupTimeoutMs);
+        return { signal: AbortSignal.any([signal, timer]), expired: () => timer.aborted && !signal.aborted };
+    }
+    type LookupBudget = ReturnType<typeof lookupBudget>;
+    const lookupTimedOut = (spec: Spec): WorkspaceAgentError => {
+        const seconds = Math.max(1, Math.round(lookupTimeoutMs / 1000)), unit = seconds === 1 ? 'second' : 'seconds';
+        return new WorkspaceAgentError('workspace_lookup_timeout', spec.existingOnly
+            ? `Looking for this task in the ${spec.category} category took longer than ${seconds} ${unit}, so it was not found in time and nothing was changed. The website may be slow, or the task is far back. You may try once more later; if it times out again, tell the user the task could not be completed and ask them to tick it off in their To-do pane.`
+            : `Reading the entry back from the website took longer than ${seconds} ${unit}, so the call stopped and nothing was saved. The website may be slow. Try again in a moment.`,
+        { field: spec.existingOnly ? 'task_id' : undefined, outcome: 'not_sent' });
+    };
+    /** Runs a read that may only use what is left of the budget; running out becomes `workspace_lookup_timeout`, not "cancelled". */
+    async function withinBudget<T>(budget: LookupBudget, spec: Spec, read: (signal: AbortSignal) => Promise<T>): Promise<T> {
+        if (budget.expired()) throw lookupTimedOut(spec);
+        try { return await read(budget.signal); }
+        catch (error) {
+            if (budget.expired() && error instanceof WorkspaceAgentError && error.code === 'workspace_cancelled') throw lookupTimedOut(spec);
+            throw error;
+        }
     }
 
     /** Newest-first read-back of a category until the entry turns up. `complete` is false when the scan stopped before the end. */
@@ -186,12 +216,13 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
     });
 
     async function write(spec: Spec, signal: AbortSignal): Promise<WriteResult> {
-        let accountId = await ensureAccount(signal);
+        const budget = lookupBudget(signal);
+        let accountId = await withinBudget(budget, spec, read => ensureAccount(read));
         const pending = state.getPending(spec.intent);
         const entryId = spec.entryId ?? pending?.entryId ?? newId();
         let existing: WorkspaceEntry | null = null, fresh = false;
         if (spec.existingOnly) {
-            const found = await findEntry(spec.category, entryId, signal);
+            const found = await withinBudget(budget, spec, read => findEntry(spec.category, entryId, read));
             if (!found.entry) { state.deletePending(spec.intent); throw notFound(spec, found.complete); }
             existing = found.entry; fresh = true;
         } else existing = known.get(entryId) ?? null;
@@ -235,7 +266,7 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                 if (conflict && !resynced) {
                     // The entry already exists / changed, or this operation id was spent on an earlier version: read the truth back and decide again.
                     resynced = true; state.deletePending(spec.intent); known.delete(entryId);
-                    const found = await findEntry(spec.category, entryId, signal);
+                    const found = await withinBudget(budget, spec, read => findEntry(spec.category, entryId, read));
                     if (!found.entry) throw notFound(spec, found.complete);
                     existing = found.entry; fresh = true;
                     continue;

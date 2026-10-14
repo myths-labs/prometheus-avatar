@@ -401,3 +401,70 @@ test('complete_task: a task whose id is not an RFC version-4 UUID (the website\'
         assert.equal((await h.writer.completeTask({ task_id: 'ABCDEF00-0000-0000-0000-00000000000A' }, signal())).entry_id, upper.id);
     } finally { await h.stop(); }
 });
+
+// A site with 60 tasks and a target on the third page; every read is slow. lookupTimeoutMs is the whole budget for reading before writing.
+const slowReads = (site, delayMs) => { site.intercept = ctx => ctx.isWrite ? undefined : { delayMs }; };
+function crowdedTodo(site) {
+    const oldest = site.addEntry({ category_id: 'todo', kind: 'task', content: 'The oldest task', status: 'open', inputMode: 'manual' });
+    for (let i = 0; i < 59; i++) site.addEntry({ category_id: 'todo', kind: 'task', content: `Task ${i}`, status: 'open', inputMode: 'manual' });
+    return oldest;
+}
+
+test('complete_task: the search for a task has one total time limit; when it runs out nothing is written and the model is told so', async () => {
+    const h = await harness({}, { writerOptions: { lookupTimeoutMs: 1000 } });
+    try {
+        const oldest = crowdedTodo(h.site);
+        slowReads(h.site, 800); // account lookup 0.8 s, then the first page would end at 1.6 s: past the limit. The whole search would take 3.2 s.
+        const started = Date.now();
+        await rejects(h.writer.completeTask({ task_id: oldest.id }, signal()), 'workspace_lookup_timeout', error => {
+            assert.equal(error.outcome, 'not_sent');
+            assert.match(error.message, /longer than 1 second\b/);
+            assert.match(error.message, /nothing was changed/i);
+            assert.equal(error.details.field, 'task_id');
+        });
+        assert.ok(Date.now() - started < 2400, `gave up at the limit, not after the whole search (${Date.now() - started} ms)`);
+        assert.equal(posts(h.site).length, 0, 'nothing was written');
+        assert.ok(h.site.requests.length <= 2, `no page was started after the limit (${h.site.requests.length} requests)`);
+        // The same writer, once the website is quick again, finds it (nothing was left half done).
+        h.site.intercept = null;
+        assert.equal((await h.writer.completeTask({ task_id: oldest.id }, signal())).status, 'done');
+    } finally { await h.stop(); }
+});
+
+test('complete_task: a request that never answers is cut at the limit, not at the 30 second request timeout', { timeout: 15_000 }, async () => {
+    const h = await harness({}, { writerOptions: { lookupTimeoutMs: 800 } });
+    try {
+        slowReads(h.site, 600_000);
+        const started = Date.now();
+        await rejects(h.writer.completeTask({ external_key: 'never-answered' }, signal()), 'workspace_lookup_timeout', error => assert.equal(error.outcome, 'not_sent'));
+        assert.ok(Date.now() - started < 5000, `${Date.now() - started} ms`);
+        assert.equal(posts(h.site).length, 0);
+    } finally { await h.stop(); }
+});
+
+test('the limit does not turn the caller cancelling into a timeout: that stays "cancelled"', async () => {
+    const h = await harness();
+    try {
+        slowReads(h.site, 600_000);
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 150);
+        await rejects(h.writer.completeTask({ external_key: 'cancelled-by-caller' }, controller.signal), 'workspace_cancelled');
+    } finally { await h.stop(); }
+});
+
+test('the read-back after a 409 is inside the same limit: upsert_task stops, saves nothing, says so', async () => {
+    const h = await harness({}, { writerOptions: { lookupTimeoutMs: 1500 } });
+    try {
+        await h.writer.upsertTask({ text: 'Already there', external_key: 'same-key' }, signal());
+        const second = h.start(); // a new process: it does not know the entry, so its create is answered 409 and it has to read the entry back
+        slowReads(h.site, 800); // the account lookup takes 0.8 s of the 1.5 s; the read-back would need another 0.8 s
+        const writes = posts(h.site).length;
+        await rejects(second.writer.upsertTask({ text: 'Already there, edited', external_key: 'same-key' }, signal()), 'workspace_lookup_timeout', error => {
+            assert.equal(error.outcome, 'not_sent');
+            assert.match(error.message, /nothing was saved/i);
+        });
+        assert.equal(posts(h.site).length, writes + 1, 'only the create that was answered 409; no further write');
+        h.site.intercept = null;
+        assert.equal((await second.writer.upsertTask({ text: 'Already there, edited', external_key: 'same-key' }, signal())).action, 'updated');
+    } finally { await h.stop(); }
+});

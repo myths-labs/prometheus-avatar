@@ -43,7 +43,8 @@ const pgTime = date => date.toISOString().replace(/Z$/, '') + '000+00:00'; // li
  * options.port: listen on this port only (the by-hand end-to-end run uses 3486). Default: first free port of 54860-54869.
  * options.cap / site.cap: the K5b limit of entries that are not archived in work, todo and browse (2,000 on the website).
  *   A new entry, or one taken out of the archive, beyond it is answered 422 { error, code: WORKSPACE_CATEGORY_FULL }.
- * site.intercept: (ctx) => undefined | {drop:'before'|'after'} | {status, body, headers} — failure injection.
+ * site.intercept: (ctx) => undefined | {drop:'before'|'after'} | {status, body, headers} | {delayMs} — failure injection.
+ *   {delayMs} holds the request that long (or until the client gives up) and then answers normally; a request the client abandoned is not answered.
  */
 export async function startFakeSite(options = {}) {
     const accountId = options.accountId ?? randomUUID();
@@ -95,6 +96,10 @@ export async function startFakeSite(options = {}) {
 
         const injected = site.intercept?.({ ...log, writes: requests.filter(r => r.method === 'POST').length, isWrite: write });
         if (injected?.drop === 'before') { log.status = 'dropped-before'; req.socket.destroy(); return; }
+        if (injected?.delayMs) {
+            await new Promise(resolve => { const timer = setTimeout(resolve, injected.delayMs); req.socket.once('close', () => { clearTimeout(timer); resolve(); }); });
+            if (req.socket.destroyed) { log.status = 'abandoned'; return; }
+        }
         if (injected?.status) return send(injected.status, injected.body ?? { error: 'injected' }, injected.headers);
 
         if (url.pathname !== '/api/agent/workspace') return fail(404, 'Not found');

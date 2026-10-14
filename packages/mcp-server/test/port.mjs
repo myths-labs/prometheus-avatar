@@ -19,12 +19,18 @@ function tryListen(server, port) {
     });
 }
 
-/** Listen on `ports` (first free one wins); wait and try again while all of them are busy. */
+// Each website takes the port after the one the previous website of this process used, so a website that was shut down a moment
+// ago (its sockets may still be on their way out, for example after a request the client gave up on) is not met again by the next
+// test's first request on the very same port.
+let nextIndex = 0;
+
+/** Listen on `ports` (first free one, starting after the last one used by this process, wins); wait and try again while all of them are busy. */
 export async function listenOnFreePort(server, { ports = TEST_PORT_RANGE, waitMs = 120_000 } = {}) {
     const deadline = Date.now() + waitMs;
     for (;;) {
-        for (const port of ports) {
-            try { await tryListen(server, port); return port; }
+        for (let step = 0; step < ports.length; step++) {
+            const index = (nextIndex + step) % ports.length, port = ports[index];
+            try { await tryListen(server, port); nextIndex = (index + 1) % ports.length; return port; }
             catch (error) { if (error.code !== 'EADDRINUSE') throw error; }
         }
         if (Date.now() > deadline) throw new Error(`no free port among ${ports.join(', ')}: they are reserved for the K10 fake website`);
