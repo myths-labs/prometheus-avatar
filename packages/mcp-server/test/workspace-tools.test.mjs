@@ -135,3 +135,40 @@ test('a full category (422) reaches the model as final: nothing saved, do not re
         assert.equal(site.list('todo').length, 0);
     } finally { await mcp.close(); await site.close(); }
 });
+
+test('the exact-control tools take every id the website takes: any 8-4-4-4-12 hex, like the official account 00000000-0000-0000-0000-000000000001', async () => {
+    const OFFICIAL = '00000000-0000-0000-0000-000000000001';
+    const site = await startFakeSite({ accountId: OFFICIAL });
+    const mcp = await connect(site.url, site.key);
+    try {
+        const read = await mcp.call('prometheus_read_workspace', { category: 'work', account_id: OFFICIAL });
+        assert.equal(read.result.isError, undefined, JSON.stringify(read.json));
+        assert.equal(read.json.accountId, OFFICIAL);
+        const operationId = '00000000-0000-0000-0000-0000000000a1', entryId = '00000000-0000-0000-0000-000000000002';
+        const saved = await mcp.call('prometheus_save_workspace_entry', {
+            account_id: OFFICIAL, operation_id: operationId,
+            entry: { entryId, expectedRevision: 0, categoryId: 'work', kind: 'message', content: 'Saved under the official account', occurredAt: '2026-10-14T01:30:00.000Z', role: 'assistant', inputMode: 'agent', status: null, dueOn: null, archived: false },
+        });
+        assert.equal(saved.result.isError, undefined, JSON.stringify(saved.json));
+        assert.equal(saved.json.entry.id, entryId);
+        // upper case is the same id
+        const receipt = await mcp.call('prometheus_get_workspace_operation', { account_id: OFFICIAL.toUpperCase(), operation_id: operationId.toUpperCase() });
+        assert.equal(receipt.result.isError, undefined, JSON.stringify(receipt.json));
+        assert.equal(receipt.json.operation.entry.content, 'Saved under the official account');
+    } finally { await mcp.close(); await site.close(); }
+});
+
+test('ids that are not 8-4-4-4-12 hexadecimal digits are still refused before anything is sent', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        const bad = ['not-a-uuid', '0000000-0000-0000-0000-000000000001', 'g0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000011', ' 00000000-0000-0000-0000-000000000001'];
+        for (const id of bad) {
+            for (const [tool, args] of [['prometheus_read_workspace', { account_id: id }], ['prometheus_get_workspace_operation', { account_id: site.accountId, operation_id: id }]]) {
+                const result = await mcp.client.callTool({ name: tool, arguments: args }).catch(error => ({ isError: true, content: [{ text: String(error.message) }] }));
+                assert.equal(result.isError, true, `${tool} with ${JSON.stringify(id)}`);
+            }
+        }
+        assert.equal(site.requests.length, 0, 'none of them reached the website');
+    } finally { await mcp.close(); await site.close(); }
+});

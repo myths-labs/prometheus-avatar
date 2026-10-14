@@ -390,3 +390,14 @@ test('category full (422, K5b): a new entry is refused once and not retried; edi
         assert.equal(r.site.list('todo').length, 1);
     } finally { await r.stop(); }
 });
+
+test('complete_task: a task whose id is not an RFC version-4 UUID (the website\'s own ids are any 8-4-4-4-12 hex) is found and completed', async () => {
+    const h = await harness();
+    try {
+        const odd = h.site.addEntry({ id: '00000000-0000-0000-0000-000000000003', category_id: 'todo', kind: 'task', content: 'Official task', status: 'open', inputMode: 'manual' });
+        const done = await h.writer.completeTask({ task_id: '00000000-0000-0000-0000-000000000003' }, signal());
+        assert.deepEqual([done.saved, done.status, done.entry_id], [true, 'done', odd.id]);
+        const upper = h.site.addEntry({ id: 'abcdef00-0000-0000-0000-00000000000a', category_id: 'todo', kind: 'task', content: 'Upper-case id', status: 'open', inputMode: 'manual' });
+        assert.equal((await h.writer.completeTask({ task_id: 'ABCDEF00-0000-0000-0000-00000000000A' }, signal())).entry_id, upper.id);
+    } finally { await h.stop(); }
+});

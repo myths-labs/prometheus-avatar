@@ -13,7 +13,14 @@
  *    cannot interpret (for example an entry kind that does not exist yet) are skipped and counted, not
  *    turned into a failure of the whole read.
  */
-export const workspaceUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+/**
+ * What the website calls a UUID: any 8-4-4-4-12 hexadecimal digits, upper or lower case. The version and variant digits are
+ * not checked (the website's own official account is 00000000-0000-0000-0000-000000000001), so this package must not check
+ * them either: a stricter check here would refuse an id the website hands out. Written without the `i` flag so that the same
+ * text can be used as the `pattern` of a tool's input schema.
+ */
+export const workspaceUuidPattern = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+export const workspaceUuid = new RegExp(workspaceUuidPattern);
 export const workspaceContentMaximumBytes = 65536;
 // JSON can escape one content byte as six bytes; allow the validated envelope too.
 export const workspaceRequestMaximumBytes = workspaceContentMaximumBytes * 6 + 4096;
