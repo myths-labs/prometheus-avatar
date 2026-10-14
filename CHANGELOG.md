@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased] — mcp-server 0.3.6
+
+### Added
+- **mcp-server**: seven workspace tools (17 tools total) that put what an agent produces into the user's
+  Prometheus workspace panes:
+  - for models: `save_work` (Markdown to the Work pane), `upsert_task` (to-do with an optional due date),
+    `complete_task`, `log_visited_page` (http/https pages the agent visited). The model gives the least it can;
+    entry id, operation id, millisecond timestamp, account header, role and input mode are produced locally.
+  - kept for exact control: `prometheus_read_workspace`, `prometheus_save_workspace_entry`,
+    `prometheus_get_workspace_operation`.
+  - `external_key` derives the entry id deterministically (UUIDv5), so repeating a call updates the same entry;
+    an unconfirmed write (network drop, timeout, 5xx) is remembered with its operation id and replayed unchanged,
+    so a retry never creates a second entry; a 409 re-reads the entry and retries once.
+  - errors say which field is wrong, whether anything was saved, and what to do next.
+  - README: setup for Claude Desktop, Claude Code and Cursor, and a standing-rule snippet for each.
+- **mcp-server**: reads (snapshots, receipts) ignore keys they do not know, so a website that adds fields later
+  does not break installed copies. Requests still follow the website's current shape exactly.
+
+### Notes for the release
+- Needs the website's `/api/agent/workspace` route (in production). `log_visited_page` additionally needs the
+  `browse` category (not in the database yet): until it exists the tool says so and saves nothing, then starts
+  working by itself, with no new package version.
+- No ordering dependency on `core` or `openclaw-plugin`.
+
+---
+
 ## [Unreleased] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
 
 ### ⚠️ Release order (hard dependency — do not publish out of order)
