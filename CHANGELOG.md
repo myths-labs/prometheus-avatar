@@ -41,7 +41,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
+## [Unreleased] — core 0.11.4
+
+Not published. Security release candidate: core only. mcp-server does not depend on core, and
+openclaw-plugin (`^0.11.3`) does not use MemoryBridge and picks up 0.11.4 on a fresh install,
+so neither needs a new version.
+
+### Security
+- **core**: `MemoryBridge` listens on `127.0.0.1` by default (new `host` option; a non-loopback
+  value prints a warning). It refuses browser connections from origins other than the Prometheus
+  app and pages served from this machine (new `allowedOrigins` option, default
+  `MEMORY_BRIDGE_DEFAULT_ORIGINS`) and Host headers that do not name this machine (new
+  `allowedHosts` option). Incoming messages are capped at 1 MiB (`maxPayloadBytes`) and client
+  writes cannot grow the memory file past 10 MiB (`maxMemoryFileBytes`). In 0.11.0–0.11.3 the
+  bridge listened on every network interface and did not check where a connection came from.
+  Upgrade if you run `MemoryBridge`.
+
+### Changed
+- **core**: `conversation_sync` keeps only `user` / `assistant` entries with text content.
+  `status` includes `host`; `address` returns the listening address. With `port: 0` the bridge
+  reports the port it was given.
+
+---
+
+## [core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2] — 2026-07-30
 
 ### ⚠️ Release order (hard dependency — do not publish out of order)
 

@@ -12,7 +12,7 @@ export { LipSyncEngine } from './lip-sync';
 export { EmotionAnalyzer } from './emotion';
 export { AssetManager } from './asset-manager';
 export { AssetCreator } from './creator';
-export { MemoryBridge } from './memory-bridge';
+export { MemoryBridge, MEMORY_BRIDGE_DEFAULT_ORIGINS } from './memory-bridge';
 export type { MemoryBridgeOptions, ConversationMessage, MemoryBridgeMessage } from './memory-bridge';
 export type {
     AssetCategory,
