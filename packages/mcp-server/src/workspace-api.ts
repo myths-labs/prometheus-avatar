@@ -72,7 +72,8 @@ const SITE_MESSAGES: Record<string, { code: string; field?: string; outcome?: Wo
 
 function fromHttp(status: number, siteMessage: string | undefined, retryAfterSeconds: number | undefined, writing: boolean): WorkspaceAgentError {
     const details = (extra: WorkspaceErrorDetails = {}): WorkspaceErrorDetails => ({ status, ...extra });
-    const known = siteMessage ? SITE_MESSAGES[siteMessage] : undefined;
+    // Own keys only: a sentence such as "constructor" or "__proto__" must not resolve to something inherited from Object.
+    const known = siteMessage && Object.prototype.hasOwnProperty.call(SITE_MESSAGES, siteMessage) ? SITE_MESSAGES[siteMessage] : undefined;
     if (known) return new WorkspaceAgentError(known.code, known.text, details({ field: known.field, outcome: known.outcome ?? 'rejected', siteMessage }));
     if (status === 401) return new WorkspaceAgentError('workspace_key_rejected', SITE_MESSAGES['Use an active Agent key with verified account ownership.'].text, details({ outcome: 'rejected' }));
     if (status === 403) return new WorkspaceAgentError('workspace_category_forbidden', SITE_MESSAGES['This Agent path is for work output and tasks.'].text, details({ outcome: 'rejected' }));
