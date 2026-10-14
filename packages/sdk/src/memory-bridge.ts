@@ -12,18 +12,75 @@
  * When the memory file changes on disk, the bridge pushes updates.
  * When the Web App produces new conversation data, it sends it
  * to the bridge, which writes back to the memory file.
+ *
+ * Security model:
+ *   - The server listens on 127.0.0.1 only unless `host` is set explicitly.
+ *   - A browser always sends an Origin header on a WebSocket handshake and page
+ *     scripts cannot change it, so a connection that carries an Origin must come
+ *     from an allowed origin (`allowedOrigins`). Any other web page is refused
+ *     with HTTP 403 before it can read or write the memory file.
+ *   - A connection without an Origin header is a non-browser client (a Node
+ *     process on this machine). It is allowed: a local process can already read
+ *     the memory file directly.
+ *   - The Host header must name this machine (localhost / 127.0.0.1 / [::1], the
+ *     explicit `host`, or `allowedHosts`), which defeats DNS rebinding.
+ *   - Incoming messages are capped (`maxPayloadBytes`) and the memory file never
+ *     grows past `maxMemoryFileBytes` through client writes.
  */
 
-import { readFileSync, writeFileSync, watchFile, unwatchFile, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, watchFile, unwatchFile, existsSync, mkdirSync, statSync } from "fs";
 import { dirname } from "path";
 import { WebSocket, WebSocketServer } from "ws";
+import type { AddressInfo } from "net";
+import type { IncomingMessage } from "http";
 import { EventEmitter } from "events";
+
+/**
+ * Origins allowed by default: the hosted Prometheus app and any page served
+ * from this machine (local development).
+ */
+export const MEMORY_BRIDGE_DEFAULT_ORIGINS: ReadonlyArray<string | RegExp> = Object.freeze([
+    "https://prometheus.mythslabs.ai",
+    /^https?:\/\/localhost(:\d{1,5})?$/,
+    /^https?:\/\/127\.0\.0\.1(:\d{1,5})?$/,
+    /^https?:\/\/\[::1\](:\d{1,5})?$/,
+]);
+
+/** Default cap for one incoming WebSocket message (1 MiB). */
+export const MEMORY_BRIDGE_DEFAULT_MAX_PAYLOAD_BYTES = 1024 * 1024;
+/** Default cap for the memory file size reachable through client writes (10 MiB). */
+export const MEMORY_BRIDGE_DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+const LOOPBACK_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"];
 
 export interface MemoryBridgeOptions {
     /** Absolute path to the local memory file */
     memoryFilePath: string;
     /** WebSocket server port (default: 8765) */
     port?: number;
+    /**
+     * Interface to listen on (default: "127.0.0.1", this machine only).
+     * A non-loopback value such as "0.0.0.0" exposes the memory file to your
+     * network and prints a warning; set it only on a network you trust.
+     */
+    host?: string;
+    /**
+     * Browser origins allowed to connect. Strings match the whole Origin exactly
+     * (case-insensitive), RegExps are tested against it. Replaces the default list
+     * (MEMORY_BRIDGE_DEFAULT_ORIGINS); spread that list to extend it.
+     * Connections without an Origin header (non-browser clients) are always allowed.
+     */
+    allowedOrigins?: ReadonlyArray<string | RegExp>;
+    /**
+     * Extra hostnames accepted in the Host header, in addition to localhost,
+     * 127.0.0.1, [::1] and an explicit non-wildcard `host`. Needed only when
+     * clients reach the bridge by another name (e.g. a LAN address with host "0.0.0.0").
+     */
+    allowedHosts?: ReadonlyArray<string>;
+    /** Largest accepted incoming message in bytes (default: 1 MiB). Larger messages close the connection (1009). */
+    maxPayloadBytes?: number;
+    /** Client writes that would grow the memory file past this many bytes are refused (default: 10 MiB). */
+    maxMemoryFileBytes?: number;
     /** File poll interval in ms (default: 1000) */
     watchInterval?: number;
     /** Callback when a conversation message arrives from the Web App */
@@ -37,14 +94,33 @@ export interface ConversationMessage {
 }
 
 export interface MemoryBridgeMessage {
-    type: "memory_update" | "conversation_sync" | "memory_request" | "ping" | "pong";
+    type: "memory_update" | "conversation_sync" | "memory_request" | "ping" | "pong" | "error";
     data?: any;
     timestamp: number;
+}
+
+/** True when `host` only reaches this machine. */
+export function isLoopbackHost(host: string): boolean {
+    const h = host.trim().toLowerCase().replace(/^\[(.*)\]$/, "$1");
+    return h === "localhost" || h === "::1" || /^127(\.\d{1,3}){3}$/.test(h) || /^::ffff:127(\.\d{1,3}){3}$/.test(h);
+}
+
+/** True when `origin` (an Origin header value) matches one of `allowed`. */
+export function isAllowedOrigin(origin: string, allowed: ReadonlyArray<string | RegExp>): boolean {
+    const o = origin.trim().toLowerCase();
+    return allowed.some((rule) =>
+        typeof rule === "string" ? rule.trim().toLowerCase().replace(/\/+$/, "") === o : rule.test(o),
+    );
 }
 
 export class MemoryBridge extends EventEmitter {
     private memoryFilePath: string;
     private port: number;
+    private host: string;
+    private allowedOrigins: ReadonlyArray<string | RegExp>;
+    private allowedHostnames: Set<string>;
+    private maxPayloadBytes: number;
+    private maxMemoryFileBytes: number;
     private watchInterval: number;
     private wss: WebSocketServer | null = null;
     private clients: Set<WebSocket> = new Set();
@@ -56,8 +132,33 @@ export class MemoryBridge extends EventEmitter {
         super();
         this.memoryFilePath = options.memoryFilePath;
         this.port = options.port ?? 8765;
+        this.host = options.host ?? "127.0.0.1";
+        this.allowedOrigins = options.allowedOrigins ?? MEMORY_BRIDGE_DEFAULT_ORIGINS;
+        this.allowedHostnames = new Set(LOOPBACK_HOSTNAMES);
+        if (options.host && !["0.0.0.0", "::", "[::]"].includes(options.host.trim())) {
+            const h = options.host.trim().toLowerCase();
+            this.allowedHostnames.add(h.includes(":") && !h.startsWith("[") ? `[${h}]` : h);
+        }
+        for (const h of options.allowedHosts ?? []) this.allowedHostnames.add(h.trim().toLowerCase());
+        this.maxPayloadBytes = options.maxPayloadBytes ?? MEMORY_BRIDGE_DEFAULT_MAX_PAYLOAD_BYTES;
+        this.maxMemoryFileBytes = options.maxMemoryFileBytes ?? MEMORY_BRIDGE_DEFAULT_MAX_FILE_BYTES;
         this.watchInterval = options.watchInterval ?? 1000;
         this.onConversation = options.onConversation;
+    }
+
+    /**
+     * Handshake check (ws `verifyClient`): refuse browsers from other origins and
+     * Host headers that do not name this machine (DNS rebinding).
+     */
+    private verifyHandshake(origin: string | undefined, req: IncomingMessage): { ok: true } | { ok: false; reason: string } {
+        const hostHeader = (req.headers.host ?? "").trim().toLowerCase();
+        const m = /^(\[[^\]]+\]|[^:]+)(?::(\d{1,5}))?$/.exec(hostHeader);
+        if (!m || !this.allowedHostnames.has(m[1])) return { ok: false, reason: `host ${JSON.stringify(hostHeader.slice(0, 100))}` };
+        if (m[2] !== undefined && Number(m[2]) !== this.port) return { ok: false, reason: `host port ${m[2]}` };
+        // No Origin header = not a browser (a local Node client). Browsers always send it.
+        if (origin === undefined) return { ok: true };
+        if (!isAllowedOrigin(origin, this.allowedOrigins)) return { ok: false, reason: `origin ${JSON.stringify(origin.slice(0, 100))}` };
+        return { ok: true };
     }
 
     /** Start the WebSocket server and file watcher */
@@ -78,19 +179,46 @@ export class MemoryBridge extends EventEmitter {
             // Read initial memory
             this.lastMemoryHash = this.readMemoryFile();
 
+            if (!isLoopbackHost(this.host)) {
+                console.warn(
+                    `[MemoryBridge] ⚠️ Listening on ${this.host}, not on this machine only. Other devices that can reach ` +
+                    `port ${this.port} may read and append to ${this.memoryFilePath} (non-browser clients send no Origin ` +
+                    `and are allowed). Use this only on a network you trust.`,
+                );
+            }
+
             // Start WebSocket server
-            this.wss = new WebSocketServer({ port: this.port }, () => {
+            const wss = new WebSocketServer({
+                host: this.host,
+                port: this.port,
+                maxPayload: this.maxPayloadBytes,
+                verifyClient: (info, done) => {
+                    const verdict = this.verifyHandshake(info.origin, info.req);
+                    if (verdict.ok) return done(true);
+                    console.warn(`[MemoryBridge] ⛔ Refused connection (${verdict.reason})`);
+                    done(false, 403, "Forbidden");
+                },
+            }, () => {
+                const address = wss.address();
+                if (address && typeof address === "object") this.port = address.port;
                 this.isRunning = true;
-                console.log(`[MemoryBridge] 🟢 WebSocket server listening on ws://localhost:${this.port}`);
+                this.startWatcher();
+                const shownHost = this.host.includes(":") ? `[${this.host}]` : this.host;
+                console.log(`[MemoryBridge] 🟢 WebSocket server listening on ws://${shownHost}:${this.port}`);
                 resolve();
             });
+            this.wss = wss;
 
-            this.wss.on("error", (err) => {
+            wss.on("error", (err) => {
                 console.error("[MemoryBridge] WebSocket server error:", err.message);
-                if (!this.isRunning) reject(err);
+                if (!this.isRunning) {
+                    wss.close();
+                    if (this.wss === wss) this.wss = null;
+                    reject(err);
+                }
             });
 
-            this.wss.on("connection", (ws) => {
+            wss.on("connection", (ws) => {
                 this.clients.add(ws);
                 console.log(`[MemoryBridge] 🔗 Client connected (${this.clients.size} total)`);
 
@@ -117,18 +245,26 @@ export class MemoryBridge extends EventEmitter {
                     this.clients.delete(ws);
                 });
             });
-
-            // Start file watcher
-            watchFile(this.memoryFilePath, { interval: this.watchInterval }, () => {
-                const newContent = this.readMemoryFile();
-                if (newContent !== this.lastMemoryHash) {
-                    this.lastMemoryHash = newContent;
-                    console.log("[MemoryBridge] 📁 Memory file changed, broadcasting...");
-                    this.broadcast({ type: "memory_update", data: newContent, timestamp: Date.now() });
-                    this.emit("memory_changed", newContent);
-                }
-            });
         });
+    }
+
+    /** Watch the memory file and broadcast changes (started once the server listens). */
+    private startWatcher(): void {
+        watchFile(this.memoryFilePath, { interval: this.watchInterval }, () => {
+            const newContent = this.readMemoryFile();
+            if (newContent !== this.lastMemoryHash) {
+                this.lastMemoryHash = newContent;
+                console.log("[MemoryBridge] 📁 Memory file changed, broadcasting...");
+                this.broadcast({ type: "memory_update", data: newContent, timestamp: Date.now() });
+                this.emit("memory_changed", newContent);
+            }
+        });
+    }
+
+    /** The address the server listens on (null before start / after stop). */
+    get address(): AddressInfo | null {
+        const address = this.wss?.address();
+        return address && typeof address === "object" ? address : null;
     }
 
     /** Stop the WebSocket server and file watcher */
@@ -164,6 +300,15 @@ export class MemoryBridge extends EventEmitter {
         this.updateMemory(updated);
     }
 
+    /** Current size of the memory file in bytes (0 when missing). */
+    private memoryFileBytes(): number {
+        try {
+            return statSync(this.memoryFilePath).size;
+        } catch {
+            return 0;
+        }
+    }
+
     /** Read the memory file */
     private readMemoryFile(): string {
         try {
@@ -179,15 +324,30 @@ export class MemoryBridge extends EventEmitter {
             case "conversation_sync":
                 // Web App sending conversation data → write to memory
                 if (msg.data && Array.isArray(msg.data)) {
-                    const messages = msg.data as ConversationMessage[];
-                    this.onConversation?.(messages);
-                    this.emit("conversation", messages);
+                    const messages = (msg.data as unknown[]).filter(isConversationMessage);
+                    if (messages.length === 0) break;
 
-                    // Append conversation summary to memory file
+                    // Append conversation summary to memory file, unless it would grow past the cap
                     const summary = messages
                         .map((m) => `[${m.role}] ${m.content}`)
                         .join("\n");
-                    this.appendMemory(`\n--- Conversation ${new Date().toISOString()} ---\n${summary}`);
+                    const entry = `\n--- Conversation ${new Date().toISOString()} ---\n${summary}`;
+                    const projected = this.memoryFileBytes() + Buffer.byteLength("\n" + entry, "utf-8");
+                    if (projected > this.maxMemoryFileBytes) {
+                        console.warn(
+                            `[MemoryBridge] ⛔ Conversation not saved: the memory file would reach ${projected} bytes ` +
+                            `(limit ${this.maxMemoryFileBytes}). Trim the file or raise maxMemoryFileBytes.`,
+                        );
+                        this.sendTo(ws, {
+                            type: "error",
+                            data: { code: "memory_file_full", limitBytes: this.maxMemoryFileBytes },
+                            timestamp: Date.now(),
+                        });
+                        break;
+                    }
+                    this.onConversation?.(messages);
+                    this.emit("conversation", messages);
+                    this.appendMemory(entry);
                 }
                 break;
 
@@ -228,8 +388,15 @@ export class MemoryBridge extends EventEmitter {
         return {
             running: this.isRunning,
             clients: this.clients.size,
+            host: this.host,
             port: this.port,
             memoryFilePath: this.memoryFilePath,
         };
     }
+}
+
+function isConversationMessage(m: unknown): m is ConversationMessage {
+    if (!m || typeof m !== "object") return false;
+    const { role, content } = m as { role?: unknown; content?: unknown };
+    return (role === "user" || role === "assistant") && typeof content === "string";
 }
