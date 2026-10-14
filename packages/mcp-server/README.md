@@ -183,9 +183,9 @@ You have the Prometheus tools. When you finish something I will want to keep (a 
 | `GEMINI_API_KEY` | For `generate_asset` | API key for asset generation |
 | `OPENAI_API_KEY` | For `generate_image_pro` (BYOK) | Your image-provider API key for BYOK — without this, platform Free quota / Pro Credits routes apply |
 | `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`). Must be `https://` with no path (`http://` only for localhost) |
-| `PROMETHEUS_MCP_STATE_DIR` | No | Where the workspace tools keep their small state file (default `~/.prometheus-mcp`). `off` keeps everything in memory |
+| `PROMETHEUS_MCP_STATE_DIR` | No | Where the workspace tools keep their small state files (default `~/.prometheus-mcp`). `off` keeps everything in memory |
 
-**What is stored on your machine:** `workspace-state.json` in that folder holds the account id behind your key and, only while a save is unconfirmed, its operation id, entry id and timestamp. It never contains your key (only a 16-character fingerprint of it), your text, titles or URLs. Delete the folder at any time; nothing breaks.
+**What is stored on your machine:** the `workspace-state` folder inside it holds one small file with the account id behind your key and, only while a save is unconfirmed, one small file per unconfirmed save with its operation id, entry id and timestamp. It never contains your key (only a 16-character fingerprint of it), your text, titles or URLs. Several MCP servers (for example Claude Desktop and Cursor) can use the same folder at once without erasing each other's entries. You can delete the folder at any time and the tools keep working. The one thing it guards against: if you delete it while a save is still unconfirmed, retrying that save can leave a duplicate entry, because the operation id that would have prevented it is gone.
 
 ## When something goes wrong
 
@@ -198,6 +198,7 @@ Every workspace error says what was wrong, whether anything was saved, and what 
 | `workspace_result_unconfirmed` | The connection dropped; it may or may not have been saved. Call again with the same arguments, which cannot duplicate |
 | `workspace_browse_unavailable` | The website does not have the visited-pages list yet; nothing saved, do not retry |
 | `workspace_category_full` | Work, To-do and Browse each hold at most 2,000 entries that are not archived; nothing saved, do not retry until you archive or delete some older entries |
+| `workspace_lookup_timeout` | Looking for the task (or reading an entry back) took longer than 60 seconds; nothing was changed. Try once more later |
 | `workspace_rate_limited` | The website is limiting how fast this key writes; wait and try again |
 
 ## Example Conversation
@@ -427,9 +428,9 @@ alwaysApply: true
 | `GEMINI_API_KEY` | `generate_asset` 需要 | 资产生成用的 API 密钥 |
 | `OPENAI_API_KEY` | `generate_image_pro`（自带密钥）需要 | 自带图像服务密钥；不填则走平台免费额度 / Pro 点数 |
 | `PROMETHEUS_API_URL` | 否 | 自定义 API 地址（默认 `https://prometheus.mythslabs.ai`）。必须是不带路径的 `https://`（只有本机地址允许 `http://`） |
-| `PROMETHEUS_MCP_STATE_DIR` | 否 | 工作区工具的小状态文件放哪（默认 `~/.prometheus-mcp`）。填 `off` 则只放内存 |
+| `PROMETHEUS_MCP_STATE_DIR` | 否 | 工作区工具的小状态文件放哪个文件夹（默认 `~/.prometheus-mcp`）。填 `off` 则只放内存 |
 
-**本机存了什么：** 该文件夹里的 `workspace-state.json` 只有你密钥对应的账户号，以及「保存结果尚未确认」期间的操作号、条目号和时间。里面没有你的密钥（只有密钥的 16 位指纹）、没有你的文字、标题或网址。随时可以删掉这个文件夹，不会有任何影响。
+**本机存了什么：** 该文件夹里的 `workspace-state` 子文件夹放着几个很小的文件：一个是你密钥对应的账户号；另外，只在「保存结果尚未确认」期间，每一次未确认的保存各有一个文件，记着它的操作号、条目号和时间。里面没有你的密钥（只有密钥的 16 位指纹）、没有你的文字、标题或网址。多个 MCP 服务（例如 Claude Desktop 和 Cursor）可以同时用同一个文件夹，不会互相覆盖。随时可以删掉这个文件夹，工具照常工作；只有一种情况会受影响：某次保存还没有确认时你把它删了，之后重试这次保存，可能多出一条重复的条目，因为本来用来防重复的操作号已经没了。
 
 ## 出错时
 
@@ -442,6 +443,7 @@ alwaysApply: true
 | `workspace_result_unconfirmed` | 连接断了，不知道有没有存上。用相同参数再调一次，不会重复 |
 | `workspace_browse_unavailable` | 网站还没有「访问过的页面」；没有保存，不要重试 |
 | `workspace_category_full` | Work、To-do、Browse 每类最多 2,000 条未归档条目；没有保存，先归档或删掉一些旧条目再试，不要直接重试 |
+| `workspace_lookup_timeout` | 查找那条待办（或把条目读回来）超过 60 秒；什么都没改。稍后再试一次 |
 | `workspace_rate_limited` | 网站在限制这把密钥的写入速度；稍等再试 |
 
 ## 对话示例
