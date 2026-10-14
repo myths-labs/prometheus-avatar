@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { ENTRY_KEYS, UUID, fixedClock, harness, signal } from './helpers.mjs';
+import { ENTRY_KEYS, UUID, fixedClock, harness, readTree, signal } from './helpers.mjs';
 import { deriveEntryId } from '../.test-build/workspace-ids.js';
 
 const rejects = (promise, code, check = () => {}) => assert.rejects(promise, error => { assert.equal(error.code, code, error.message); check(error); return true; });
@@ -153,9 +151,11 @@ test('the unfinished operation survives a restart of the MCP server (state file)
     try {
         h.site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { drop: 'after' } : undefined;
         await rejects(h.writer.upsertTask({ text: 'Renew passport (secret detail 7731)', due_on: '2026-11-03' }, signal()), 'workspace_result_unconfirmed');
-        const file = readFileSync(join(h.directory, 'workspace-state.json'), 'utf8');
-        assert.doesNotMatch(file, /secret detail 7731|Renew passport/, 'no content on disk');
-        assert.doesNotMatch(file, /pak_/, 'no key on disk');
+        const files = Object.values(readTree(h.directory)).filter(item => !item.directory);
+        const disk = files.map(item => item.text).join('\n');
+        assert.ok(files.length >= 2 && disk.includes(posts(h.site)[0].body.operationId), 'the operation id really is on disk (so the checks below are not vacuous)');
+        assert.doesNotMatch(disk, /secret detail 7731|Renew passport/, 'no content on disk');
+        assert.doesNotMatch(disk, /pak_/, 'no key on disk');
         const restarted = h.start();
         const result = await restarted.writer.upsertTask({ text: 'Renew passport (secret detail 7731)', due_on: '2026-11-03' }, signal());
         assert.equal(result.saved, true);

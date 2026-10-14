@@ -103,7 +103,7 @@ try {
     expect('reported as unknown, with the advice to repeat', lost.saved === false && lost.outcome === 'unknown_may_have_been_saved' && /exactly the same arguments/.test(lost.next_step), lost);
     expect('the website did keep it', site.list('work').filter(r => r.content.startsWith('Quarterly summary')).length === 1, null);
     await mcp.close();
-    mcp = await start(); // a new process: only the state file remembers the operation
+    mcp = await start(); // a new process: only the state folder remembers the operation
     const again = await step('save_work: same call after the MCP server was restarted', mcp, 'save_work', { content: 'Quarterly summary: revenue up 12%.' }, 'new process, same state directory');
     expect('retry returns the original entry', again.saved === true && again.action === 'created' && again.revision === 1, again);
     expect('still exactly one such entry (no duplicate)', site.list('work').filter(r => r.content.startsWith('Quarterly summary')).length === 1, null);

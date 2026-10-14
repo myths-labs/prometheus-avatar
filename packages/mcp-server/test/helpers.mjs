@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startFakeSite } from './fake-site.mjs';
@@ -24,3 +24,18 @@ export async function harness(siteOptions = {}, { clock, writerOptions = {}, per
 export const fixedClock = (iso = '2026-10-14T01:30:00.123Z') => { let t = Date.parse(iso); const clock = () => new Date(t); clock.advance = ms => { t += ms; }; return clock; };
 export const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 export const ENTRY_KEYS = ['archived', 'categoryId', 'content', 'dueOn', 'entryId', 'expectedRevision', 'inputMode', 'kind', 'occurredAt', 'role', 'status'];
+
+/** Everything under a state directory: relative path -> { directory, mode, text }. For checks on what the package leaves on disk. */
+export function readTree(root) {
+    const out = {};
+    const walk = relative => {
+        const path = relative ? join(root, relative) : root;
+        const info = statSync(path), mode = (info.mode & 0o777).toString(8);
+        if (info.isDirectory()) {
+            out[relative || '.'] = { directory: true, mode };
+            for (const name of readdirSync(path)) walk(relative ? join(relative, name) : name);
+        } else out[relative] = { directory: false, mode, text: readFileSync(path, 'utf8') };
+    };
+    walk('');
+    return out;
+}
