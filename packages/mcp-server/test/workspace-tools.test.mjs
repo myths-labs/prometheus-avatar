@@ -121,3 +121,17 @@ test('a bad PROMETHEUS_API_URL or a missing key does not stop the tools from reg
         assert.equal(site.requests.length, 0);
     } finally { await noKey.close(); await site.close(); }
 });
+
+test('a full category (422) reaches the model as final: nothing saved, do not retry, which category', async () => {
+    const site = await startFakeSite({ cap: 0 });
+    const mcp = await connect(site.url, site.key);
+    try {
+        const full = await mcp.call('upsert_task', { text: 'One more task' });
+        assert.equal(full.result.isError, true);
+        assert.deepEqual([full.json.saved, full.json.error, full.json.field, full.json.http_status, full.json.outcome],
+            [false, 'workspace_category_full', 'category', 422, 'nothing_was_saved']);
+        assert.match(full.json.next_step, /^Do not retry/);
+        assert.match(full.json.message, /2,000 active/);
+        assert.equal(site.list('todo').length, 0);
+    } finally { await mcp.close(); await site.close(); }
+});

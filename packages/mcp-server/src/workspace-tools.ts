@@ -9,6 +9,7 @@ const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: t
 
 function nextStep(code: string): string {
     if (code === 'workspace_browse_unavailable') return 'Do not retry now, and do not tell the user the page was logged. See message.';
+    if (code === 'workspace_category_full') return 'Do not retry. Tell the user this category is full and nothing was saved, and ask them to make room as described in message.';
     if (code === 'workspace_key_missing' || code === 'workspace_key_rejected') return 'Tell the user to fix the Agent key as described in message. Do not retry until they have.';
     if (code === 'workspace_rate_limited' || code === 'workspace_revision_conflict' || code === 'workspace_account_changed') return 'Wait a moment, then call this tool again.';
     if (code === 'workspace_invalid_api_url') return 'Tell the user to fix PROMETHEUS_API_URL as described in message.';

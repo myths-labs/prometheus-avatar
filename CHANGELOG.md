@@ -20,6 +20,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
     an unconfirmed write (network drop, timeout, 5xx) is remembered with its operation id and replayed unchanged,
     so a retry never creates a second entry; a 409 re-reads the entry and retries once.
   - errors say which field is wrong, whether anything was saved, and what to do next.
+  - a full category (HTTP 422 `WORKSPACE_CATEGORY_FULL`: work, todo and browse hold at most 2,000 entries that are not
+    archived) is reported as final (`workspace_category_full`): nothing saved, not retried, the user is asked to make room.
   - README: setup for Claude Desktop, Claude Code and Cursor, and a standing-rule snippet for each.
 - **mcp-server**: reads (snapshots, receipts) ignore keys they do not know, so a website that adds fields later
   does not break installed copies. Requests still follow the website's current shape exactly.

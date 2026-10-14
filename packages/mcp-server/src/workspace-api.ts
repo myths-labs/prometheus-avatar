@@ -36,6 +36,9 @@ function uuid(value: string, label: string): string {
     return value.toLowerCase();
 }
 
+const CATEGORY_FULL = { code: 'workspace_category_full', field: 'category', outcome: 'rejected' as const,
+    text: 'This workspace category is full: it already holds 2,000 active (not archived) entries, so nothing was saved. Do not retry; the same call will be refused until there is room. Ask the user to archive or delete some older entries in this category of their Prometheus workspace, then try again.' };
+
 /** The website's own error sentences (static strings in its route) mapped to what they mean for a caller of this package. */
 const SITE_MESSAGES: Record<string, { code: string; field?: string; outcome?: WorkspaceOutcome; text: string }> = {
     'Use an active Agent key with verified account ownership.': { code: 'workspace_key_rejected', outcome: 'rejected',
@@ -68,12 +71,22 @@ const SITE_MESSAGES: Record<string, { code: string; field?: string; outcome?: Wo
     'Use a valid category, cursor and page size.': { code: 'workspace_filter_rejected', field: 'category', outcome: 'rejected',
         text: 'The website rejected the read filter: category must be lowercase letters, digits, - or _; cursor must be a number returned as nextCursor; limit must be 1 to 50.' },
     'Use the original operation identifier.': { code: 'workspace_filter_rejected', field: 'operation_id', outcome: 'rejected', text: 'operation_id must be a UUID.' },
+    // HTTP 422 with code WORKSPACE_CATEGORY_FULL (work, todo and browse hold at most 2,000 entries that are not archived, per account).
+    // Final: the website stored no receipt, so nothing was saved and the same call fails the same way until there is room.
+    'This workspace category is full (2,000 entries). Nothing was saved. Do not retry; archive older entries to make room.': CATEGORY_FULL,
 };
+/** The website's machine-readable `code`, checked before the sentence so a reworded sentence still maps. */
+const SITE_CODES: Record<string, { code: string; field?: string; outcome?: WorkspaceOutcome; text: string }> = {
+    WORKSPACE_CATEGORY_FULL: CATEGORY_FULL,
+};
+const own = <T>(map: Record<string, T>, key: string | undefined): T | undefined =>
+    key !== undefined && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined;
 
-function fromHttp(status: number, siteMessage: string | undefined, retryAfterSeconds: number | undefined, writing: boolean): WorkspaceAgentError {
+function fromHttp(status: number, site: SiteError, retryAfterSeconds: number | undefined, writing: boolean): WorkspaceAgentError {
     const details = (extra: WorkspaceErrorDetails = {}): WorkspaceErrorDetails => ({ status, ...extra });
+    const siteMessage = site.error;
     // Own keys only: a sentence such as "constructor" or "__proto__" must not resolve to something inherited from Object.
-    const known = siteMessage && Object.prototype.hasOwnProperty.call(SITE_MESSAGES, siteMessage) ? SITE_MESSAGES[siteMessage] : undefined;
+    const known = own(SITE_CODES, site.code) ?? own(SITE_MESSAGES, siteMessage);
     if (known) return new WorkspaceAgentError(known.code, known.text, details({ field: known.field, outcome: known.outcome ?? 'rejected', siteMessage }));
     if (status === 401) return new WorkspaceAgentError('workspace_key_rejected', SITE_MESSAGES['Use an active Agent key with verified account ownership.'].text, details({ outcome: 'rejected' }));
     if (status === 403) return new WorkspaceAgentError('workspace_category_forbidden', SITE_MESSAGES['This Agent path is for work output and tasks.'].text, details({ outcome: 'rejected' }));
@@ -126,9 +139,9 @@ export function workspaceApi(apiBase: string, apiKey: string, version: string, o
                 headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'User-Agent': `PrometheusAvatar-MCP/${version}`,
                     ...(accountId ? { 'X-Workspace-Account': accountId } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
             if (!response.ok) {
-                const siteMessage = await readSiteMessage(response);
+                const site = await readSiteError(response);
                 const retryAfter = Number(response.headers.get('retry-after'));
-                throw fromHttp(response.status, siteMessage, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter) : undefined, writing);
+                throw fromHttp(response.status, site, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter) : undefined, writing);
             }
             const length = response.headers.get('content-length');
             if ((length !== null && (!/^\d+$/.test(length) || Number(length) > maxResponseBytes))
@@ -214,10 +227,18 @@ export function workspaceApi(apiBase: string, apiKey: string, version: string, o
 }
 export type WorkspaceApi = ReturnType<typeof workspaceApi>;
 
-/** The website's error body is `{ "error": "<sentence>" }`; read a bounded amount and return the sentence, or nothing. */
-async function readSiteMessage(response: Response): Promise<string | undefined> {
+interface SiteError { error?: string; code?: string }
+/**
+ * The website's error body is `{ "error": "<sentence>" }`, plus `"code"` on some answers (422 WORKSPACE_CATEGORY_FULL).
+ * Read a bounded amount and keep only those two strings; they are only ever used as lookup keys, never shown to the model.
+ */
+async function readSiteError(response: Response): Promise<SiteError> {
     try {
         const parsed = await readWorkspaceJson(response.body, undefined, 4096);
-        return record(parsed) && typeof parsed.error === 'string' && parsed.error.length <= 300 ? parsed.error : undefined;
-    } catch { return undefined; }
+        if (!record(parsed)) return {};
+        return {
+            ...(typeof parsed.error === 'string' && parsed.error.length <= 300 ? { error: parsed.error } : {}),
+            ...(typeof parsed.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(parsed.code) ? { code: parsed.code } : {}),
+        };
+    } catch { return {}; }
 }

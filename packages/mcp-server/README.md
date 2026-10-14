@@ -197,6 +197,7 @@ Every workspace error says what was wrong, whether anything was saved, and what 
 | `workspace_invalid_argument` with a `field` | The named argument is wrong (for example `due_on` must be a real date written `YYYY-MM-DD`); nothing was sent |
 | `workspace_result_unconfirmed` | The connection dropped; it may or may not have been saved. Call again with the same arguments, which cannot duplicate |
 | `workspace_browse_unavailable` | The website does not have the visited-pages list yet; nothing saved, do not retry |
+| `workspace_category_full` | Work, To-do and Browse each hold at most 2,000 entries that are not archived; nothing saved, do not retry until you archive or delete some older entries |
 | `workspace_rate_limited` | The website is limiting how fast this key writes; wait and try again |
 
 ## Example Conversation
@@ -440,6 +441,7 @@ alwaysApply: true
 | `workspace_invalid_argument` 并带 `field` | 指出的那个参数不对（例如 `due_on` 必须是真实日期，写成 `YYYY-MM-DD`）；什么都没发出去 |
 | `workspace_result_unconfirmed` | 连接断了，不知道有没有存上。用相同参数再调一次，不会重复 |
 | `workspace_browse_unavailable` | 网站还没有「访问过的页面」；没有保存，不要重试 |
+| `workspace_category_full` | Work、To-do、Browse 每类最多 2,000 条未归档条目；没有保存，先归档或删掉一些旧条目再试，不要直接重试 |
 | `workspace_rate_limited` | 网站在限制这把密钥的写入速度；稍等再试 |
 
 ## 对话示例

@@ -155,3 +155,26 @@ test('known website sentences are translated into what they mean; unknown ones n
         });
     }
 });
+
+test('422 WORKSPACE_CATEGORY_FULL (K5b) is final: rejected, names the category, sent once; matched by code or by sentence', async () => {
+    const sentence = 'This workspace category is full (2,000 entries). Nothing was saved. Do not retry; archive older entries to make room.';
+    for (const value of [{ error: sentence, code: 'WORKSPACE_CATEGORY_FULL' }, { error: 'A reworded sentence', code: 'WORKSPACE_CATEGORY_FULL' }, { error: sentence }]) {
+        await run(() => ({ status: 422, value }), async (api, calls) => {
+            await rejects(api.post(accountId, operationId, input, controller()), 'workspace_category_full', error => {
+                assert.equal(error.outcome, 'rejected');
+                assert.equal(error.details.field, 'category');
+                assert.equal(error.details.status, 422);
+                assert.match(error.message, /2,000 active/);
+                assert.match(error.message, /nothing was saved/);
+                assert.match(error.message, /Do not retry/);
+                assert.match(error.message, /archive or delete/);
+                assert.doesNotMatch(error.message, /reworded/, 'the website sentence itself is never passed on');
+            });
+            assert.equal(calls.filter(call => call.method === 'POST').length, 1, 'the request layer never repeats it');
+        });
+    }
+    // Another 422 stays the generic, unhandled answer.
+    await run(() => ({ status: 422, value: { error: 'Something else', code: 'SOMETHING_ELSE' } }), async api => {
+        await rejects(api.post(accountId, operationId, input, controller()), 'workspace_http_422', error => assert.equal(error.outcome, 'rejected'));
+    });
+});

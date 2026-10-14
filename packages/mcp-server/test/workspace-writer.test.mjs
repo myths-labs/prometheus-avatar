@@ -357,3 +357,36 @@ test('a website that grows new keys everywhere does not break any tool', async (
         assert.ok(h.site.extras, 'the site really did send extra keys');
     } finally { await h.stop(); }
 });
+
+test('category full (422, K5b): a new entry is refused once and not retried; edits, and replays of a write that already succeeded, still go through', async () => {
+    const h = await harness({ cap: 1 });
+    try {
+        assert.equal((await h.writer.saveWork({ content: 'Only room for one', external_key: 'one' }, signal())).action, 'created');
+        const mark = h.site.requests.length;
+        await rejects(h.writer.saveWork({ content: 'A second piece', external_key: 'two' }, signal()), 'workspace_category_full', error => {
+            assert.equal(error.outcome, 'rejected');
+            assert.equal(error.details.field, 'category');
+            assert.match(error.message, /Do not retry/);
+        });
+        assert.deepEqual(h.site.requests.slice(mark).map(r => `${r.method}:${r.status}`), ['POST:422'], 'no read-back, no second attempt');
+        assert.equal(h.site.list('work').length, 1);
+        // Editing what is already there is not capped.
+        assert.equal((await h.writer.saveWork({ content: 'Only room for one, edited', external_key: 'one' }, signal())).action, 'updated');
+        // The refused operation was not kept as unfinished: once there is room, the same call is a fresh operation.
+        h.site.cap = 2;
+        const refused = posts(h.site).find(r => r.status === 422);
+        const later = await h.writer.saveWork({ content: 'A second piece', external_key: 'two' }, signal());
+        assert.equal(later.action, 'created');
+        assert.notEqual(posts(h.site).at(-1).body.operationId, refused.body.operationId);
+    } finally { await h.stop(); }
+    // A write the website committed before the category filled up still returns its original receipt on replay.
+    const r = await harness({ cap: 1 });
+    try {
+        r.site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { drop: 'after' } : undefined;
+        await rejects(r.writer.upsertTask({ text: 'Committed, answer lost' }, signal()), 'workspace_result_unconfirmed');
+        r.site.intercept = null;
+        const replay = await r.writer.upsertTask({ text: 'Committed, answer lost' }, signal());
+        assert.deepEqual([replay.saved, replay.action], [true, 'created']);
+        assert.equal(r.site.list('todo').length, 1);
+    } finally { await r.stop(); }
+});

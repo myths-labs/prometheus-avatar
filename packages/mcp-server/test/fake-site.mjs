@@ -41,6 +41,8 @@ const pgTime = date => date.toISOString().replace(/Z$/, '') + '000+00:00'; // li
  * options.browse: also seed the `browse` markdown category (what the K5 migration will add).
  * options.extras: answer with extra keys the package has never seen (a future website), at every level.
  * options.port: listen on this port only (the by-hand end-to-end run uses 3486). Default: first free port of 54860-54869.
+ * options.cap / site.cap: the K5b limit of entries that are not archived in work, todo and browse (2,000 on the website).
+ *   A new entry, or one taken out of the archive, beyond it is answered 422 { error, code: WORKSPACE_CATEGORY_FULL }.
  * site.intercept: (ctx) => undefined | {drop:'before'|'after'} | {status, body, headers} — failure injection.
  */
 export async function startFakeSite(options = {}) {
@@ -57,7 +59,7 @@ export async function startFakeSite(options = {}) {
     let seq = 0n, clock = options.clock ?? (() => new Date());
     const requests = [];
     const site = {
-        accountId, entries, operations, requests, categories, intercept: options.intercept ?? null, extras: !!options.extras,
+        accountId, entries, operations, requests, categories, intercept: options.intercept ?? null, extras: !!options.extras, cap: options.cap,
         /** Rows the way a user would have created them in the app (not through the agent route). */
         addEntry(row) {
             const now = clock();
@@ -141,6 +143,12 @@ export async function startFakeSite(options = {}) {
             if ((existing && existing.revision !== input.expectedRevision) || (!existing && input.expectedRevision !== 0)) return fail(409, 'This entry changed. Read its current revision before editing.');
             if (existing && (existing.category_id !== input.categoryId || existing.kind !== input.kind || existing.role !== input.role
                 || existing.inputMode !== input.inputMode || existing.occurredAt !== input.occurredAt)) return fail(400, 'Check the workspace entry or filter.');
+            // K5b trigger (migration 20261014094200): runs after the replay check above, so a write that already succeeded
+            // still gets its receipt; a refused write stores no receipt.
+            const capped = ['work', 'todo', 'browse'].includes(input.categoryId) && site.cap !== undefined
+                && [...entries.values()].filter(r => r.category_id === input.categoryId && !r.archived).length >= site.cap;
+            if (capped && (!existing || (existing.archived && !input.archived)))
+                return send(422, { error: 'This workspace category is full (2,000 entries). Nothing was saved. Do not retry; archive older entries to make room.', code: 'WORKSPACE_CATEGORY_FULL' });
             let row;
             if (!existing) {
                 row = { id: input.entryId.toLowerCase(), seq: ++seq, category_id: input.categoryId, kind: input.kind, content: input.content, occurredAt: input.occurredAt,
