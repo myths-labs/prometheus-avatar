@@ -22,7 +22,10 @@ class ReadmeTTSEngine implements ITTSEngine {
     async speak(text: string, options?: TTSOptions): Promise<void> {
         this.speaking = true;
         this.spoken.push({ text, options });
-        this.onAudioData?.(new Float32Array([0.8, 0.6, 0.7])); // samples that drive the mouth
+        for (let i = 0; i < 3; i++) {
+            this.onAudioData?.(new Float32Array([0.8, 0.6, 0.7])); // samples that drive the mouth
+            await new Promise((r) => setTimeout(r, 30)); // "playback"
+        }
         this.speaking = false;
         this.onEnd?.();
     }
@@ -53,8 +56,6 @@ describe('custom ITTSEngine (README contract)', () => {
         avatar.on('lipsync:frame', ({ frame }) => frames.push(frame));
 
         await avatar.speak('Hello! I am happy to see you.');
-        await new Promise((r) => setTimeout(r, 20)); // lip sync runs on animation frames
-
         expect(events).toEqual(['start', 'end']);
         expect(engine.spoken).toHaveLength(1);
         expect(engine.spoken[0].options).toEqual({ lang: 'fi-FI', rate: 0.9 });
