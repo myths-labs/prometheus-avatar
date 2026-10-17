@@ -358,6 +358,82 @@ test('a website that grows new keys everywhere does not break any tool', async (
     } finally { await h.stop(); }
 });
 
+/** Whether any state file under the harness' state folder still mentions this operation id (the unfinished-operation record). */
+const rememberedOnDisk = (h, operationId) => Object.values(readTree(h.directory)).some(item => !item.directory && item.text.includes(operationId));
+
+test('K10-3 rate limit (429) on the REPLAY of an unconfirmed write: the unfinished operation is kept, so the next call re-sends the same operation and entry id (one entry, no duplicate)', async () => {
+    const h = await harness({}, { persist: true, clock: fixedClock() });
+    try {
+        const call = () => h.writer.saveWork({ content: 'Committed, answer lost, then rate limited' }, signal());
+        // Call 1: the website commits the write, but the answer never arrives.
+        h.site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { drop: 'after' } : undefined;
+        await rejects(call(), 'workspace_result_unconfirmed');
+        assert.equal(h.site.list('work').length, 1, 'the first write really was committed');
+        const first = posts(h.site)[0].body;
+        // Call 2: replays the same operation; this time the website only says "slow down".
+        h.site.intercept = ctx => ctx.isWrite ? { status: 429, body: { error: 'Too many requests' }, headers: { 'retry-after': '30' } } : undefined;
+        await rejects(call(), 'workspace_rate_limited', error => assert.equal(error.outcome, 'rejected'));
+        assert.equal(posts(h.site)[1].body.operationId, first.operationId, 'call 2 replayed the unfinished operation');
+        const keptAfter429 = rememberedOnDisk(h, first.operationId);
+        // Call 3: the website is fine again. What the user sees comes first: one entry, the original receipt.
+        h.site.intercept = null;
+        const result = await call();
+        assert.equal(h.site.list('work').length, 1, 'one entry, not two');
+        assert.equal(h.site.operations.size, 1);
+        const third = posts(h.site)[2].body;
+        assert.equal(third.operationId, first.operationId, 'the same operation id');
+        assert.equal(third.entry.entryId, first.entry.entryId, 'the same entry id');
+        assert.equal(result.entry_id, first.entry.entryId);
+        assert.deepEqual([result.saved, result.action, result.revision], [true, 'created', 1], 'the original receipt');
+        assert.equal(keptAfter429, true, 'a 429 says nothing about the earlier attempt, so the unfinished operation stays remembered');
+        assert.equal(rememberedOnDisk(h, first.operationId), false, 'the receipt arrived: the record is finished and removed');
+    } finally { await h.stop(); }
+});
+
+for (const [name, answer, code] of [
+    ['429 rate limit', { status: 429, body: { error: 'Too many requests' } }, 'workspace_rate_limited'],
+    ['401 key rejected', { status: 401, body: { error: 'Use an active Agent key with verified account ownership.' } }, 'workspace_key_rejected'],
+    ['an HTTP status this server does not know (418)', { status: 418, body: { error: 'teapot' } }, 'workspace_http_418'],
+]) test(`K10-3 replay of a write the website never received (cut before it arrived) that is answered with ${name}: still the same operation and entry id afterwards, one entry`, async () => {
+    const h = await harness({}, { persist: true, clock: fixedClock() });
+    try {
+        const call = () => h.writer.upsertTask({ text: 'Water the plants' }, signal());
+        h.site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { drop: 'before' } : undefined;
+        await rejects(call(), 'workspace_result_unconfirmed');
+        assert.equal(h.site.list('todo').length, 0, 'the first write never arrived');
+        const first = posts(h.site)[0].body;
+        h.site.intercept = ctx => ctx.isWrite ? answer : undefined;
+        await rejects(call(), code, error => assert.equal(error.outcome, 'rejected'));
+        const keptAfterAnswer = rememberedOnDisk(h, first.operationId);
+        h.site.intercept = null;
+        const result = await call();
+        assert.deepEqual([result.saved, result.action], [true, 'created']);
+        const last = posts(h.site).at(-1).body;
+        assert.deepEqual([last.operationId, last.entry.entryId], [first.operationId, first.entry.entryId], 'the third call re-sends the same operation and entry id');
+        assert.equal(h.site.list('todo').length, 1);
+        assert.equal(h.site.operations.size, 1);
+        assert.equal(keptAfterAnswer, true, 'the unfinished operation stayed remembered');
+    } finally { await h.stop(); }
+});
+
+test('K10-3 rate limit (429) on a FIRST write (not a replay): nothing is remembered, nothing was written, the next call is a fresh operation and entry', async () => {
+    const h = await harness({}, { persist: true, clock: fixedClock() });
+    try {
+        const call = () => h.writer.saveWork({ content: 'Burst, first attempt' }, signal());
+        h.site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { status: 429, body: { error: 'Too many requests' }, headers: { 'retry-after': '30' } } : undefined;
+        await rejects(call(), 'workspace_rate_limited', error => assert.equal(error.outcome, 'rejected'));
+        const limited = posts(h.site)[0].body;
+        assert.equal(h.site.list('work').length, 0, 'a rate-limited write wrote nothing');
+        assert.equal(rememberedOnDisk(h, limited.operationId), false, 'a refused first write is not kept as unfinished');
+        const result = await call();
+        assert.equal(result.action, 'created');
+        const accepted = posts(h.site)[1].body;
+        assert.notEqual(accepted.operationId, limited.operationId, 'a fresh operation');
+        assert.notEqual(accepted.entry.entryId, limited.entry.entryId, 'and a fresh entry id');
+        assert.equal(h.site.list('work').length, 1);
+    } finally { await h.stop(); }
+});
+
 test('category full (422, K5b): a new entry is refused once and not retried; edits, and replays of a write that already succeeded, still go through', async () => {
     const h = await harness({ cap: 1 });
     try {

@@ -245,6 +245,8 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                 role: existing ? (existing.role === 'assistant' ? 'assistant' : null) : (spec.kind === 'message' ? 'assistant' : null),
             };
             reusePending = false;
+            // A replay re-sends an operation an earlier call left unconfirmed; the website may already have committed that one.
+            const replaying = operation === pending;
             const input: WorkspaceInput = {
                 entryId, expectedRevision: operation.expectedRevision, categoryId: spec.category, kind: spec.kind, content: fields.content,
                 occurredAt: operation.occurredAt, role: operation.role, inputMode: operation.inputMode, status: fields.status, dueOn: fields.dueOn, archived: false,
@@ -271,7 +273,11 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                     existing = found.entry; fresh = true;
                     continue;
                 }
-                if (error.outcome !== 'unconfirmed') state.deletePending(spec.intent);
+                // A refused fresh operation wrote nothing, so its record can go. A refused replay (429, rejected key, unknown HTTP
+                // status) only says this try failed; the earlier unconfirmed try may have been committed, so its record stays and the
+                // next call re-sends the same operation and entry id instead of minting new ones and duplicating the entry.
+                // The website's 409 answers about an operation id are the only ones that settle it, and they are handled above.
+                if (error.outcome !== 'unconfirmed' && !replaying) state.deletePending(spec.intent);
                 if (conflict) throw new WorkspaceAgentError('workspace_revision_conflict',
                     'The entry kept changing while it was being saved (someone else is editing it). Nothing was saved by this call. Try again in a moment.', { field: 'expectedRevision', outcome: 'rejected' });
                 throw error;
