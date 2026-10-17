@@ -1,7 +1,11 @@
 /**
  * Prometheus SDK — Give your AI agent an embodied avatar
  *
- * @module @prometheus-avatar/core
+ * Browser-safe entry: nothing here imports Node built-ins (`fs`, `path`, `events`),
+ * so esbuild, webpack and Vite can bundle it for the browser. `MemoryBridge` needs
+ * Node and lives in `@prometheusavatar/core/node` (see src/node.ts).
+ *
+ * @module @prometheusavatar/core
  */
 
 export { PrometheusAvatar } from './avatar';
@@ -12,8 +16,6 @@ export { LipSyncEngine } from './lip-sync';
 export { EmotionAnalyzer } from './emotion';
 export { AssetManager } from './asset-manager';
 export { AssetCreator } from './creator';
-export { MemoryBridge, MEMORY_BRIDGE_DEFAULT_ORIGINS } from './memory-bridge';
-export type { MemoryBridgeOptions, ConversationMessage, MemoryBridgeMessage } from './memory-bridge';
 export type {
     AssetCategory,
     AssetManifest,
