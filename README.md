@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/badge/npm-v0.8.0-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://www.npmjs.com/package/@prometheusavatar/mcp-server"><img src="https://img.shields.io/badge/MCP_Server-v0.3.5-c9a84c?style=for-the-badge&logo=npm&logoColor=white" alt="MCP Server" /></a>
+  <a href="https://www.npmjs.com/package/@prometheusavatar/mcp-server"><img src="https://img.shields.io/badge/MCP_Server-v0.3.6-c9a84c?style=for-the-badge&logo=npm&logoColor=white" alt="MCP Server" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="Stars" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/myths-labs/prometheus-avatar/ci.yml?style=for-the-badge&logo=github-actions&logoColor=white&label=CI" alt="CI" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge" alt="License" />
@@ -124,7 +124,7 @@ Or add to `claude_desktop_config.json`:
 }
 ```
 
-10 tools available: `create_avatar`, `set_avatar_state`, `equip_asset`, `generate_asset`, `update_asset`, `generate_image_pro`, `list_marketplace`, `get_avatar_status`, `share_avatar`, `speak`.
+17 tools available: `create_avatar`, `set_avatar_state`, `equip_asset`, `generate_asset`, `update_asset`, `generate_image_pro`, `list_marketplace`, `get_avatar_status`, `share_avatar`, `speak`, plus the workspace tools `save_work`, `upsert_task`, `complete_task`, `log_visited_page`, `prometheus_read_workspace`, `prometheus_save_workspace_entry`, `prometheus_get_workspace_operation` (what your agent produces lands in your Prometheus workspace — [setup and standing rules](packages/mcp-server/README.md)).
 
 ### 🧚 Agent Skill — summon a companion in one sentence
 

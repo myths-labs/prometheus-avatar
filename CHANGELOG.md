@@ -6,6 +6,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased] — mcp-server 0.3.6
+
+### Added
+- **mcp-server**: seven workspace tools (17 tools total) that put what an agent produces into the user's
+  Prometheus workspace panes:
+  - for models: `save_work` (Markdown to the Work pane), `upsert_task` (to-do with an optional due date),
+    `complete_task`, `log_visited_page` (http/https pages the agent visited). The model gives the least it can;
+    entry id, operation id, millisecond timestamp, account header, role and input mode are produced locally.
+  - kept for exact control: `prometheus_read_workspace`, `prometheus_save_workspace_entry`,
+    `prometheus_get_workspace_operation`.
+  - `external_key` derives the entry id deterministically (UUIDv5), so repeating a call updates the same entry;
+    an unconfirmed write (network drop, timeout, 5xx) is remembered with its operation id and replayed unchanged,
+    so a retry never creates a second entry; a 409 re-reads the entry and retries once.
+  - errors say which field is wrong, whether anything was saved, and what to do next.
+  - a full category (HTTP 422 `WORKSPACE_CATEGORY_FULL`: work, todo and browse hold at most 2,000 entries that are not
+    archived) is reported as final (`workspace_category_full`): nothing saved, not retried, the user is asked to make room.
+  - the state kept between calls is one small file per unconfirmed write (plus one for the account id), created and
+    removed atomically, so several MCP servers sharing `~/.prometheus-mcp` (Claude Desktop and Cursor) no longer erase
+    each other's entries. An earlier single `workspace-state.json` is moved into the new layout when found.
+  - `complete_task` (and any read-back after a 409) gives up after 60 seconds in total with `workspace_lookup_timeout`:
+    nothing changed, and the model is told so, instead of paging back for minutes.
+  - ids in the three exact-control tools are checked like the website checks them (any 8-4-4-4-12 hexadecimal digits),
+    so the official account `00000000-0000-0000-0000-000000000001` is accepted.
+  - README: setup for Claude Desktop, Claude Code and Cursor, and a standing-rule snippet for each.
+- **mcp-server**: reads (snapshots, receipts) ignore keys they do not know, so a website that adds fields later
+  does not break installed copies. Requests still follow the website's current shape exactly.
+
+### Notes for the release
+- Needs the website's `/api/agent/workspace` route (in production). `log_visited_page` additionally needs the
+  `browse` category (not in the database yet): until it exists the tool says so and saves nothing, then starts
+  working by itself, with no new package version.
+- No ordering dependency on `core` or `openclaw-plugin`.
+
+---
+
 ## [Unreleased] — core 0.11.4
 
 Not published. Security release candidate: core only. mcp-server does not depend on core, and
