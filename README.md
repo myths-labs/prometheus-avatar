@@ -25,13 +25,13 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/badge/npm-v0.8.0-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://www.npmjs.com/package/@prometheusavatar/mcp-server"><img src="https://img.shields.io/badge/MCP_Server-v0.3.5-c9a84c?style=for-the-badge&logo=npm&logoColor=white" alt="MCP Server" /></a>
+  <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/npm/v/@prometheusavatar/core?style=for-the-badge&logo=npm&logoColor=white&color=00d4aa&label=npm" alt="npm" /></a>
+  <a href="https://www.npmjs.com/package/@prometheusavatar/mcp-server"><img src="https://img.shields.io/npm/v/@prometheusavatar/mcp-server?style=for-the-badge&logo=npm&logoColor=white&color=c9a84c&label=MCP_Server" alt="MCP Server" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="Stars" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/myths-labs/prometheus-avatar/ci.yml?style=for-the-badge&logo=github-actions&logoColor=white&label=CI" alt="CI" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge" alt="License" />
   <img src="https://img.shields.io/badge/Live2D-Cubism_2_&_4-ff69b4.svg?style=for-the-badge" alt="Live2D" />
-  <img src="https://img.shields.io/badge/LLMs-9_Providers-9c27b0.svg?style=for-the-badge" alt="9 LLMs" />
+  <img src="https://img.shields.io/badge/LLM-bring_your_own_key-9c27b0.svg?style=for-the-badge" alt="Bring your own LLM key" />
 </p>
 
 <p align="center">
@@ -48,19 +48,33 @@
 
 ## ✨ Features
 
+**In the npm package** ([`@prometheusavatar/core`](packages/sdk/)) — runs in your own page, no Prometheus account and no key:
+
 | Feature | Description |
 |---------|-------------|
-| 🎭 **Live2D Avatars** | Render Cubism 2 & 4 models with auto-scaling and centering |
+| 🎭 **Live2D Avatars** | Render Cubism 2 & 4 models with auto-scaling and centering (you supply Live2D's runtime — see [Live2D runtime](#live2d-runtime)) |
+| 🗣️ **Text-to-Speech** | Browser Web Speech by default, any language your browser has a voice for (`ttsOptions.lang`); plug in your own engine through `ITTSEngine` |
+| 👄 **Lip Sync** | Mouth animation from the audio your TTS engine reports (the default engine simulates it from the text) |
+| 😊 **Emotion Engine** | Rule-based: emoji, English/Chinese keywords and punctuation → avatar expressions |
+| 🔌 **LLM-agnostic** | The SDK contains **no LLM**: call your own provider with your own key and pass the text to the avatar. [`examples/multi-llm`](examples/multi-llm/) shows 9 provider configurations |
+
+**Only in the hosted app** at [prometheus.mythslabs.ai](https://prometheus.mythslabs.ai) (not in the npm package):
+
+| Feature | Description |
+|---------|-------------|
 | ⚡ **Real-Time Voice** | Gemini Live API — WebSocket streaming, ~200ms latency, built-in VAD + interruption |
-| 🗣️ **Text-to-Speech** | Gemini TTS with natural voices, multi-language (EN/CN/JP/+) |
-| 👄 **Lip Sync** | Real-time mouth animation synchronized with speech audio |
-| 😊 **Emotion Engine** | Auto-detect emotions from text → avatar expressions + motions |
-| 🎨 **Marketplace** | Browse, buy, and sell avatar skins, voices, effects, and personas |
+| 🗣️ **Gemini TTS voices** | Natural multi-language voices (EN/CN/JP/+) |
 | 📷 **VTuber Mode** | Camera face tracking → real-time avatar head movement |
-| 🔌 **Multi-LLM** | 9 providers: Gemini, OpenAI, Anthropic, Groq, Grok, DeepSeek, Qwen, Kimi, MiniMax |
+| 🔌 **9-provider chat** | Gemini, OpenAI, Anthropic, Groq, Grok, DeepSeek, Qwen, Kimi, MiniMax behind the app's chat |
+| 🎨 **Marketplace** | Browse, buy, and sell avatar skins, voices, effects, and personas |
+
+**Connectors** (need a Prometheus `pak_` agent key from [Settings → Agent API Key](https://prometheus.mythslabs.ai/settings/agent-keys)):
+
+| Feature | Description |
+|---------|-------------|
 | 🤖 **Connect Your Agent** | Plug in any OpenAI-compatible agent — [integration guide](docs/agent-integration.md) |
 | 🧩 **MCP Server** | `npx @prometheusavatar/mcp-server` — any MCP client (Claude, GPT, Gemini) gets an avatar |
-| 📦 **SDK** | Drop-in `@prometheusavatar/core` for your own apps |
+| 🛠️ **AssetCreator** | Image generation and marketplace deploys through our servers — see the key warning in the [SDK README](packages/sdk/README.md#assetcreator--talks-to-prometheus-servers) |
 
 ## 🎬 Demo
 
@@ -83,18 +97,24 @@
 npm install @prometheusavatar/core
 ```
 
+### Live2D runtime
+
+Live2D models need Live2D Inc.'s **Cubism Core** (`live2dcubismcore.min.js`). It is proprietary software: the SDK does not bundle, redistribute or silently download it. You add it, and by doing so you accept [Live2D's licence](https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html) (whether you need a paid publication licence depends on who you are and what you build: [licence overview](https://www.live2d.com/en/sdk/license/)). Either pass its URL to `createAvatar` (below), add a `<script>` tag, or self-host the file from [Live2D's download page](https://www.live2d.com/en/sdk/download/web/). Details: [packages/sdk/README.md](packages/sdk/README.md#live2d-runtime-required-not-included). Licences of everything we depend on: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
 ### Usage
 
 ```typescript
 import { createAvatar } from '@prometheusavatar/core';
 
-// Initialize — loads model, TTS, lip-sync, emotion
+// Initialize — loads Live2D runtime, model, TTS, lip-sync, emotion
 const avatar = await createAvatar({
   container: document.getElementById('avatar')!,
   modelUrl: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json',
+  cubismCoreUrl: 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js', // see "Live2D runtime"
 });
 
-// Avatar speaks with auto-detected emotion + lip-sync
+// Avatar speaks with auto-detected emotion + lip-sync.
+// Browsers only start speech after a click: call this from a click handler.
 await avatar.speak('Hello! I\'m your AI assistant. 😊');
 
 // React to emotion changes
@@ -102,6 +122,8 @@ avatar.on('emotion:change', ({ result }) => {
   console.log(`Emotion: ${result.emotion} (${result.confidence})`);
 });
 ```
+
+The SDK has no LLM inside. Call your own LLM (with your own key) and pass its reply to `avatar.speak(reply)`; no Prometheus account is needed.
 
 ### MCP Server (for AI Agents)
 
@@ -186,11 +208,11 @@ prometheus-avatar/           ← This repo (open-source SDK)
 
 | Model | Cubism | Source | License |
 |-------|--------|--------|---------|
-| Haru | 4 | Live2D Inc. | [Free Material License](https://www.live2d.com/en/terms/live2d-free-material-license-agreement/) |
-| Shizuku | 2 | Live2D Inc. | Free Material License |
+| Haru | 4 | Live2D Inc. | [Free Material License](https://www.live2d.com/eula/live2d-free-material-license-agreement_en.html) ([sample model terms](https://www.live2d.com/en/learn/sample/model-terms/)) |
+| Shizuku | 2 | Live2D Inc. | [Free Material License](https://www.live2d.com/eula/live2d-free-material-license-agreement_en.html) |
 | Koharu | 2 | Community | Open Source |
 
-> 💡 Any `.model.json` (Cubism 2) or `.model3.json` (Cubism 4) file works — load from URL or local path.
+> 💡 Any `.model3.json` (Cubism 4) or `.model.json` (Cubism 2, needs Live2D's Cubism 2 runtime too) file works — load from URL or local path. No model files are included in the npm package.
 
 ## 🛒 Marketplace
 
@@ -227,7 +249,7 @@ Key exports:
 
 | Example | Description |
 |---------|-------------|
-| [`examples/basic/`](examples/basic/) | Minimal HTML — zero build tools, loads from CDN |
+| [`examples/basic/`](examples/basic/) | Minimal HTML — zero build tools, loads the SDK from an ESM CDN and Live2D's runtime from Live2D |
 | [`examples/react/`](examples/react/) | React component with hooks and emotion tracking |
 | [`examples/multi-llm/`](examples/multi-llm/) | 9-provider configuration with auto-fallback |
 | [`examples/live-voice/`](examples/live-voice/) | Gemini Live API real-time voice via WebSocket |
@@ -287,18 +309,37 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 
 ### ✨ 核心功能
 
+**npm 包内**（[`@prometheusavatar/core`](packages/sdk/)）——在你自己的网页里运行，不需要 Prometheus 账号，也不需要任何 key：
+
 | 功能 | 说明 |
 |------|------|
-| 🎭 **Live2D 虚拟形象** | 支持 Cubism 2 & 4，自动缩放居中 |
+| 🎭 **Live2D 虚拟形象** | 支持 Cubism 2 & 4，自动缩放居中（Live2D 运行库需自己提供，见下文「Live2D 运行库」） |
+| 🗣️ **文字转语音** | 默认用浏览器自带的 Web Speech，浏览器有对应声音的语言都可用（`ttsOptions.lang`）；也可通过 `ITTSEngine` 接入自己的 TTS |
+| 👄 **唇形同步** | 嘴型跟随 TTS 引擎报告的音频（默认引擎按文字模拟） |
+| 😊 **情感引擎** | 规则式：emoji、中英文关键词、标点 → 表情 |
+| 🔌 **不绑定 LLM** | SDK 里**没有 LLM**：用你自己的 key 调用自己的模型，再把文字交给 avatar。[`examples/multi-llm`](examples/multi-llm/) 给出 9 家供应商的配置示例 |
+
+**只在托管应用里**（[prometheus.mythslabs.ai](https://prometheus.mythslabs.ai)，不在 npm 包内）：
+
+| 功能 | 说明 |
+|------|------|
 | ⚡ **实时语音** | Gemini Live API — WebSocket 流式，~200ms 延迟，内置 VAD + 打断 |
-| 🗣️ **文字转语音** | Gemini TTS 自然语音，支持中英日多语言 |
-| 👄 **唇形同步** | 说话时嘴巴实时跟随语音动 |
-| 😊 **情感引擎** | 从文字自动检测情绪 → 触发表情 + 动作 |
-| 🛒 **数字市场** | 浏览/购买/出售虚拟形象皮肤、声音、特效 |
+| 🗣️ **Gemini TTS 声音** | 自然语音，支持中英日多语言 |
 | 📷 **VTuber 模式** | 摄像头面部跟踪 → 实时驱动 avatar 头部运动 |
-| 🔌 **多 LLM 支持** | Gemini 2.0 Flash (主) + Groq Llama 3.3 70B (备) |
+| 🔌 **九家 LLM 聊天** | Gemini、OpenAI、Anthropic、Groq、Grok、DeepSeek、Qwen、Kimi、MiniMax |
+| 🛒 **数字市场** | 浏览/购买/出售虚拟形象皮肤、声音、特效 |
+
+**连接器**（需要 Prometheus 的 `pak_` agent key，在[设置 → Agent API Key](https://prometheus.mythslabs.ai/settings/agent-keys)获取）：
+
+| 功能 | 说明 |
+|------|------|
 | 🤖 **接入你的 AI Agent** | 支持任何 OpenAI 兼容的 agent 端点 — [接入指南](docs/agent-integration.md) |
 | 🧩 **MCP 服务器** | `npx @prometheusavatar/mcp-server` — Claude/GPT/Gemini 等 AI 客户端一键接入 |
+| 🛠️ **AssetCreator** | 通过我们的服务器生成图像、部署到市场——传入 `apiKey` 时会把 key 发到我们的服务器，见 [SDK README](packages/sdk/README.md#assetcreator--talks-to-prometheus-servers) |
+
+### 🧩 Live2D 运行库
+
+Live2D 模型需要 Live2D 公司的 **Cubism Core**（`live2dcubismcore.min.js`）。它是专有软件：SDK 不打包、不转发、也不会悄悄下载。你自己添加它，同时表示接受 [Live2D 许可协议](https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html)（是否需要付费发布许可取决于你是谁、做什么，见[许可说明](https://www.live2d.com/en/sdk/license/)）。三种方式：给 `createAvatar` 传 `cubismCoreUrl`、加一个 `<script>` 标签、或从 [Live2D 下载页](https://www.live2d.com/en/sdk/download/web/)下载后自托管。详情见 [packages/sdk/README.md](packages/sdk/README.md#中文说明)。第三方许可：[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
 
 ### 🚀 快速开始
 
@@ -312,10 +353,14 @@ import { createAvatar } from '@prometheusavatar/core';
 const avatar = await createAvatar({
   container: document.getElementById('avatar')!,
   modelUrl: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json',
+  cubismCoreUrl: 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js', // 见「Live2D 运行库」
 });
 
+// 浏览器要求用户点击之后才能发声：请在点击事件里调用
 await avatar.speak('你好！我是你的 AI 助手。😊');
 ```
+
+SDK 里没有 LLM：用你自己的 key 调用自己的模型，再把回复交给 `avatar.speak(回复)`，不需要 Prometheus 账号。默认语音语言是 `en-US`，说中文请设置 `ttsOptions: { lang: 'zh-CN' }`。
 
 ### 🛒 数字市场
 

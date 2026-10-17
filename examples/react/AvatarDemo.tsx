@@ -9,6 +9,10 @@ import { createAvatar, type PrometheusAvatar, type Emotion } from '@prometheusav
 
 const MODEL_URL = 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json';
 
+// Live2D's Cubism Core is Live2D Inc.'s proprietary software and is not part of the SDK. Loading it from
+// Live2D's server means you accept Live2D's licence (see packages/sdk/README.md, "Live2D runtime").
+const CUBISM_CORE_URL = 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js';
+
 export default function AvatarDemo() {
     const containerRef = useRef<HTMLDivElement>(null);
     const avatarRef = useRef<PrometheusAvatar | null>(null);
@@ -22,6 +26,7 @@ export default function AvatarDemo() {
         createAvatar({
             container: containerRef.current,
             modelUrl: MODEL_URL,
+            cubismCoreUrl: CUBISM_CORE_URL,
         }).then((avatar) => {
             if (!mounted) return avatar.destroy();
             avatarRef.current = avatar;
@@ -29,6 +34,8 @@ export default function AvatarDemo() {
             avatar.on('emotion:change', ({ result }) => {
                 setEmotion(result.emotion);
             });
+        }).catch((error) => {
+            console.error('Could not start the avatar:', error);
         });
 
         return () => {

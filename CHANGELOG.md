@@ -6,11 +6,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — core 0.11.4
+## [Unreleased] — core 0.11.5
 
-Not published. Security release candidate: core only. mcp-server does not depend on core, and
+Not published. Course-readiness release: core only. mcp-server does not depend on core and
+openclaw-plugin (`^0.11.3`) only uses `createAvatar` / `AssetCreator` through the main entry,
+which keeps its API, so neither needs a new version.
+
+### Fixed
+- **core**: `createAvatar()` no longer fails in the browser before it starts. It used to import
+  `pixi-live2d-display`'s default entry, which throws at load time unless *both* Live2D runtimes
+  (Cubism 2 `live2d.min.js` and Cubism 4 `live2dcubismcore.min.js`) are already on the page; nothing
+  in a bundler project puts them there. The renderer now imports only the entry that matches the
+  model (`/cubism4` for `*.model3.json`, `/cubism2` for `*.model.json`), after the matching
+  runtime is present (`src/live2d-runtime.ts`).
+- **core**: the model never updated when PixiJS came from a bundler (the ticker was found only via
+  `window.PIXI`). The PixiJS `Ticker` is now registered with `Live2DModel`.
+- **core**: the main entry no longer imports Node built-ins. `MemoryBridge` (`fs`, `path`, `events`,
+  `ws`) moved to its own entry, so esbuild, webpack 5 and Vite can bundle `@prometheusavatar/core`
+  for the browser (before: esbuild and webpack failed with "Could not resolve fs/path/events",
+  Vite warned "externalized for browser compatibility").
+- **core**: `LICENSE` and `THIRD_PARTY_LICENSES.md` are now part of the npm package.
+
+### Added
+- **core**: `cubismCoreUrl` option for `createAvatar()`: loads Live2D's `live2dcubismcore.min.js`
+  from that URL when `window.Live2DCubismCore` is missing. Cubism Core is Live2D's proprietary
+  software and is still **not** bundled or fetched implicitly; with neither the option nor a script
+  tag, `createAvatar()` rejects with an error that says how to fix it. `cubism2RuntimeUrl` does the
+  same for Cubism 2 models.
+- **core**: `@prometheusavatar/core/node` entry (`MemoryBridge`, `MEMORY_BRIDGE_DEFAULT_ORIGINS`
+  and their types); `./package.json` export; `exports` lists `types` first in every branch.
+
+### Changed
+- **core**: `exports` is now `{ ".": { node → full surface, types, default → browser-safe }, "./node" }`.
+  Under Node, `import { MemoryBridge } from '@prometheusavatar/core'` keeps working as in
+  0.11.0–0.11.4. In browser bundles, and for TypeScript with `moduleResolution: "bundler"` (which
+  does not use the `node` condition), `MemoryBridge` is no longer exported from the main entry:
+  import it from `@prometheusavatar/core/node`.
+- Docs: README rewritten for first-time users (what is in the package vs only in the hosted app, Live2D
+  runtime, bring-your-own LLM, `ttsOptions`, `ITTSEngine.isSpeaking` example that compiles, `AssetCreator`
+  sends `apiKey` to the Prometheus server, `npm audit` note, badges and links fixed);
+  `examples/basic` pinned to this release and passes `cubismCoreUrl`.
+
+---
+
+## [core 0.11.4] — 2026-10-14
+
+Security release: core only. mcp-server does not depend on core, and
 openclaw-plugin (`^0.11.3`) does not use MemoryBridge and picks up 0.11.4 on a fresh install,
-so neither needs a new version.
+so neither needed a new version.
 
 ### Security
 - **core**: `MemoryBridge` listens on `127.0.0.1` by default (new `host` option; a non-loopback

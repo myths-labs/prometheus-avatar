@@ -1,6 +1,6 @@
 {
     "name": "@prometheusavatar/core",
-    "version": "0.11.4",
+    "version": "0.11.5",
     "description": "Give your AI agent an embodied avatar — Live2D rendering, TTS, lip-sync, and emotion analysis in one SDK",
     "type": "module",
     "main": "./dist/index.js",
@@ -8,17 +8,28 @@
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/index.js",
-            "types": "./dist/index.d.ts"
-        }
+            "node": {
+                "types": "./dist/index.node.d.ts",
+                "default": "./dist/index.node.js"
+            },
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./node": {
+            "types": "./dist/node.d.ts",
+            "default": "./dist/node.js"
+        },
+        "./package.json": "./package.json"
     },
     "files": [
         "dist",
-        "README.md"
+        "README.md",
+        "LICENSE",
+        "THIRD_PARTY_LICENSES.md"
     ],
     "scripts": {
-        "build": "tsup src/index.ts --format esm --dts --clean",
-        "dev": "tsup src/index.ts --format esm --dts --watch",
+        "build": "tsup src/index.ts src/node.ts src/index.node.ts --format esm --dts --clean",
+        "dev": "tsup src/index.ts src/node.ts src/index.node.ts --format esm --dts --watch",
         "test": "vitest run",
         "test:watch": "vitest",
         "clean": "rm -rf dist",

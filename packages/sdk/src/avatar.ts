@@ -8,6 +8,8 @@
  *   const avatar = await createAvatar({
  *     container: document.getElementById('avatar'),
  *     modelUrl: '/models/haru/haru.model3.json',
+ *     // Live2D's Cubism Core is not bundled; see README, "Live2D runtime".
+ *     cubismCoreUrl: 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js',
  *   });
  *   await avatar.speak('Hello! How are you today? 😊');
  */
@@ -40,6 +42,8 @@ export class PrometheusAvatar {
             height: config.height,
             backgroundColor: config.backgroundColor,
             debug: config.debug,
+            cubismCoreUrl: config.cubismCoreUrl,
+            cubism2RuntimeUrl: config.cubism2RuntimeUrl,
         });
 
         // Initialize TTS (pluggable — defaults to Web Speech API)
@@ -240,6 +244,7 @@ export class PrometheusAvatar {
  * const avatar = await createAvatar({
  *   container: document.getElementById('avatar')!,
  *   modelUrl: '/models/haru/haru.model3.json',
+ *   cubismCoreUrl: 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js',
  * });
  * await avatar.speak('Hello world! 😊');
  * ```
