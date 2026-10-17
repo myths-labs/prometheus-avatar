@@ -22,6 +22,14 @@
             overflow: hidden;
         }
 
+        #status {
+            position: fixed;
+            top: 16px;
+            max-width: 720px;
+            color: #ff8a8a;
+            font: 14px/1.5 system-ui, sans-serif;
+        }
+
         button {
             position: fixed;
             bottom: 20px;
@@ -38,23 +46,38 @@
 
 <body>
     <div id="avatar"></div>
+    <div id="status"></div>
     <button onclick="speak()">Say Hello!</button>
 
     <script type="module">
-        import { createAvatar } from 'https://esm.sh/@prometheusavatar/core@0.8.0';
+        // Pinned release. Use the version you installed if you copy this file.
+        import { createAvatar } from 'https://esm.sh/@prometheusavatar/core@0.11.5';
 
-        const avatar = await createAvatar({
-            container: document.getElementById('avatar'),
-            modelUrl: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json',
-        });
+        // Live2D's Cubism Core is Live2D Inc.'s proprietary software and is NOT part of the SDK.
+        // Loading it from Live2D's own server means you accept Live2D's licence:
+        // https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html
+        // (see README.md, "Live2D runtime"; to self-host instead, point this at your own copy).
+        const CUBISM_CORE_URL = 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js';
 
-        // React to emotions
-        avatar.on('emotion:change', ({ result }) => {
-            console.log(`Emotion: ${result.emotion} (${result.confidence})`);
-        });
+        try {
+            const avatar = await createAvatar({
+                container: document.getElementById('avatar'),
+                modelUrl: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@0.4.0/test/assets/haru/haru_greeter_t03.model3.json',
+                cubismCoreUrl: CUBISM_CORE_URL,
+            });
 
-        // Make globally accessible for the button
-        window.speak = () => avatar.speak('Hello! I am your AI avatar. Nice to meet you! 😊');
+            // React to emotions
+            avatar.on('emotion:change', ({ result }) => {
+                console.log(`Emotion: ${result.emotion} (${result.confidence})`);
+            });
+
+            // Make globally accessible for the button.
+            // Browsers only allow speech after a click, which is exactly when this runs.
+            window.speak = () => avatar.speak('Hello! I am your AI avatar. Nice to meet you! 😊');
+        } catch (error) {
+            document.getElementById('status').textContent = 'Could not start the avatar: ' + error.message;
+            throw error;
+        }
     </script>
 </body>
 

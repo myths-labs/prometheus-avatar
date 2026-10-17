@@ -49,7 +49,10 @@ export interface CreateImageOptions {
     referenceImages?: string[];
     /** Explicit provider override. Default: server picks per task. */
     provider?: 'openai' | 'gemini' | 'gemini-flash';
-    /** BYOK — overrides server-side env credentials. Recommended for zero-marginal-cost flow. */
+    /** BYOK — your own image-provider key; overrides server-side env credentials and skips platform billing.
+     *  NOTE: it is sent to the Prometheus server in the request body (`apiBaseUrl`, default
+     *  prometheus.mythslabs.ai), which calls the provider with it. Pass only a key you are willing
+     *  to hand to a hosted service. */
     apiKey?: string;
     /** Upload result to Supabase Storage and return publicUrl alongside data URL. */
     upload?: boolean;
