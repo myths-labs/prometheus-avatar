@@ -278,6 +278,11 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                 // next call re-sends the same operation and entry id instead of minting new ones and duplicating the entry.
                 // The website's 409 answers about an operation id are the only ones that settle it, and they are handled above.
                 if (error.outcome !== 'unconfirmed' && !replaying) state.deletePending(spec.intent);
+                // The website's own sentence often ends "Nothing was saved", which is true of this try only. Say so, or an Agent may
+                // rephrase the content to retry and so store a second copy next to the one the earlier try may have saved.
+                if (replaying && error.outcome !== 'unconfirmed' && !conflict) throw new WorkspaceAgentError(error.code,
+                    `${error.message} An earlier try of this same save got no confirmation and may already be stored; calling again with the same arguments re-sends that try and cannot create a duplicate, so do not change the content just to retry.`,
+                    error.details);
                 if (conflict) throw new WorkspaceAgentError('workspace_revision_conflict',
                     'The entry kept changing while it was being saved (someone else is editing it). Nothing was saved by this call. Try again in a moment.', { field: 'expectedRevision', outcome: 'rejected' });
                 throw error;

@@ -372,7 +372,10 @@ test('K10-3 rate limit (429) on the REPLAY of an unconfirmed write: the unfinish
         const first = posts(h.site)[0].body;
         // Call 2: replays the same operation; this time the website only says "slow down".
         h.site.intercept = ctx => ctx.isWrite ? { status: 429, body: { error: 'Too many requests' }, headers: { 'retry-after': '30' } } : undefined;
-        await rejects(call(), 'workspace_rate_limited', error => assert.equal(error.outcome, 'rejected'));
+        await rejects(call(), 'workspace_rate_limited', error => {
+            assert.equal(error.outcome, 'rejected');
+            assert.match(error.message, /may already be stored/, 'a refused replay must not read as "nothing is stored"');
+        });
         assert.equal(posts(h.site)[1].body.operationId, first.operationId, 'call 2 replayed the unfinished operation');
         const keptAfter429 = rememberedOnDisk(h, first.operationId);
         // Call 3: the website is fine again. What the user sees comes first: one entry, the original receipt.
@@ -421,7 +424,10 @@ test('K10-3 rate limit (429) on a FIRST write (not a replay): nothing is remembe
     try {
         const call = () => h.writer.saveWork({ content: 'Burst, first attempt' }, signal());
         h.site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { status: 429, body: { error: 'Too many requests' }, headers: { 'retry-after': '30' } } : undefined;
-        await rejects(call(), 'workspace_rate_limited', error => assert.equal(error.outcome, 'rejected'));
+        await rejects(call(), 'workspace_rate_limited', error => {
+            assert.equal(error.outcome, 'rejected');
+            assert.doesNotMatch(error.message, /may already be stored/, 'a first try that was refused really stored nothing');
+        });
         const limited = posts(h.site)[0].body;
         assert.equal(h.site.list('work').length, 0, 'a rate-limited write wrote nothing');
         assert.equal(rememberedOnDisk(h, limited.operationId), false, 'a refused first write is not kept as unfinished');
