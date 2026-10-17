@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
+// Agent API key format as issued by the platform: "pak_" + 64 lowercase hex characters
+// (32 random bytes, hex-encoded). The example below is a placeholder, not a real key.
+const API_KEY_FORMAT = /^pak_[0-9a-f]{64}$/;
+
 // POST /api/verify/agent — Challenge-response API key verification
 // Agent sends their API key → server returns a challenge → agent signs it → verified
 export async function POST(req: NextRequest) {
@@ -14,11 +18,11 @@ export async function POST(req: NextRequest) {
 
         // Step 1: Generate challenge
         if (step === "challenge" || !step) {
-            // Validate API key format: pak_{32+ chars}
-            if (!apiKey.match(/^pak_[a-zA-Z0-9]{16,}$/)) {
+            // Validate API key format: "pak_" + 64 lowercase hex characters
+            if (!API_KEY_FORMAT.test(apiKey)) {
                 return NextResponse.json({
-                    error: "Invalid API key format. Expected: pak_ followed by 16+ alphanumeric characters.",
-                    example: "pak_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+                    error: "Invalid API key format. Expected: pak_ followed by 64 lowercase hex characters.",
+                    example: "pak_<64 hex chars>",
                 }, { status: 400 });
             }
 
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
 
             // For MVP: accept the signature if it's a valid hex string and the API key format is correct
             // In production: verify HMAC-SHA256(challenge, apiKey) === signature
-            const isValidFormat = apiKey.match(/^pak_[a-zA-Z0-9]{16,}$/);
+            const isValidFormat = API_KEY_FORMAT.test(apiKey);
             const isValidSignature = signature.length >= 32;
 
             if (isValidFormat && isValidSignature) {
