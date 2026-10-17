@@ -46,7 +46,7 @@ export interface LipSyncFrame {
 export interface PrometheusConfig {
     /** DOM element to mount the avatar canvas into */
     container: HTMLElement;
-    /** URL to the Live2D model file (.model3.json) */
+    /** URL to the Live2D model file (`.model3.json` for Cubism 3/4; `.model.json` for Cubism 2) */
     modelUrl: string;
     /** Optional TTS engine (defaults to Web Speech API) */
     ttsEngine?: ITTSEngine;
@@ -60,6 +60,18 @@ export interface PrometheusConfig {
     ttsOptions?: TTSOptions;
     /** Enable debug logging */
     debug?: boolean;
+    /**
+     * URL of Live2D's `live2dcubismcore.min.js` (Cubism Core). Only used when the page
+     * has not already loaded it (`window.Live2DCubismCore`). The SDK does not bundle
+     * Cubism Core: it is Live2D's proprietary software, so you choose where it comes
+     * from and accept Live2D's licence. See README, "Live2D runtime".
+     */
+    cubismCoreUrl?: string;
+    /**
+     * URL of the Cubism 2 runtime `live2d.min.js`. Only needed for Cubism 2 models
+     * (`.model.json`) and only used when `window.Live2D` is missing.
+     */
+    cubism2RuntimeUrl?: string;
 }
 
 /** Avatar creation options (subset of config with defaults) */

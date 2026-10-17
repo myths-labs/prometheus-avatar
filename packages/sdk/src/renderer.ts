@@ -7,6 +7,7 @@
 
 import { Application } from 'pixi.js';
 import type { Emotion } from './types';
+import { loadLive2D } from './live2d-runtime';
 
 // pixi-live2d-display types (loaded at runtime)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,6 +57,10 @@ export interface RendererOptions {
     height?: number;
     backgroundColor?: number;
     debug?: boolean;
+    /** URL of Live2D's `live2dcubismcore.min.js`; loaded if `window.Live2DCubismCore` is missing. */
+    cubismCoreUrl?: string;
+    /** URL of the Cubism 2 runtime `live2d.min.js`; only needed for Cubism 2 (`.model.json`) models. */
+    cubism2RuntimeUrl?: string;
 }
 
 export class Live2DRenderer {
@@ -67,6 +72,8 @@ export class Live2DRenderer {
     private backgroundColor: number;
     private initialized = false;
     private debug: boolean;
+    private cubismCoreUrl?: string;
+    private cubism2RuntimeUrl?: string;
 
     constructor(options: RendererOptions) {
         this.container = options.container;
@@ -74,6 +81,8 @@ export class Live2DRenderer {
         this.height = options.height ?? 600;
         this.backgroundColor = options.backgroundColor ?? 0x00000000; // transparent
         this.debug = options.debug ?? false;
+        this.cubismCoreUrl = options.cubismCoreUrl;
+        this.cubism2RuntimeUrl = options.cubism2RuntimeUrl;
     }
 
     /**
@@ -113,8 +122,13 @@ export class Live2DRenderer {
         }
 
         try {
-            // Dynamic import of pixi-live2d-display
-            const { Live2DModel: L2DModel } = await import('pixi-live2d-display');
+            // Pick the pixi-live2d-display entry that matches the model, after its
+            // Live2D runtime is on the page (see live2d-runtime.ts).
+            const { Live2DModel: L2DModel } = await loadLive2D(modelUrl, {
+                cubismCoreUrl: this.cubismCoreUrl,
+                cubism2RuntimeUrl: this.cubism2RuntimeUrl,
+                debug: this.debug,
+            });
 
             // Remove current model if any
             if (this.model) {
