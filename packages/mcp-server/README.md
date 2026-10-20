@@ -199,7 +199,7 @@ Every workspace error says what was wrong, whether anything was saved, and what 
 | `workspace_browse_unavailable` | The website does not have the visited-pages list yet; nothing saved, do not retry |
 | `workspace_category_full` | Work, To-do and Browse each hold at most 2,000 entries that are not archived; nothing saved, do not retry until you archive or delete some older entries |
 | `workspace_lookup_timeout` | Looking for the task (or reading an entry back) took longer than 60 seconds; nothing was changed. Try once more later |
-| `workspace_rate_limited` | The website is limiting how fast this key writes; wait and try again |
+| `workspace_rate_limited` | The website is limiting how fast this key reads or writes; nothing was saved by that call. Wait the `retry_after_seconds` it gives, then send the same call again |
 
 ## Example Conversation
 
@@ -444,7 +444,7 @@ alwaysApply: true
 | `workspace_browse_unavailable` | 网站还没有「访问过的页面」；没有保存，不要重试 |
 | `workspace_category_full` | Work、To-do、Browse 每类最多 2,000 条未归档条目；没有保存，先归档或删掉一些旧条目再试，不要直接重试 |
 | `workspace_lookup_timeout` | 查找那条待办（或把条目读回来）超过 60 秒；什么都没改。稍后再试一次 |
-| `workspace_rate_limited` | 网站在限制这把密钥的写入速度；稍等再试 |
+| `workspace_rate_limited` | 网站在限制这把密钥的读写频率，这次调用什么都没存；等它给的 `retry_after_seconds` 秒后原样再调 |
 
 ## 对话示例
 

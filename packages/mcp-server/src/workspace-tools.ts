@@ -29,6 +29,7 @@ function failure(error: unknown, scope: Record<string, unknown> = {}): CallToolR
             saved: false, error: error.code, message: error.message,
             ...(error.details.field ? { field: error.details.field } : {}),
             ...(error.details.status ? { http_status: error.details.status } : {}),
+            ...(error.details.retryAfterSeconds ? { retry_after_seconds: error.details.retryAfterSeconds } : {}),
             outcome: error.outcome === 'unconfirmed' ? 'unknown_may_have_been_saved' : 'nothing_was_saved',
             next_step: unknown
                 ? 'Call this tool again with exactly the same arguments. The operation is remembered, so a repeat cannot create a duplicate.'

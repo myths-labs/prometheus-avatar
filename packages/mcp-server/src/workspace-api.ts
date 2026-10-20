@@ -94,7 +94,10 @@ function fromHttp(status: number, site: SiteError, retryAfterSeconds: number | u
     if (status === 415) return new WorkspaceAgentError('workspace_unsupported_media', 'The website refused the request content type. This server sends JSON; something between this machine and the website is rewriting requests.', details({ outcome: 'rejected' }));
     if (status === 429) {
         const wait = retryAfterSeconds ? ` Wait about ${retryAfterSeconds} seconds before trying again.` : ' Wait a minute before trying again.';
-        return new WorkspaceAgentError('workspace_rate_limited', `The website is limiting how fast this key can write.${wait} Nothing was saved by this call.`, details({ outcome: 'rejected', retryAfterSeconds }));
+        // The website limits reads too (marketplace K11a: per key, read, write and operation look-up each have their own allowance).
+        return new WorkspaceAgentError('workspace_rate_limited', writing
+            ? `The website is limiting how fast this key can write.${wait} Nothing was saved by this call.`
+            : `The website is limiting how fast this key can read.${wait} Nothing was changed.`, details({ outcome: 'rejected', retryAfterSeconds }));
     }
     if (status === 408 || status >= 500) {
         return new WorkspaceAgentError('workspace_result_unconfirmed',

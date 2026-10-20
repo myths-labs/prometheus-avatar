@@ -172,3 +172,16 @@ test('ids that are not 8-4-4-4-12 hexadecimal digits are still refused before an
         assert.equal(site.requests.length, 0, 'none of them reached the website');
     } finally { await mcp.close(); await site.close(); }
 });
+
+test('the request limit (429, marketplace K11a) reaches the model with the wait as a number: nothing saved, wait, then the same call', async () => {
+    const site = await startFakeSite({ intercept: ctx => ctx.isWrite ? { status: 429, body: { error: 'Too many workspace requests from this Agent key. Nothing was saved. Try again in 12s.', code: 'AGENT_KEY_RATE_LIMITED' }, headers: { 'retry-after': '12' } } : undefined });
+    const mcp = await connect(site.url, site.key);
+    try {
+        const limited = await mcp.call('save_work', { content: 'A burst of work' });
+        assert.equal(limited.result.isError, true);
+        assert.deepEqual([limited.json.saved, limited.json.error, limited.json.http_status, limited.json.outcome, limited.json.retry_after_seconds],
+            [false, 'workspace_rate_limited', 429, 'nothing_was_saved', 12]);
+        assert.match(limited.json.message, /about 12 seconds/); assert.match(limited.json.next_step, /call this tool again/);
+        assert.equal(site.list('work').length, 0);
+    } finally { await mcp.close(); await site.close(); }
+});

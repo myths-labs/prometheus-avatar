@@ -178,3 +178,19 @@ test('422 WORKSPACE_CATEGORY_FULL (K5b) is final: rejected, names the category, 
         await rejects(api.post(accountId, operationId, input, controller()), 'workspace_http_422', error => assert.equal(error.outcome, 'rejected'));
     });
 });
+
+test('429 (the website request limit, K11a) says which kind of call was limited: a read changed nothing, a write saved nothing; both carry the wait', async () => {
+    const limited = { status: 429, headers: { 'retry-after': '7' }, value: { error: 'Too many workspace requests from this Agent key. Nothing was changed. Try again in 7s.', code: 'AGENT_KEY_RATE_LIMITED' } };
+    await run(() => limited, async api => {
+        await rejects(api.read({ accountId, category: 'work' }, controller()), 'workspace_rate_limited', error => {
+            assert.match(error.message, /how fast this key can read/); assert.match(error.message, /about 7 seconds/); assert.match(error.message, /Nothing was changed/);
+            assert.doesNotMatch(error.message, /write|saved/, 'a limited read must not tell the agent about a write');
+        });
+    });
+    await run(req => req.method === 'POST' ? limited : { value: { accountId, operation: null } }, async (api, calls) => {
+        await rejects(api.save(accountId, operationId, input, controller()), 'workspace_rate_limited', error => {
+            assert.match(error.message, /how fast this key can write/); assert.match(error.message, /about 7 seconds/); assert.match(error.message, /Nothing was saved by this call/);
+        });
+        assert.equal(calls.filter(call => call.method === 'POST').length, 1, 'sent once, not retried');
+    });
+});
