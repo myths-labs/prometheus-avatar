@@ -65,11 +65,10 @@ test('a receipt with keys this version has never seen is accepted (the website w
     });
 });
 
-test('HTTP rejection is sanitised, response bytes are bounded and redirects are never followed', async () => {
+test('HTTP rejection is sanitised and response bytes are bounded', async () => {
     const cases = [
         [{ status: 401, raw: '{"error":"private supplier credential"}' }, 'workspace_key_rejected'],
         [{ raw: 'x'.repeat(2 * 1024 * 1024 + 1) }, 'workspace_response_invalid'],
-        [{ status: 302, headers: { location: 'http://127.0.0.1:9/leak' }, raw: '' }, 'workspace_result_unconfirmed'],
         [{ headers: { 'content-type': 'text/html' }, raw: 'private HTML' }, 'workspace_response_invalid'],
     ];
     for (const [response, code] of cases) {
@@ -78,6 +77,29 @@ test('HTTP rejection is sanitised, response bytes are bounded and redirects are 
             assert.equal(calls.length, 1);
         });
     }
+});
+
+test('a redirect is never followed: its target, a live server that would answer like the website, never hears from this package', async () => {
+    // The target is reachable and answers a valid receipt, so the only thing that can keep it from being contacted is that
+    // redirects are not followed (a closed port would fail the same way either way and prove nothing).
+    const hits = [];
+    const target = http.createServer((req, res) => {
+        hits.push({ method: req.method, url: req.url });
+        res.writeHead(200, { 'content-type': 'application/json', connection: 'close' });
+        res.end(JSON.stringify({ accountId, operation: null }));
+    });
+    await listenOnFreePort(target);
+    try {
+        const location = `http://127.0.0.1:${target.address().port}/api/agent/workspace?operationId=${operationId}`;
+        for (const status of [301, 302, 303, 307, 308]) {
+            await run(() => ({ status, headers: { location }, raw: '' }), async (api, calls) => {
+                await rejects(api.receipt(accountId, operationId, controller()), 'workspace_result_unconfirmed', error => assert.equal(error.outcome, 'not_sent'));
+                await rejects(api.post(accountId, operationId, input, controller()), 'workspace_result_unconfirmed', error => assert.equal(error.outcome, 'unconfirmed'));
+                assert.equal(calls.length, 2);
+            });
+        }
+        assert.deepEqual(hits, [], 'the redirect target was never contacted, so neither the key nor the content went there');
+    } finally { target.closeAllConnections(); await new Promise(resolve => target.close(resolve)); }
 });
 
 test('invalid URLs, missing keys, oversized content, wrong roles and cancellation cannot mutate', async () => {
