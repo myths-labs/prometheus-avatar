@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, linkSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { workspaceUuid } from './workspace-contract.js';
@@ -157,6 +157,8 @@ export function createWorkspaceState(options: { directory: string | null; apiKey
         }
     };
     const folderExists = (path: string) => { try { return statSync(path).isDirectory(); } catch { return false; } };
+    /** A folder itself, not a symbolic link to one: only those are swept, so nothing a link points to is ever moved or removed. */
+    const realFolder = (path: string) => { try { return lstatSync(path).isDirectory(); } catch { return false; } };
 
     const readAccount = (key: string): string | undefined => {
         if (!root) return undefined;
@@ -220,9 +222,10 @@ export function createWorkspaceState(options: { directory: string | null; apiKey
     /** Moves the per-key folders of earlier builds to the account each key belongs to (see the comment on top). */
     const adoptKeyFolders = (current?: string) => {
         if (adopted) return;
+        const parent = join(root!, KEY_FOLDERS);
+        if (!realFolder(parent)) { adopted = true; return; } // missing, or a link or a file where the folder would be: nothing of ours
         let keys: string[];
-        try { keys = readdirSync(join(root!, KEY_FOLDERS)); }
-        catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') adopted = true; return; }
+        try { keys = readdirSync(parent); } catch { return; } // unreadable: tried again on a later call
         let complete = true;
         for (const key of keys) {
             if (!FINGERPRINT.test(key)) continue;
@@ -230,8 +233,9 @@ export function createWorkspaceState(options: { directory: string | null; apiKey
             // Another key whose account is not known stays as it is. This server's own key is known after its first call.
             if (!owner) { if (key === fingerprint) complete = false; continue; }
             const from = keyFolder(key);
+            if (!realFolder(from)) continue; // a link (or a file): whatever it points to is not ours to move or remove
             let names: string[];
-            try { names = readdirSync(from); } catch { continue; } // not a folder, or unreadable: nothing that can be moved
+            try { names = readdirSync(from); } catch { continue; } // unreadable: nothing that can be moved now
             for (const name of names) {
                 const path = join(from, name);
                 if (name.endsWith('.tmp')) { removeStaleTemporary(path); continue; }
@@ -249,7 +253,7 @@ export function createWorkspaceState(options: { directory: string | null; apiKey
             }
             try { rmdirSync(from); } catch { /* not empty: something could not be moved, or is not ours to remove */ }
         }
-        try { rmdirSync(join(root!, KEY_FOLDERS)); } catch { /* still holds folders of keys whose account is not known */ }
+        try { rmdirSync(parent); } catch { /* still holds folders of keys whose account is not known */ }
         if (complete) adopted = true;
     };
     /** Brings earlier layouts up to date. Best effort: nothing on disk may stop a start or a call. */
@@ -262,6 +266,7 @@ export function createWorkspaceState(options: { directory: string | null; apiKey
     const prune = (accountId: string) => {
         if (!root) return;
         const folder = accountFolder(accountId);
+        if (!realFolder(folder)) return; // a link: nothing behind it is swept
         let names: string[];
         try { names = readdirSync(folder); } catch { return; }
         const live: { path: string; savedAt: number }[] = [];

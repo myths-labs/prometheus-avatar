@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -392,4 +392,27 @@ test('hasPendingCall: a live record of the call under any account, or in an earl
     assert.equal(memory.hasPendingCall('call-e'), true, 'memory only: what this process remembers counts');
     memory.deletePending(ACCOUNT, 'call-e');
     assert.equal(memory.hasPendingCall('call-e'), false);
+}));
+
+// ───────────── Symbolic links are not folders of ours ─────────────
+test('a per-key or account folder that is a symbolic link is skipped: nothing in the folder it points to is moved or removed', () => withFolder('symlink', root => {
+    const elsewhere = join(root, 'elsewhere'), elsewhereToo = join(root, 'elsewhere-too');
+    plant(join(elsewhere, 'settings.json'), { not: 'a record' });
+    plant(join(elsewhere, intentFile('linked')), operation(1));
+    plant(join(elsewhereToo, 'notes.json'), { not: 'a record either' });
+    accountOnFile(root, REVOKED, ACCOUNT);
+    mkdirSync(join(root, 'workspace-state', 'pending'), { recursive: true, mode: 0o700 });
+    symlinkSync(elsewhere, keyFolder(root, REVOKED));
+    mkdirSync(join(root, 'workspace-state', 'pending-by-account'), { recursive: true, mode: 0o700 });
+    const OTHER_ACCOUNT = randomUUID();
+    symlinkSync(elsewhereToo, pendingFolder(root, OTHER_ACCOUNT));
+    const before = { one: readTree(elsewhere), two: readTree(elsewhereToo) };
+    let state;
+    assert.doesNotThrow(() => { state = createWorkspaceState({ directory: root, apiKey: KEY, now: () => NOW }); });
+    state.setPending(OTHER_ACCOUNT, 'call', operation(2)); // a write prunes that account's folder
+    state.deletePending(OTHER_ACCOUNT, 'call');
+    assert.deepEqual(readTree(elsewhere), before.one, 'the folder a per-key link points to is untouched');
+    assert.deepEqual(Object.keys(readTree(elsewhereToo)).sort(), Object.keys(before.two).sort(), 'the folder an account link points to keeps its other files');
+    assert.ok(existsSync(join(elsewhereToo, 'notes.json')));
+    assert.equal(state.getPending(ACCOUNT, 'linked'), undefined, 'a record behind a link is not adopted');
 }));
