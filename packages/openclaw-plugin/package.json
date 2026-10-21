@@ -32,7 +32,7 @@
     "author": "Myths Labs (JC)",
     "homepage": "https://prometheus.mythslabs.ai",
     "dependencies": {
-        "@prometheusavatar/core": "^0.11.3"
+        "@prometheusavatar/core": "^0.11.5"
     },
     "openclaw": {
         "compat": {

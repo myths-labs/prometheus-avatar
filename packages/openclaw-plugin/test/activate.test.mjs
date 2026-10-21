@@ -29,6 +29,8 @@ async function loadPlugin() {
         '}',
         'export class PrometheusAvatar {}',
         'export class AssetCreator { constructor(host, apiKey) { this.apiKey = apiKey; } }',
+        'export class EmotionAnalyzer { analyze() { return { emotion: \'neutral\', confidence: 1, triggers: [] }; } }',
+        'export function connectEmbed() { throw new Error(\'connectEmbed must not be reached without an apiKey and an avatarId\'); }',
         '',
     ].join('\n'));
     copyFileSync(join(PACKAGE, 'dist', 'index.js'), join(dir, 'index.js'));
@@ -77,11 +79,12 @@ test('without modelUrl the creator tools are still registered', async () => {
     assert.deepEqual([...result.tools].sort(), ['prometheus_deploy_asset', 'prometheus_generate_image_pro', 'prometheus_generate_thumbnail']);
 });
 
-test('with only an avatarId the error says an avatarId cannot pick a model yet', async () => {
+test('with only an avatarId the error says the avatarId needs an apiKey, or a modelUrl instead', async () => {
     const result = await run({ avatarId: 'abc123' });
     assert.deepEqual(result.createAvatarCalls, []);
     assert.equal(result.errors.length, 1, `one error line, got: ${JSON.stringify(result.errors)}`);
     assert.match(result.errors[0], /avatarId/);
+    assert.match(result.errors[0], /apiKey/);
     assert.match(result.errors[0], /modelUrl/);
 });
 
