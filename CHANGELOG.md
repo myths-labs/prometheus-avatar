@@ -34,9 +34,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
     so the official account `00000000-0000-0000-0000-000000000001` is accepted.
   - the website's request limit (HTTP 429 with `Retry-After`, per Agent key and per account; marketplace K11a) is
     reported as `workspace_rate_limited` with `retry_after_seconds` and says whether a read or a write was limited.
-    Nothing was saved or changed by that try, and it is not retried by itself. When the 429 answers the replay of an
-    earlier unconfirmed write, that write stays remembered and the next call re-sends the same operation and entry id,
-    so the entry cannot be stored twice.
+    Nothing was saved or changed by that try, and it is not retried by itself; `next_step` names the wait in seconds.
+    When the 429 (or a refused key) answers the replay of an earlier unconfirmed write, the result says
+    `unknown_may_have_been_saved`, that write stays remembered, and the next call re-sends the same operation and
+    entry id, so the entry cannot be stored twice.
   - README: setup for Claude Desktop, Claude Code and Cursor, and a standing-rule snippet for each.
 - **mcp-server**: reads (snapshots, receipts) ignore keys they do not know, so a website that adds fields later
   does not break installed copies. Requests still follow the website's current shape exactly.

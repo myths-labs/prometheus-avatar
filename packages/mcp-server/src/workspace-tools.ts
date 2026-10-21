@@ -10,11 +10,21 @@ const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: t
 /** The same rule the website applies to ids: any 8-4-4-4-12 hexadecimal digits. (zod's own .uuid() insists on RFC version and variant digits and would refuse 00000000-0000-0000-0000-000000000001.) */
 const idText = () => z.string().regex(workspaceUuid, 'must be a UUID: 8-4-4-4-12 hexadecimal digits');
 
-function nextStep(code: string): string {
+const SAME_AGAIN = 'call this tool again with exactly the same arguments. An earlier try may already be stored: the same arguments re-send that try and cannot create a duplicate, so do not change the content, and do not tell the user it was not saved.';
+
+/** What the model should do next. `unknown`: an earlier try of this save may already be stored (outcome unknown_may_have_been_saved). */
+function nextStep(code: string, unknown: boolean, retryAfterSeconds?: number): string {
+    if (code === 'workspace_rate_limited') {
+        const wait = retryAfterSeconds ? `Wait ${retryAfterSeconds} seconds (retry_after_seconds)` : 'Wait a minute';
+        return unknown ? `${wait}, then ${SAME_AGAIN}` : `${wait}, then call this tool again with the same arguments.`;
+    }
+    if (code === 'workspace_key_missing' || code === 'workspace_key_rejected') return unknown
+        ? `Tell the user to fix the Agent key as described in message. Once they have, ${SAME_AGAIN}`
+        : 'Tell the user to fix the Agent key as described in message. Do not retry until they have.';
+    if (unknown) return 'Call this tool again with exactly the same arguments. The operation is remembered, so a repeat cannot create a duplicate.';
     if (code === 'workspace_browse_unavailable') return 'Do not retry now, and do not tell the user the page was logged. See message.';
     if (code === 'workspace_category_full') return 'Do not retry. Tell the user this category is full and nothing was saved, and ask them to make room as described in message.';
-    if (code === 'workspace_key_missing' || code === 'workspace_key_rejected') return 'Tell the user to fix the Agent key as described in message. Do not retry until they have.';
-    if (code === 'workspace_rate_limited' || code === 'workspace_revision_conflict' || code === 'workspace_account_changed') return 'Wait a moment, then call this tool again.';
+    if (code === 'workspace_revision_conflict' || code === 'workspace_account_changed') return 'Wait a moment, then call this tool again.';
     if (code === 'workspace_lookup_timeout') return 'Nothing was changed. You may try once more later; if it times out again, tell the user.';
     if (code === 'workspace_invalid_api_url') return 'Tell the user to fix PROMETHEUS_API_URL as described in message.';
     return 'Fix the problem named in message before calling again; calling again unchanged will fail the same way.';
@@ -30,10 +40,8 @@ function failure(error: unknown, scope: Record<string, unknown> = {}): CallToolR
             ...(error.details.field ? { field: error.details.field } : {}),
             ...(error.details.status ? { http_status: error.details.status } : {}),
             ...(error.details.retryAfterSeconds ? { retry_after_seconds: error.details.retryAfterSeconds } : {}),
-            outcome: error.outcome === 'unconfirmed' ? 'unknown_may_have_been_saved' : 'nothing_was_saved',
-            next_step: unknown
-                ? 'Call this tool again with exactly the same arguments. The operation is remembered, so a repeat cannot create a duplicate.'
-                : nextStep(error.code),
+            outcome: unknown ? 'unknown_may_have_been_saved' : 'nothing_was_saved',
+            next_step: nextStep(error.code, unknown, error.details.retryAfterSeconds),
             ...scope,
         };
     } else {

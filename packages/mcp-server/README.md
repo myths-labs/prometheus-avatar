@@ -199,7 +199,7 @@ Every workspace error says what was wrong, whether anything was saved, and what 
 | `workspace_browse_unavailable` | The website does not have the visited-pages list yet; nothing saved, do not retry |
 | `workspace_category_full` | Work, To-do and Browse each hold at most 2,000 entries that are not archived; nothing saved, do not retry until you archive or delete some older entries |
 | `workspace_lookup_timeout` | Looking for the task (or reading an entry back) took longer than 60 seconds; nothing was changed. Try once more later |
-| `workspace_rate_limited` | The website is limiting how fast this key reads or writes; nothing was saved by that call. Wait the `retry_after_seconds` it gives, then send the same call again |
+| `workspace_rate_limited` | The website is limiting how fast this key reads or writes; nothing was saved by that call. Wait the `retry_after_seconds` it gives, then send the same call again. If it answered the repeat of an unconfirmed save, `outcome` is `unknown_may_have_been_saved`: the earlier try may already be stored, and the same call re-sends it rather than adding a second entry |
 
 ## Example Conversation
 
@@ -444,7 +444,7 @@ alwaysApply: true
 | `workspace_browse_unavailable` | 网站还没有「访问过的页面」；没有保存，不要重试 |
 | `workspace_category_full` | Work、To-do、Browse 每类最多 2,000 条未归档条目；没有保存，先归档或删掉一些旧条目再试，不要直接重试 |
 | `workspace_lookup_timeout` | 查找那条待办（或把条目读回来）超过 60 秒；什么都没改。稍后再试一次 |
-| `workspace_rate_limited` | 网站在限制这把密钥的读写频率，这次调用什么都没存；等它给的 `retry_after_seconds` 秒后原样再调 |
+| `workspace_rate_limited` | 网站在限制这把密钥的读写频率，这次调用什么都没存；等它给的 `retry_after_seconds` 秒后原样再调。如果被限的是一次「未确认保存」的重试，`outcome` 会是 `unknown_may_have_been_saved`：之前那次可能已经存上，原样再调只会重发那一次，不会多出一条 |
 
 ## 对话示例
 

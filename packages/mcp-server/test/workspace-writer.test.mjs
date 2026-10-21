@@ -375,7 +375,7 @@ test('K10-3 rate limit (429) on the REPLAY of an unconfirmed write: the unfinish
         // Call 2: replays the same operation; this time the website only says "slow down".
         h.site.intercept = ctx => ctx.isWrite ? { status: 429, body: { error: 'Too many requests' }, headers: { 'retry-after': '30' } } : undefined;
         await rejects(call(), 'workspace_rate_limited', error => {
-            assert.equal(error.outcome, 'rejected');
+            assert.equal(error.outcome, 'unconfirmed', 'the earlier try may be stored, so the outcome is unknown, not "rejected" (R3)');
             assert.match(error.message, /may already be stored/, 'a refused replay must not read as "nothing is stored"');
         });
         assert.equal(posts(h.site)[1].body.operationId, first.operationId, 'call 2 replayed the unfinished operation');
@@ -408,7 +408,7 @@ for (const [name, answer, code] of [
         assert.equal(h.site.list('todo').length, 0, 'the first write never arrived');
         const first = posts(h.site)[0].body;
         h.site.intercept = ctx => ctx.isWrite ? answer : undefined;
-        await rejects(call(), code, error => assert.equal(error.outcome, 'rejected'));
+        await rejects(call(), code, error => assert.equal(error.outcome, 'unconfirmed', 'a refused replay leaves the outcome unknown'));
         const keptAfterAnswer = rememberedOnDisk(h, first.operationId);
         h.site.intercept = null;
         const result = await call();

@@ -181,7 +181,49 @@ test('the request limit (429, marketplace K11a) reaches the model with the wait 
         assert.equal(limited.result.isError, true);
         assert.deepEqual([limited.json.saved, limited.json.error, limited.json.http_status, limited.json.outcome, limited.json.retry_after_seconds],
             [false, 'workspace_rate_limited', 429, 'nothing_was_saved', 12]);
-        assert.match(limited.json.message, /about 12 seconds/); assert.match(limited.json.next_step, /call this tool again/);
+        assert.match(limited.json.message, /about 12 seconds/); assert.match(limited.json.next_step, /^Wait 12 seconds \(retry_after_seconds\), then call this tool again/);
         assert.equal(site.list('work').length, 0);
+    } finally { await mcp.close(); await site.close(); }
+});
+
+test('R3 the replay of an unconfirmed save answered 429: outcome unknown (the first try may be stored), the wait the website gave, then the same call stores one entry', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        const args = { content: 'Committed, but the answer was lost' };
+        site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { drop: 'after' } : undefined;
+        const lost = await mcp.call('save_work', args);
+        assert.equal(lost.json.outcome, 'unknown_may_have_been_saved');
+        assert.equal(site.list('work').length, 1, 'the website did store the first try');
+        site.intercept = ctx => ctx.isWrite ? { status: 429, body: { error: 'Too many workspace requests from this Agent key. Nothing was saved. Try again in 7s.', code: 'AGENT_KEY_RATE_LIMITED' }, headers: { 'retry-after': '7' } } : undefined;
+        const limited = await mcp.call('save_work', args);
+        assert.equal(limited.result.isError, true);
+        assert.deepEqual([limited.json.saved, limited.json.error, limited.json.http_status, limited.json.outcome, limited.json.retry_after_seconds],
+            [false, 'workspace_rate_limited', 429, 'unknown_may_have_been_saved', 7], 'not "nothing_was_saved": the earlier try is on the website');
+        assert.match(limited.json.message, /may already be stored/);
+        assert.match(limited.json.next_step, /^Wait 7 seconds \(retry_after_seconds\), then call this tool again with exactly the same arguments/);
+        assert.match(limited.json.next_step, /do not tell the user it was not saved/);
+        site.intercept = null;
+        const done = await mcp.call('save_work', args);
+        assert.equal(done.json.saved, true);
+        assert.equal(site.list('work').length, 1, 'one entry, not two');
+        const writes = site.writes();
+        assert.equal(writes.at(-1).body.operationId, writes[0].body.operationId, 'the same operation was re-sent');
+    } finally { await mcp.close(); await site.close(); }
+});
+
+test('R3 the replay of an unconfirmed save refused because the key was revoked: outcome unknown, and the model is told to repeat only once the key is fixed', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        const args = { content: 'Committed just before the key was revoked' };
+        site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { drop: 'after' } : undefined;
+        assert.equal((await mcp.call('save_work', args)).json.outcome, 'unknown_may_have_been_saved');
+        site.intercept = null;
+        site.keys.delete(site.key);
+        const refused = await mcp.call('save_work', args);
+        assert.deepEqual([refused.json.error, refused.json.outcome], ['workspace_key_rejected', 'unknown_may_have_been_saved']);
+        assert.match(refused.json.next_step, /^Tell the user to fix the Agent key as described in message\. Once they have, call this tool again with exactly the same arguments/);
+        assert.equal(site.list('work').length, 1);
     } finally { await mcp.close(); await site.close(); }
 });
