@@ -491,3 +491,22 @@ test('S1 an answer this server cannot read while the save may be stored: next_st
         assert.deepEqual([(await mcp.call('complete_task', { task_id: task.json.entry_id })).json.status, site.list('todo')[0].status], ['done', 'done']);
     } finally { await mcp.close(); await site.close(); }
 });
+
+test('S2 the read-back a repeat needs runs out of time while an earlier try is unconfirmed: unknown, wait and repeat, and if it times out again tell the user', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key, { writer: { lookupTimeoutMs: 2000 } });
+    try {
+        const task = await mcp.call('upsert_task', { text: 'Send the invoice' });
+        const before = site.writes().length;
+        site.intercept = ctx => ctx.isWrite && ctx.writes === before + 1 ? { drop: 'after' } : undefined;
+        assert.equal((await mcp.call('complete_task', { task_id: task.json.entry_id })).json.outcome, 'unknown_may_have_been_saved');
+        site.intercept = ctx => ctx.isWrite ? undefined : { delayMs: 8000 };
+        const slow = await mcp.call('complete_task', { task_id: task.json.entry_id });
+        assert.deepEqual([slow.json.error, slow.json.outcome], ['workspace_lookup_timeout', 'unknown_may_have_been_saved']);
+        assert.match(slow.json.next_step, /^Wait a moment, then call this tool again with exactly the same arguments/);
+        assert.match(slow.json.next_step, /If it times out again, tell the user/);
+        site.intercept = null;
+        const done = await mcp.call('complete_task', { task_id: task.json.entry_id });
+        assert.deepEqual([done.json.saved, done.json.status], [true, 'done']);
+    } finally { await mcp.close(); await site.close(); }
+});

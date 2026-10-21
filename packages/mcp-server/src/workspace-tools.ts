@@ -41,7 +41,9 @@ function nextStep(code: string, unknown: boolean, retryAfterSeconds?: number): s
                 ? `Tell the user what message says, and that this save may already be stored. Do not call this tool again until that is fixed: an answer this server cannot read usually comes back the same way. Once it is fixed, ${SAME_AGAIN}`
                 : 'Fix the problem named in message before calling again; calling again unchanged will fail the same way.';
         case 'workspace_lookup_timeout':
-            return unknown ? `Wait a moment, then ${SAME_AGAIN}` : 'Nothing was changed. You may try once more later; if it times out again, tell the user.';
+            return unknown
+                ? `Wait a moment, then ${SAME_AGAIN} If it times out again, tell the user this save could not be confirmed and may already be stored.`
+                : 'Nothing was changed. You may try once more later; if it times out again, tell the user.';
         case 'workspace_revision_conflict': case 'workspace_account_changed':
             return unknown ? `Wait a moment, then ${SAME_AGAIN}` : 'Wait a moment, then call this tool again.';
         // The user has to act first.
