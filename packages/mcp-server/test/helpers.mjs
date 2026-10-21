@@ -8,14 +8,14 @@ import { createWorkspaceWriter } from '../.test-build/workspace-writer.js';
 
 export const signal = () => new AbortController().signal;
 
-/** A fake website plus a way to start (and "restart") a writer against it. */
+/** A fake website plus a way to start (and "restart") a writer against it. `start({ apiKey })` restarts with another key, same state folder. */
 export async function harness(siteOptions = {}, { clock, writerOptions = {}, persist = false, apiKey } = {}) {
     const site = await startFakeSite(siteOptions);
     const directory = persist ? mkdtempSync(join(tmpdir(), 'k10-state-')) : null;
     const key = apiKey ?? site.key;
-    const start = (extra = {}) => {
-        const api = workspaceApi(site.url, key, 'test');
-        const state = createWorkspaceState({ directory, apiKey: key, now: clock ? () => clock().getTime() : undefined });
+    const start = ({ apiKey: otherKey, ...extra } = {}) => {
+        const api = workspaceApi(site.url, otherKey ?? key, 'test');
+        const state = createWorkspaceState({ directory, apiKey: otherKey ?? key, now: clock ? () => clock().getTime() : undefined });
         const writer = createWorkspaceWriter(() => api, state, { now: clock, ...writerOptions, ...extra });
         return { api, state, writer };
     };

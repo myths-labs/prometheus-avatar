@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { ENTRY_KEYS, UUID, fixedClock, harness, readTree, signal } from './helpers.mjs';
 import { deriveEntryId } from '../.test-build/workspace-ids.js';
 
@@ -437,6 +439,59 @@ test('K10-3 rate limit (429) on a FIRST write (not a replay): nothing is remembe
         assert.notEqual(accepted.operationId, limited.operationId, 'a fresh operation');
         assert.notEqual(accepted.entry.entryId, limited.entry.entryId, 'and a fresh entry id');
         assert.equal(h.site.list('work').length, 1);
+    } finally { await h.stop(); }
+});
+
+// M1 (B review of d587f7e7): the website counts operations per account, and a key that stops working mid-save is replaced
+// by the user (rotating revokes the old key). The repeat with the new key must still re-send the original operation.
+const ROTATED_FROM = 'pak_key_before_the_user_rotated_it', ROTATED_TO = 'pak_key_after_the_user_rotated_it';
+for (const [name, afterFirstTry] of [
+    ['the answer was lost', async () => {}],
+    ['the replay with the old key was refused (401)', async (h, call) => {
+        h.site.keys.delete(ROTATED_FROM);
+        await rejects(call(), 'workspace_key_rejected', error => assert.match(error.message, /may already be stored/));
+    }],
+]) test(`M1 a save the website committed but never confirmed (${name}), repeated after the user replaced the key: same operation and entry id, one entry`, async () => {
+    const h = await harness({ keys: [ROTATED_FROM, ROTATED_TO] }, { persist: true, clock: fixedClock(), apiKey: ROTATED_FROM });
+    try {
+        const args = { content: 'Weekly report: revenue table and notes' }; // no external_key: the entry id is random, only the record can repeat it
+        const call = () => h.writer.saveWork(args, signal());
+        h.site.intercept = ctx => ctx.isWrite && ctx.writes === 1 ? { drop: 'after' } : undefined;
+        await rejects(call(), 'workspace_result_unconfirmed');
+        assert.equal(h.site.list('work').length, 1, 'the website did commit the first try');
+        h.site.intercept = null;
+        await afterFirstTry(h, call);
+        h.site.keys.delete(ROTATED_FROM); // rotating the key revokes the old one
+        const restarted = h.start({ apiKey: ROTATED_TO }); // the user puts the new key into the client, which restarts the server
+        const result = await restarted.writer.saveWork(args, signal());
+        assert.deepEqual([result.saved, result.action], [true, 'created'], 'the original receipt');
+        const writes = posts(h.site), first = writes[0].body, last = writes.at(-1).body;
+        assert.deepEqual([last.operationId, last.entry.entryId], [first.operationId, first.entry.entryId], 'the new key re-sends the very same operation and entry id');
+        assert.equal(h.site.list('work').length, 1, 'one entry on the website, never two');
+        assert.equal(h.site.operations.size, 1);
+        assert.equal(rememberedOnDisk(h, first.operationId), false, 'confirmed now, so the record is gone');
+    } finally { await h.stop(); }
+});
+
+test('M1 the account cached for the key turns out wrong (409 account changed): the unconfirmed write is filed under the account the website named, so the repeat still finds it', async () => {
+    const h = await harness({}, { persist: true, clock: fixedClock() });
+    try {
+        const stale = randomUUID();
+        h.state.setAccount(stale); // what an earlier run believed the key belonged to
+        const args = { content: 'Filed under the account the key really belongs to' };
+        // The write to the stale account is answered 409 by the website; the one to the real account commits and its answer is lost.
+        h.site.intercept = ctx => ctx.isWrite && ctx.account === h.site.accountId ? { drop: 'after' } : undefined;
+        await rejects(h.writer.saveWork(args, signal()), 'workspace_result_unconfirmed');
+        assert.deepEqual(posts(h.site).map(r => r.account), [stale, h.site.accountId]);
+        assert.equal(h.site.list('work').length, 1);
+        h.site.intercept = null;
+        const result = await h.start().writer.saveWork(args, signal());
+        assert.equal(result.saved, true);
+        const writes = posts(h.site);
+        assert.equal(writes.at(-1).body.operationId, writes[1].body.operationId, 'the repeat re-sends the operation the website committed');
+        assert.equal(h.site.list('work').length, 1);
+        assert.equal(existsSync(join(h.directory, 'workspace-state', 'pending-by-account', stale)) && readdirSync(join(h.directory, 'workspace-state', 'pending-by-account', stale)).length > 0, false,
+            'nothing is left filed under the account the key does not belong to');
     } finally { await h.stop(); }
 });
 

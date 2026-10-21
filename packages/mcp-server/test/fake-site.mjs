@@ -43,6 +43,7 @@ const pgTime = date => date.toISOString().replace(/Z$/, '') + '000+00:00'; // li
  * options.port: listen on this port only (the by-hand end-to-end run uses 3486). Default: first free port of 54860-54869.
  * options.cap / site.cap: the K5b limit of entries that are not archived in work, todo and browse (2,000 on the website).
  *   A new entry, or one taken out of the archive, beyond it is answered 422 { error, code: WORKSPACE_CATEGORY_FULL }.
+ * site.keys: the Set of keys the site accepts; delete one to revoke it (what rotating a key does on the website).
  * site.intercept: (ctx) => undefined | {drop:'before'|'after'} | {status, body, headers} | {delayMs} — failure injection.
  *   {delayMs} holds the request that long (or until the client gives up) and then answers normally; a request the client abandoned is not answered.
  */
@@ -60,7 +61,7 @@ export async function startFakeSite(options = {}) {
     let seq = 0n, clock = options.clock ?? (() => new Date());
     const requests = [];
     const site = {
-        accountId, entries, operations, requests, categories, intercept: options.intercept ?? null, extras: !!options.extras, cap: options.cap,
+        accountId, keys, entries, operations, requests, categories, intercept: options.intercept ?? null, extras: !!options.extras, cap: options.cap,
         /** Rows the way a user would have created them in the app (not through the agent route). */
         addEntry(row) {
             const now = clock();

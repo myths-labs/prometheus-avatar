@@ -16,9 +16,10 @@ export function createSingleFileState({ directory, apiKey }) {
         renameSync(temporary, file);
     };
     return {
-        getPending: intent => load().pending[fingerprint]?.[intent],
-        setPending: (intent, operation) => change(state => { (state.pending[fingerprint] ??= {})[intent] = operation; }),
-        deletePending: intent => change(state => { delete state.pending[fingerprint]?.[intent]; }),
+        // Same calls as the real store (account first); kept per key, as the single file was.
+        getPending: (_account, intent) => load().pending[fingerprint]?.[intent],
+        setPending: (_account, intent, operation) => change(state => { (state.pending[fingerprint] ??= {})[intent] = operation; }),
+        deletePending: (_account, intent) => change(state => { delete state.pending[fingerprint]?.[intent]; }),
         count: () => Object.keys(load().pending[fingerprint] ?? {}).length,
     };
 }

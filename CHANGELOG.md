@@ -17,14 +17,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   - kept for exact control: `prometheus_read_workspace`, `prometheus_save_workspace_entry`,
     `prometheus_get_workspace_operation`.
   - `external_key` derives the entry id deterministically (UUIDv5), so repeating a call updates the same entry;
-    an unconfirmed write (network drop, timeout, 5xx) is remembered with its operation id and replayed unchanged,
-    so a retry never creates a second entry; a 409 re-reads the entry and retries once.
+    an unconfirmed write (network drop, timeout, 5xx, a key revoked mid-save) is remembered for 24 hours with its
+    operation id and replayed unchanged, so a retry never creates a second entry; a 409 re-reads the entry and retries once.
+    The record is kept per account, the way the website counts operations, not per key: after the user replaces a
+    revoked key, the repeated call still re-sends the original operation.
   - errors say which field is wrong, whether anything was saved, and what to do next.
   - a full category (HTTP 422 `WORKSPACE_CATEGORY_FULL`: work, todo and browse hold at most 2,000 entries that are not
     archived) is reported as final (`workspace_category_full`): nothing saved, not retried, the user is asked to make room.
-  - the state kept between calls is one small file per unconfirmed write (plus one for the account id), created and
-    removed atomically, so several MCP servers sharing `~/.prometheus-mcp` (Claude Desktop and Cursor) no longer erase
-    each other's entries. An earlier single `workspace-state.json` is moved into the new layout when found.
+  - the state kept between calls is one small file per unconfirmed write, filed under the account (plus one per key
+    for the account id behind it), created and removed atomically, so several MCP servers sharing `~/.prometheus-mcp`
+    (Claude Desktop and Cursor) do not erase each other's entries. State left by pre-release builds (a single
+    `workspace-state.json`, or per-key folders) is moved into this layout on start; unreadable files cannot stop a start.
   - `complete_task` (and any read-back after a 409) gives up after 60 seconds in total with `workspace_lookup_timeout`:
     nothing changed, and the model is told so, instead of paging back for minutes.
   - ids in the three exact-control tools are checked like the website checks them (any 8-4-4-4-12 hexadecimal digits),

@@ -1,6 +1,8 @@
 // One of the "other MCP servers" in test/workspace-state.test.mjs: a separate process that writes unconfirmed operations to a
 // shared state folder. Not a test file (the runner only picks up *.test.mjs).
-//   node state-child.mjs '<json: { store, directory, apiKey, prefix, count, deleteOdd }>'
+//   node state-child.mjs '<json: { store, directory, apiKey, accountId, prefix, count, deleteOdd, startOnGo }>'
+// startOnGo: open the store only after the release, so that what it does on start (moving the folders of earlier builds)
+// is what races; with count 0 that is all the child does.
 // It loads everything, says "ready", and starts only when the parent writes a line to stdin, so that both children begin at
 // the same moment no matter how long each took to start.
 import { uuidV5 } from '../.test-build/workspace-ids.js';
@@ -8,7 +10,8 @@ import { uuidV5 } from '../.test-build/workspace-ids.js';
 const config = JSON.parse(process.argv[2]);
 const { createWorkspaceState } = await import('../.test-build/workspace-state.js');
 const { createSingleFileState } = await import('./single-file-state.mjs');
-const state = (config.store === 'single-file' ? createSingleFileState : createWorkspaceState)({ directory: config.directory, apiKey: config.apiKey });
+const open = () => (config.store === 'single-file' ? createSingleFileState : createWorkspaceState)({ directory: config.directory, apiKey: config.apiKey });
+let state = config.startOnGo ? undefined : open();
 
 const intentOf = (prefix, index) => `${prefix}-${index}`;
 const operationOf = (prefix, index) => ({
@@ -18,9 +21,10 @@ const operationOf = (prefix, index) => ({
 
 process.stdout.write('ready\n');
 process.stdin.once('data', () => {
+    state ??= open();
     for (let index = 0; index < config.count; index++) {
-        state.setPending(intentOf(config.prefix, index), operationOf(config.prefix, index));
-        if (config.deleteOdd && index % 2 === 1) state.deletePending(intentOf(config.prefix, index));
+        state.setPending(config.accountId, intentOf(config.prefix, index), operationOf(config.prefix, index));
+        if (config.deleteOdd && index % 2 === 1) state.deletePending(config.accountId, intentOf(config.prefix, index));
     }
     process.exit(0);
 });
