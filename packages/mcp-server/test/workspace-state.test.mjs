@@ -101,6 +101,25 @@ test('state files: set, get, replace and delete work, one unconfirmed write per 
     assert.deepEqual(other.getPending(ACCOUNT.toUpperCase(), 'a'), operation(3), 'the account id is matched the way the website matches it, case-insensitively');
 }));
 
+test('finishing a write removes only its own record: another MCP server\'s later try of the same call (same file) stays remembered', () => withFolder('own-delete', root => {
+    const first = createWorkspaceState({ directory: root, apiKey: KEY, now: () => NOW }), second = createWorkspaceState({ directory: root, apiKey: KEY, now: () => NOW });
+    first.setPending(ACCOUNT, 'same', operation(1));
+    second.setPending(ACCOUNT, 'same', operation(2)); // the other server makes the same call; its unconfirmed try replaces the file
+    first.deletePending(ACCOUNT, 'same', operation(1).operationId); // the first server's try was confirmed
+    const fresh = () => createWorkspaceState({ directory: root, apiKey: KEY, now: () => NOW });
+    assert.deepEqual(fresh().getPending(ACCOUNT, 'same'), operation(2), 'the second server\'s try is not erased by the first one finishing');
+    assert.deepEqual(first.getPending(ACCOUNT, 'same'), operation(2));
+    second.deletePending(ACCOUNT, 'same', operation(2).operationId);
+    assert.equal(fresh().getPending(ACCOUNT, 'same'), undefined, 'each server removes its own record');
+    first.setPending(ACCOUNT, 'any', operation(3));
+    first.deletePending(ACCOUNT, 'any');
+    assert.equal(fresh().getPending(ACCOUNT, 'any'), undefined, 'without an operation id the record goes whatever it holds');
+    const memoryOnly = createWorkspaceState({ directory: null, apiKey: KEY, now: () => NOW });
+    memoryOnly.setPending(ACCOUNT, 'm', operation(4));
+    memoryOnly.deletePending(ACCOUNT, 'm', operation(5).operationId);
+    assert.deepEqual(memoryOnly.getPending(ACCOUNT, 'm'), operation(4), 'in memory too, only the named operation is removed');
+}));
+
 test('state files: with no folder (memory only) everything still works and nothing is written', () => {
     const state = createWorkspaceState({ directory: null, apiKey: KEY, now: () => NOW });
     state.setAccount('acct'); state.setPending(ACCOUNT, 'a', operation(1));

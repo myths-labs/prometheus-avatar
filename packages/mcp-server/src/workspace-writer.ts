@@ -262,18 +262,18 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                     const previous = accountId;
                     accountId = await ensureAccount(signal, true);
                     // The record follows the account the key belongs to now, which is where the next call will look for it.
-                    if (accountId !== previous) { state.setPending(accountId, spec.intent, operation); state.deletePending(previous, spec.intent); }
+                    if (accountId !== previous) { state.setPending(accountId, spec.intent, operation); state.deletePending(previous, spec.intent, operation.operationId); }
                     return getApi().post(accountId, operation.operationId, input, signal);
                 });
                 remember(saved.entry);
-                state.deletePending(accountId, spec.intent);
+                state.deletePending(accountId, spec.intent, operation.operationId);
                 return describe(spec, saved.entry, saved.entry.revision === 1 ? 'created' : 'updated');
             } catch (error) {
                 if (!(error instanceof WorkspaceAgentError)) throw error;
                 const conflict = error.code === 'workspace_revision_conflict' || error.code === 'workspace_intent_conflict';
                 if (conflict && !resynced) {
                     // The entry already exists / changed, or this operation id was spent on an earlier version: read the truth back and decide again.
-                    resynced = true; state.deletePending(accountId, spec.intent); known.delete(entryId);
+                    resynced = true; state.deletePending(accountId, spec.intent, operation.operationId); known.delete(entryId);
                     const found = await withinBudget(budget, spec, read => findEntry(spec.category, entryId, read));
                     if (!found.entry) throw notFound(spec, found.complete);
                     existing = found.entry; fresh = true;
@@ -283,7 +283,7 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                 // status) only says this try failed; the earlier unconfirmed try may have been committed, so its record stays and the
                 // next call re-sends the same operation and entry id instead of minting new ones and duplicating the entry.
                 // The website's 409 answers about an operation id are the only ones that settle it, and they are handled above.
-                if (error.outcome !== 'unconfirmed' && !uncertain) state.deletePending(accountId, spec.intent);
+                if (error.outcome !== 'unconfirmed' && !uncertain) state.deletePending(accountId, spec.intent, operation.operationId);
                 // The website's own sentence often ends "Nothing was saved", which is true of this try only. Say so, and report the
                 // outcome as unknown (the tool result's `outcome` is what an Agent reads), or an Agent may tell the user nothing was
                 // saved, or rephrase the content to retry and so store a second copy next to the one the earlier try may have saved.

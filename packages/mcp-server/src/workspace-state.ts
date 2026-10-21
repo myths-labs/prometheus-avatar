@@ -62,7 +62,11 @@ export interface WorkspaceState {
     /** Unconfirmed writes are kept per account (see above): `accountId` is the account the write goes to. */
     getPending(accountId: string, intent: string): PendingOperation | undefined;
     setPending(accountId: string, intent: string, operation: PendingOperation): void;
-    deletePending(accountId: string, intent: string): void;
+    /**
+     * With `operationId`, only that operation's record is removed: when another MCP server sharing the folder has since tried
+     * the same call (and so replaced the file with its own unconfirmed operation), its record stays.
+     */
+    deletePending(accountId: string, intent: string, operationId?: string): void;
 }
 
 const LEGACY_FILE = 'workspace-state.json';
@@ -305,12 +309,17 @@ export function createWorkspaceState(options: { directory: string | null; apiKey
             } catch { /* memory still holds it */ }
             prune(accountId);
         },
-        deletePending(accountId, intent) {
+        deletePending(accountId, intent, operationId) {
             upgrade(accountId);
-            const name = intentFileName(intent);
-            pendingMemory.delete(slot(accountId, name));
+            const name = intentFileName(intent), key = slot(accountId, name);
+            if (!operationId || pendingMemory.get(key)?.operation.operationId === operationId) pendingMemory.delete(key);
             if (!root) return;
-            removeFile(join(accountFolder(accountId), name));
+            const path = join(accountFolder(accountId), name);
+            if (operationId) {
+                const stored = readJson(path);
+                if (record(stored) && stored.operationId !== operationId) return; // another server's try of the same call: not ours to finish
+            }
+            removeFile(path);
         },
     };
 }
