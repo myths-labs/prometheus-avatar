@@ -46,7 +46,7 @@ Add to your `openclaw.config.json`:
 | `apiKey` | `string` | `PROMETHEUS_API_KEY` env var | Prometheus agent API key (`pak_...`) — required for marketplace deploys (the live gate rejects unauthenticated writes). Get one at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) |
 | `modelUrl` | `string` | — | Direct URL to a 2D model file (`.model3.json`). Needed to show an avatar: without it the plugin logs an error that says how to set it and shows nothing (the three creator tools below still work) |
 | `ttsProvider` | `string` | — | **DEPRECATED in v0.10.0** — ignored. TTS is now delegated to the Prometheus SDK. |
-| `ttsVoice` | `string` | — | Prometheus Marketplace voice ID (e.g. `saturn_zh_female_keainvsheng_tob`). Browse voices at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace) |
+| `ttsVoice` | `string` | — | Name (or `voiceURI`) of a voice installed in the viewer's browser, as listed by `speechSynthesis.getVoices()`. An unknown name, a Marketplace voice ID included, is ignored and the default voice speaks. The plugin does not play cloned or Marketplace voices yet |
 | `enableLipSync` | `boolean` | `true` | Audio-driven lip synchronization |
 | `enableEmotion` | `boolean` | `true` | Emotion analysis from text |
 
@@ -117,6 +117,7 @@ Returns 1024×1536 base64 image (or `publicUrl` when `upload: true`) — ready t
 
 - **No default model.** The plugin used to fall back to a sample path that was never part of the package, which could only fail to load. Without `modelUrl` it now logs one error that says how to set it (and, when only `avatarId` is set, that `avatarId` cannot choose a model yet), shows no avatar and keeps the creator tools working. If you relied on the old fallback, set `modelUrl` to a 2D model file you host.
 - Public text says "2D avatar" / "2D model file (`.model3.json`)" instead of naming the runtime.
+- `ttsVoice` is documented as it works: a voice installed in the viewer's browser, not a Marketplace voice ID (the core SDK matches browser voices only).
 - `prometheus_deploy_asset` passes `persona_config` (personas: the prompt; the public description is never the prompt), `source` (motions: `original` or `licensed_resale`; library clips without resale rights cannot be listed) and `body_type`.
 
 ## 📄 License

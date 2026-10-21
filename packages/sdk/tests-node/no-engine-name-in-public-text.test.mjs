@@ -7,6 +7,7 @@
 // The one file that may, and must, name the engine is THIRD_PARTY_LICENSES.md at the repository root:
 // it is where users learn they need a licence of their own. No file inside a package is exempt.
 // packages/mcp-server/test/ is not scanned: it has its own public-text test, which spells the word on purpose.
+// The root README.md is scanned too (no exemption); the rest of the repository root, apps/ and examples/ are not.
 //
 // Owner decision 2026-10-10: core and openclaw-plugin say only what they do today, a 2D model file
 // (.model3.json) drawn in the page. They claim no 3D or 2.5D ability until the embed bridge has been run
@@ -61,10 +62,13 @@ function hits() {
             });
         }
     }
+    readFileSync(join(repoRoot, 'README.md'), 'utf8').split('\n').forEach((line, i) => {
+        if (ENGINE.test(line)) found.push(`README.md:${i + 1}: ${line.trim().slice(0, 160)}`);
+    });
     return found;
 }
 
-test('no public text in the three packages names the 2D runtime (no file inside a package is exempt)', () => {
+test('no public text in the three packages or the root README names the 2D runtime (no file inside a package is exempt)', () => {
     assert.deepEqual(hits(), []);
 });
 
@@ -172,4 +176,36 @@ test('the claim scan catches the old wording (reverse check)', () => {
     for (const s of ['a 2D model file (.model3.json)', '3/4 hero pose', 'NOT flat 2D illustration']) {
         assert.ok(!CLAIM.test(s), s);
     }
+});
+
+// ---------------------------------------------------------------------------------------------
+// The root README says what the SDK does about models and voices, and the code backs it
+// ---------------------------------------------------------------------------------------------
+
+const readme = () => readFileSync(join(repoRoot, 'README.md'), 'utf8');
+
+test('the root README points at no sample model', () => {
+    assert.doesNotMatch(readme(), /\b(haru|shizuku|koharu)\b/i);
+    assert.doesNotMatch(readme(), /https?:\/\/(?!your-cdn\.example)[^\s'")]*\.model3\.json/, 'only the your-cdn.example placeholder host may appear in a model URL');
+});
+
+test('the TTS wording in the root README matches the code: browser speech by default, no request, own engine via ttsEngine', () => {
+    const sdkSrc = join(packagesDir, 'sdk', 'src');
+    assert.match(readFileSync(join(sdkSrc, 'avatar.ts'), 'utf8'), /\?\? new WebSpeechTTS\(config\.ttsOptions\)/, 'the default engine changed: update the README TTS rows');
+    assert.match(readFileSync(join(sdkSrc, 'tts.ts'), 'utf8'), /window\.speechSynthesis/);
+    assert.doesNotMatch(readFileSync(join(sdkSrc, 'tts.ts'), 'utf8'), /\bfetch\(|XMLHttpRequest|WebSocket/, 'the default engine now makes requests: update the README TTS rows');
+    const text = readme();
+    assert.match(text, /browser's built-in speech synthesis/);
+    assert.match(text, /`ttsEngine`/);
+    assert.match(text, /浏览器自带的语音合成/);
+    assert.doesNotMatch(text, /Gemini (Live API|TTS|2\.0 Flash)/);
+});
+
+test('the plugin docs promise no Marketplace or cloned voice: the SDK matches the browser\'s own voices by name', () => {
+    const plugin = join(packagesDir, 'openclaw-plugin');
+    for (const file of ['README.md', 'openclaw.plugin.json', 'skills/prometheus-avatar/SKILL.md']) {
+        assert.doesNotMatch(readFileSync(join(plugin, file), 'utf8'), /Prometheus voice backend|<marketplace-voice-id>|reference a Prometheus Marketplace voice ID|saturn_zh_female/, file);
+    }
+    assert.match(readFileSync(join(packagesDir, 'sdk', 'src', 'tts.ts'), 'utf8'), /v\.name === opts\.voice \|\| v\.voiceURI === opts\.voice/,
+        'voice selection changed: update the plugin docs about ttsVoice');
 });

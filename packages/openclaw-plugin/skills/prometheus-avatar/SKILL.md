@@ -27,9 +27,9 @@ The plugin draws one 2D model file (`.model3.json`, set as `modelUrl` in the plu
 Use this skill when the user asks for any of:
 
 - **A visible 2D character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character") — needs a 2D model file configured as `modelUrl`
-- **Real-time TTS with audio-driven lipsync** (not just plain audio)
+- **Text-to-speech with mouth movement** (not just plain audio): the viewer's browser voice speaks, and lip sync is estimated from the text
 - **Emotion / mood reflection** on the character (happy / sad / thinking / surprised)
-- **A cloned or preset voice** for the agent — reference a Prometheus Marketplace voice ID
+- **A different voice** for the agent — set `ttsVoice` to the name of a voice installed in the viewer's browser. This plugin cannot play cloned or Marketplace voices yet
 - **Generating an AAA-quality skin preview card** (Genshin Impact / Overwatch / WoW shop tier) for a marketplace listing or pitch deck
 - **Deploying a generated asset** (voice / skin / motion / personality bundle) to the Prometheus Marketplace catalog
 
@@ -95,8 +95,7 @@ Set via `openclaw.config.json`:
 {
   "plugins": {
     "prometheus-avatar": {
-      "avatarId": "<marketplace-bundle-id>",
-      "ttsVoice": "<marketplace-voice-id>",
+      "modelUrl": "https://your-cdn.example/models/your-model.model3.json",
       "enableLipSync": true,
       "enableEmotion": true
     }
@@ -104,9 +103,9 @@ Set via `openclaw.config.json`:
 }
 ```
 
-Browse character bundles + voice IDs at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
+`modelUrl` is needed to show an avatar; `avatarId` is reserved and cannot choose a model yet. Browse the Marketplace at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`) which routes to the Prometheus voice backend. No TTS API key needed — voices live on the Prometheus Marketplace and are referenced via `ttsVoice` (Marketplace voice ID).
+**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`), which uses the browser's built-in speech synthesis by default: no TTS API key and no request. The optional `ttsVoice` picks a voice installed in the viewer's browser by name; an unknown name is ignored. Marketplace and cloned voices are not played by this plugin yet.
 
 **BYOK for image generation** (zero-marginal-cost path):
 - `OPENAI_API_KEY` env var or `apiKey` argument → unlocks BYOK image generation for `prometheus_generate_image_pro` (bypasses platform billing).

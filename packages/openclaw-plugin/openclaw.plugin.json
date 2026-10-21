@@ -29,11 +29,11 @@
         "ttsProvider": {
             "type": "string",
             "deprecated": true,
-            "description": "DEPRECATED in v0.10.0 — this field is ignored. TTS is now delegated to the Prometheus SDK (@prometheusavatar/core) which uses the Prometheus voice backend. Kept for backward compat only."
+            "description": "DEPRECATED in v0.10.0 — this field is ignored. TTS is now delegated to the Prometheus SDK (@prometheusavatar/core), which uses the browser's built-in speech synthesis. Kept for backward compat only."
         },
         "ttsVoice": {
             "type": "string",
-            "description": "Prometheus Marketplace voice ID (e.g. saturn_zh_female_keainvsheng_tob). Browse available voices at prometheus.mythslabs.ai/marketplace.",
+            "description": "Name (or voiceURI) of a voice installed in the viewer's browser. An unknown name, a Marketplace voice ID included, is ignored and the default voice speaks.",
             "required": false
         },
         "enableLipSync": {

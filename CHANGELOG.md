@@ -12,19 +12,33 @@ Not published. npm republish waits for JC. Publish order stays core → openclaw
 mcp-server is not part of this release: 0.3.6 is already out and keeps its own notes below.
 
 ### Added
-- **core**: `connectEmbed` / `EmbedBridge` drive the hosted embed page from a parent page.
+- **core**: `connectEmbed` / `EmbedBridge` drive an avatar embed page from a parent page.
   Emotion and state are queued until the embed posts `prometheus:ready`, then sent once in
   order; `speak` is held until it posts `prometheus:loaded`; messages go to the embed's own
   origin only, and incoming ones are accepted only from that origin and that iframe. If no
   `prometheus:ready` arrives within 8 s (an older embed), everything is sent as before; if
   `prometheus:loaded` does not follow within 30 s, held `speak` messages are sent anyway.
+  Tested against stand-in windows; the message names match the live embed page's script
+  (checked 2026-10-22), but it has not been run in a browser against the live page yet.
 - **core**: `AssetDeployConfig` gains `persona_config`, `source` and `body_type`; `license`
   accepts `mit`. **openclaw-plugin**: `prometheus_deploy_asset` passes them through.
+- `THIRD_PARTY_LICENSES.md` says that the MIT licence does not include a licence from the
+  owner of the 2D model runtime, that the runtime is not bundled, and that users get their own.
 
 ### Changed
+- **openclaw-plugin**: no default model. It used to fall back to a sample path that was never in
+  the package, which could only fail to load. Without `modelUrl` it now logs one error that says
+  how to set it, shows no avatar and keeps the creator tools working. Set `modelUrl` to a 2D model
+  file you host.
 - Public text in core and openclaw-plugin says "2D avatar" / "2D model file (.model3.json)"
-  instead of naming the runtime. The renderer class is now `AvatarRenderer`; the old class
-  name is a deprecated alias.
+  instead of naming the runtime, and claims no 3D or 2.5D ability. The renderer class is now
+  `AvatarRenderer`; the old class name is a deprecated alias.
+- Docs now match the code on voices: the default text-to-speech is the browser's built-in speech
+  synthesis (no key, no request), and `ttsVoice` in openclaw-plugin names a voice installed in the
+  viewer's browser. The plugin docs no longer promise Marketplace or cloned voices, and the bundled
+  skill no longer says the plugin renders a 2.5D / 3D character. The root README is rewritten the
+  same way (no sample model, features that are only examples or only in the demo app say so).
+- The API reference in `packages/sdk/docs` is regenerated from the current sources.
 
 ### Agent API contract (marketplace)
 - `POST /api/marketplace/deploy`, category `personas`: the prompt comes from `persona_config` or
