@@ -13,7 +13,7 @@
     "configSchema": {
         "avatarId": {
             "type": "string",
-            "description": "Reserved: marketplace avatar ID. ID-based model resolution is not available yet — use modelUrl (a .model3.json URL) to pick a model; when only avatarId is set the default model is used.",
+            "description": "Reserved: marketplace avatar ID. ID-based model resolution is not available yet — use modelUrl (a .model3.json URL) to pick a model. When only avatarId is set, no avatar is shown and the plugin logs an error that says to set modelUrl (the creator tools still work).",
             "required": false
         },
         "apiKey": {

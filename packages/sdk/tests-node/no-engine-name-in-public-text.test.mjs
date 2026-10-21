@@ -209,3 +209,49 @@ test('the plugin docs promise no Marketplace or cloned voice: the SDK matches th
     assert.match(readFileSync(join(packagesDir, 'sdk', 'src', 'tts.ts'), 'utf8'), /v\.name === opts\.voice \|\| v\.voiceURI === opts\.voice/,
         'voice selection changed: update the plugin docs about ttsVoice');
 });
+
+// ---------------------------------------------------------------------------------------------
+// No default model: nothing in core or the plugin may say one exists
+// ---------------------------------------------------------------------------------------------
+
+const DEFAULT_MODEL_CLAIM = /default model is (?:used|shown|loaded)|uses? the default (?:model|avatar|character)|falls? back to (?:the |a )?default (?:model|avatar|character)|bundled (?:2D )?(?:sample|model)|\bharu\b/i;
+
+test('no doc or manifest of core or the plugin says a default or bundled model exists', () => {
+    const files = [
+        'README.md',
+        'packages/sdk/README.md',
+        'packages/sdk/package.json',
+        'packages/openclaw-plugin/README.md',
+        'packages/openclaw-plugin/package.json',
+        'packages/openclaw-plugin/openclaw.plugin.json',
+        'packages/openclaw-plugin/skills/prometheus-avatar/SKILL.md',
+    ];
+    const found = [];
+    for (const rel of files) {
+        readFileSync(join(repoRoot, rel), 'utf8').split('\n').forEach((line, i) => {
+            if (DEFAULT_MODEL_CLAIM.test(line)) found.push(`${rel}:${i + 1}: ${line.trim().slice(0, 160)}`);
+        });
+    }
+    assert.deepEqual(found, []);
+});
+
+test('the plugin manifest says an avatarId alone shows no avatar and points at modelUrl; modelUrl says what happens without it', () => {
+    const manifest = JSON.parse(readFileSync(join(packagesDir, 'openclaw-plugin', 'openclaw.plugin.json'), 'utf8'));
+    assert.match(manifest.configSchema.avatarId.description, /only avatarId is set[^.]*no avatar is shown/);
+    assert.match(manifest.configSchema.avatarId.description, /modelUrl/);
+    assert.match(manifest.configSchema.modelUrl.description, /without it the plugin logs how to set it and shows nothing/);
+});
+
+test('the default-model scan catches the old wording (reverse check)', () => {
+    for (const s of [
+        'when only avatarId is set the default model is used',
+        '| `modelUrl` | `string` | bundled 2D sample | Direct URL |',
+        "const modelUrl = config.modelUrl || '/models/haru/haru_greeter_t03.model3.json';",
+        'falls back to the default avatar',
+    ]) {
+        assert.ok(DEFAULT_MODEL_CLAIM.test(s), s);
+    }
+    for (const s of ['No default model.', 'used to fall back to a sample path that was never part of the package', 'shows no avatar']) {
+        assert.ok(!DEFAULT_MODEL_CLAIM.test(s), s);
+    }
+});
