@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **core**, **openclaw-plugin**: the published packages now include the MIT `LICENSE` file (core 0.11.4 and
+  openclaw-plugin 0.10.2 went out without it), and a test in each package pins what it publishes. Takes effect with
+  the next release of each package.
+
+---
+
 ## [mcp-server 0.3.6] — 2026-10-21
 
 ### Added

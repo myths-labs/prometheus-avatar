@@ -14,8 +14,7 @@
     },
     "files": [
         "dist",
-        "README.md",
-        "LICENSE"
+        "README.md"
     ],
     "scripts": {
         "build": "tsup src/index.ts --format esm --dts --clean",

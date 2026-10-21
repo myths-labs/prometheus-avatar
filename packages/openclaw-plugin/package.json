@@ -11,7 +11,6 @@
         "skills",
         "openclaw.plugin.json",
         "README.md",
-        "LICENSE",
         "tsconfig.json"
     ],
     "keywords": [

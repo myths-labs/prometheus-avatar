@@ -1,6 +1,6 @@
 // What `npm publish` / `pnpm publish` would put on npm for @prometheusavatar/core, asked from npm itself
-// (`npm pack --dry-run --json`). Exactly four files: 0.11.4 went out without LICENSE, and nothing a test run leaves
-// behind or an .env file may ever slip in. Runs after `npm run build` (see the test:package script), so dist/ exists.
+// (`npm pack --dry-run --json`). Exactly five files: 0.11.4 went out with four, without LICENSE, and nothing a test
+// run leaves behind or an .env file may ever slip in. Runs after `npm run build` (see the test:package script), so dist/ exists.
 // This package keeps its vitest suites in tests/ (a .ts-only include); this node:test file lives in test/ on purpose,
 // the same split packages/mcp-server uses, so vitest never tries to load it.
 import test from 'node:test';
