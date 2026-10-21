@@ -33,7 +33,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   - ids in the three exact-control tools are checked like the website checks them (any 8-4-4-4-12 hexadecimal digits),
     so the official account `00000000-0000-0000-0000-000000000001` is accepted.
   - the website's request limit (HTTP 429 with `Retry-After`, per Agent key and per account) is
-    reported as `workspace_rate_limited` with `retry_after_seconds` and says whether a read or a write was limited.
+    reported as `workspace_rate_limited` with `retry_after_seconds` (whole seconds from `Retry-After`, at most 3600) and
+    says whether a read or a write was limited.
     Nothing was saved or changed by that try, and it is not retried by itself; `next_step` names the wait in seconds.
     When the 429 (or a refused key) answers the replay of an earlier unconfirmed write, the result says
     `unknown_may_have_been_saved`, that write stays remembered, and the next call re-sends the same operation and

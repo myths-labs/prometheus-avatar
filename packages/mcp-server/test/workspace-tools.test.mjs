@@ -227,3 +227,22 @@ test('R3 the replay of an unconfirmed save refused because the key was revoked: 
         assert.equal(site.list('work').length, 1);
     } finally { await mcp.close(); await site.close(); }
 });
+
+test('the website\'s own error sentence never reaches the model: not as a field, not inside the text, known or unknown', async () => {
+    const known = 'Use an active Agent key with verified account ownership.';
+    const site = await startFakeSite({ intercept: ctx => ctx.isWrite ? { status: 401, body: { error: known } } : undefined });
+    const mcp = await connect(site.url, site.key);
+    const allowed = ['saved', 'error', 'message', 'field', 'http_status', 'retry_after_seconds', 'outcome', 'next_step'];
+    try {
+        const refused = await mcp.call('save_work', { content: 'Refused by the key check' });
+        assert.equal(refused.json.error, 'workspace_key_rejected');
+        assert.deepEqual(Object.keys(refused.json).filter(key => !allowed.includes(key)), [], 'no siteMessage or other extra field');
+        assert.equal(refused.result.content[0].text.includes(known), false, 'the website sentence is not in the text');
+        assert.equal(JSON.stringify(refused.result.structuredContent).includes(known), false);
+        site.intercept = ctx => ctx.isWrite ? { status: 418, body: { error: 'private supplier detail 1234' } } : undefined;
+        const odd = await mcp.call('save_work', { content: 'Refused with a status nobody expects' });
+        assert.equal(odd.json.error, 'workspace_http_418');
+        assert.deepEqual(Object.keys(odd.json).filter(key => !allowed.includes(key)), []);
+        assert.doesNotMatch(odd.result.content[0].text, /private supplier detail/);
+    } finally { await mcp.close(); await site.close(); }
+});

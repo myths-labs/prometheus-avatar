@@ -216,3 +216,16 @@ test('429 (the website request limit, K11a) says which kind of call was limited:
         assert.equal(calls.filter(call => call.method === 'POST').length, 1, 'sent once, not retried');
     });
 });
+
+test('Retry-After is read as whole seconds only (RFC 9110 delay-seconds) and capped at an hour; anything else is ignored, not guessed', async () => {
+    const cases = [['7', 7], ['3600', 3600], ['86400', 3600], ['99999999999', 3600], ['1e9', undefined], ['2.5', undefined], ['-5', undefined], ['0', undefined],
+        ['Wed, 21 Oct 2026 07:28:00 GMT', undefined], ['0x10', undefined]];
+    for (const [header, expected] of cases) {
+        await run(() => ({ status: 429, headers: { 'retry-after': header }, value: { error: 'Too many workspace requests from this Agent key.' } }), async api => {
+            await rejects(api.read({ accountId, category: 'work' }, controller()), 'workspace_rate_limited', error => {
+                assert.equal(error.details.retryAfterSeconds, expected, `Retry-After: ${JSON.stringify(header)}`);
+                assert.match(error.message, expected ? new RegExp(`about ${expected} seconds`) : /Wait a minute/, header);
+            });
+        });
+    }
+});

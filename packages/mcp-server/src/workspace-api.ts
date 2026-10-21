@@ -27,6 +27,16 @@ const validCategory = (value: string) => /^[a-z][a-z0-9_-]{0,63}$/.test(value);
 const KEY_PAGE = 'https://prometheus.mythslabs.ai/settings/agent-keys';
 const maxResponseBytes = 4 * 1024 * 1024; // a page of 20 entries of 64 KB, with room for JSON escaping
 const RETRY_SAFE = 'Call this tool again with exactly the same arguments: the operation id is remembered, so a repeat cannot create a duplicate.';
+/** The longest wait passed on from Retry-After. A larger value is still a "wait", just not one an agent should sit through blindly. */
+const MAX_RETRY_AFTER_SECONDS = 3600;
+
+/** Retry-After as whole seconds (RFC 9110 delay-seconds), at most MAX_RETRY_AFTER_SECONDS; an HTTP date, a fraction or anything else counts as absent. */
+function retryAfterSeconds(header: string | null): number | undefined {
+    const text = header?.trim() ?? '';
+    if (!/^[0-9]+$/.test(text)) return undefined;
+    const seconds = Number(text);
+    return seconds > 0 ? Math.min(seconds, MAX_RETRY_AFTER_SECONDS) : undefined;
+}
 
 function fail(code: string, message: string, details?: WorkspaceErrorDetails): never {
     throw new WorkspaceAgentError(code, message, details);
@@ -42,7 +52,7 @@ const CATEGORY_FULL = { code: 'workspace_category_full', field: 'category', outc
 /** The website's own error sentences (static strings in its route) mapped to what they mean for a caller of this package. */
 const SITE_MESSAGES: Record<string, { code: string; field?: string; outcome?: WorkspaceOutcome; text: string }> = {
     'Use an active Agent key with verified account ownership.': { code: 'workspace_key_rejected', outcome: 'rejected',
-        text: `The Prometheus website did not accept the Agent key in PROMETHEUS_API_KEY (it is missing, mistyped, revoked, or its account is not verified). Nothing was saved. Ask the user to open ${KEY_PAGE}, click Generate key, and put the new key in this MCP server's PROMETHEUS_API_KEY setting. Generating a key revokes the previous one.` },
+        text: `The Prometheus website did not accept the Agent key in PROMETHEUS_API_KEY (it is missing, mistyped, revoked, or its account is not verified). Nothing was saved. Ask the user to open ${KEY_PAGE}, click Rotate key (the button reads Generate key when the account has no key yet), and put the new key in this MCP server's PROMETHEUS_API_KEY setting. A new key revokes the previous one, so every client that used it needs the new key.` },
     'The Agent key is no longer active. Keep the original operation for recovery.': { code: 'workspace_key_rejected', outcome: 'unconfirmed',
         text: `The Agent key stopped being valid while the request was running, so the website cannot say whether it saved. Ask the user to check the key at ${KEY_PAGE}. After the key is fixed, call this tool again with the same arguments: it will not create a duplicate.` },
     'The Agent account changed. Read its workspace before using the original operation.': { code: 'workspace_account_changed', outcome: 'rejected',
@@ -128,7 +138,7 @@ export function workspaceApi(apiBase: string, apiKey: string, version: string, o
 
     const request = async (method: 'GET' | 'POST', query: URLSearchParams, accountId: string | undefined, signal: AbortSignal, body?: unknown): Promise<unknown> => {
         const writing = method === 'POST';
-        if (!apiKey) fail('workspace_key_missing', `PROMETHEUS_API_KEY is not set for this MCP server. Ask the user to open ${KEY_PAGE}, click Generate key, and put the key in the server's PROMETHEUS_API_KEY setting. Nothing was saved.`);
+        if (!apiKey) fail('workspace_key_missing', `PROMETHEUS_API_KEY is not set for this MCP server. Ask the user to open ${KEY_PAGE}, click Generate key (it reads Rotate key once the account has a key; rotating revokes the old key, so if another client already has one, copy that key instead), and put the key in the server's PROMETHEUS_API_KEY setting. Nothing was saved.`);
         if (!/^pak_[A-Za-z0-9_-]+$/.test(apiKey)) fail('workspace_key_missing', `PROMETHEUS_API_KEY does not look like an Agent key (it starts with pak_). Ask the user to copy the key again from ${KEY_PAGE}. Nothing was saved.`);
         const combined = AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
         const unreached = (): never => signal.aborted
@@ -143,8 +153,7 @@ export function workspaceApi(apiBase: string, apiKey: string, version: string, o
                     ...(accountId ? { 'X-Workspace-Account': accountId } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
             if (!response.ok) {
                 const site = await readSiteError(response);
-                const retryAfter = Number(response.headers.get('retry-after'));
-                throw fromHttp(response.status, site, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter) : undefined, writing);
+                throw fromHttp(response.status, site, retryAfterSeconds(response.headers.get('retry-after')), writing);
             }
             const length = response.headers.get('content-length');
             if ((length !== null && (!/^\d+$/.test(length) || Number(length) > maxResponseBytes))

@@ -32,3 +32,18 @@ test('the mcp-server 0.3.6 changelog entry names no private pull request, intern
     const entry = changelog.slice(start, changelog.indexOf('\n---', start));
     assert.doesNotMatch(entry, /PR #\d+|#5\d\d\b|K\d+[a-z]?\b|\d{14}_[a-z_]+\.sql/);
 });
+
+test('wherever the key page\'s button is named, both of its labels are: "Generate key" (no key yet) and "Rotate key" (once the account has one)', () => {
+    for (const path of ['README.md', 'src/workspace-api.ts']) {
+        const lines = read(path).split('\n').filter(line => line.includes('Generate key'));
+        assert.ok(lines.length > 0, `${path} names the button`);
+        for (const line of lines) assert.match(line, /Rotate key/, `${path}: ${line.trim().slice(0, 90)}`);
+    }
+});
+
+test('the README says the https-only rule for PROMETHEUS_API_URL belongs to the workspace tools, not to every tool', () => {
+    const rows = read('README.md').split('\n').filter(line => line.startsWith('| `PROMETHEUS_API_URL`'));
+    assert.equal(rows.length, 2, 'one row in English, one in Chinese');
+    assert.match(rows[0], /workspace tools/);
+    assert.match(rows[1], /工作区工具/);
+});

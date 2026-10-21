@@ -42,7 +42,7 @@ What your agent produces is saved to your Prometheus account and shows up in you
 ## Requirements
 
 - **Node.js 18.17 or newer** (Node 20 LTS or 22 recommended). Check with `node -v`. `npx` ships with Node; there is nothing else to install.
-- A Prometheus **Agent key** (starts with `pak_`). Sign in at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) and click **Generate key**. It is shown **once**, and generating a new key **revokes the previous one** — so if you use several clients, give them all the same key and generate a new one only when you mean to replace it.
+- A Prometheus **Agent key** (starts with `pak_`). Sign in at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) and click **Generate key** (once the account has a key, the button reads **Rotate key**). The key is shown **once**, and a new key **revokes the previous one** — so if you use several clients, give them all the same key and rotate only when you mean to replace it.
 - In the snippets below, `PASTE_YOUR_AGENT_KEY_HERE` is a placeholder. Paste your own key there, keep it out of git, and never share it.
 
 ## Setup
@@ -182,7 +182,7 @@ You have the Prometheus tools. When you finish something I will want to keep (a 
 | `PROMETHEUS_API_KEY` | For `create_avatar` / `set_avatar_state` / `equip_asset` / `get_avatar_status` / `speak` and all 7 workspace tools | Your `pak_` agent key — see [Requirements](#requirements) |
 | `GEMINI_API_KEY` | For `generate_asset` | API key for asset generation |
 | `OPENAI_API_KEY` | For `generate_image_pro` (BYOK) | Your image-provider API key for BYOK — without this, platform Free quota / Pro Credits routes apply |
-| `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`). Must be `https://` with no path (`http://` only for localhost) |
+| `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`). The 7 workspace tools only accept an `https://` address with no path, credentials or query (`http://` only for localhost); the other tools use the value as given |
 | `PROMETHEUS_MCP_STATE_DIR` | No | Where the workspace tools keep their small state files (default `~/.prometheus-mcp`). `off` keeps everything in memory, so an unconfirmed save is forgotten when the client restarts the server (for example after a key change) |
 
 **What is stored on your machine:** the `workspace-state` folder inside it holds one small file per key with the account id behind it and, only while a save is unconfirmed (at most 24 hours), one small file per unconfirmed save with its operation id, entry id and timestamp, filed under your account so that a new key of the same account still finds it. It never contains your key (only a 16-character fingerprint of it), your text, titles or URLs; a file's name is a hash of the call, which could only confirm a guess of the exact text, never reveal it. Several MCP servers (for example Claude Desktop and Cursor) can use the same folder at once without erasing each other's entries. You can delete the folder at any time and the tools keep working. The one thing it guards against: if you delete it while a save is still unconfirmed, retrying that save can leave a duplicate entry, because the operation id that would have prevented it is gone.
@@ -287,7 +287,7 @@ Agent 的产出会存到你的 Prometheus 账号，显示在工作区的窗格�
 ## 前置条件
 
 - **Node.js 18.17 或更高**（推荐 Node 20 LTS 或 22）。用 `node -v` 检查。`npx` 随 Node 一起安装，不需要再装别的。
-- 一把 Prometheus **Agent 密钥**（以 `pak_` 开头）。登录 [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys)，点 **Generate key**。密钥**只显示一次**，而且**生成新密钥会让旧密钥立刻失效**——多个客户端请共用同一把，只有想替换时才重新生成。
+- 一把 Prometheus **Agent 密钥**（以 `pak_` 开头）。登录 [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys)，点 **Generate key**（账户已有密钥时按钮显示 **Rotate key**）。密钥**只显示一次**，而且**新密钥会让旧密钥立刻失效**——多个客户端请共用同一把，只有想替换时才轮换。
 - 下面配置里的 `PASTE_YOUR_AGENT_KEY_HERE` 只是占位符：换成你自己的密钥，不要提交到 git，不要发给别人。
 
 ## 配置
@@ -427,7 +427,7 @@ alwaysApply: true
 | `PROMETHEUS_API_KEY` | `create_avatar` / `set_avatar_state` / `equip_asset` / `get_avatar_status` / `speak` 以及全部 7 个工作区工具需要 | 你的 `pak_` Agent 密钥，见[前置条件](#前置条件) |
 | `GEMINI_API_KEY` | `generate_asset` 需要 | 资产生成用的 API 密钥 |
 | `OPENAI_API_KEY` | `generate_image_pro`（自带密钥）需要 | 自带图像服务密钥；不填则走平台免费额度 / Pro 点数 |
-| `PROMETHEUS_API_URL` | 否 | 自定义 API 地址（默认 `https://prometheus.mythslabs.ai`）。必须是不带路径的 `https://`（只有本机地址允许 `http://`） |
+| `PROMETHEUS_API_URL` | 否 | 自定义 API 地址（默认 `https://prometheus.mythslabs.ai`）。7 个工作区工具只接受不带路径、账号密码和查询串的 `https://` 地址（只有本机地址允许 `http://`）；其余工具按原样使用 |
 | `PROMETHEUS_MCP_STATE_DIR` | 否 | 工作区工具的小状态文件放哪个文件夹（默认 `~/.prometheus-mcp`）。填 `off` 则只放内存，客户端重启 MCP 服务（例如换密钥后）时，未确认的保存就记不住了 |
 
 **本机存了什么：** 该文件夹里的 `workspace-state` 子文件夹放着几个很小的文件：每把密钥一个，记着它对应的账户号；另外，只在「保存结果尚未确认」期间（最多 24 小时），每一次未确认的保存各有一个文件，记着它的操作号、条目号和时间，按账户归档，所以同一账户换了新密钥也找得到。里面没有你的密钥（只有密钥的 16 位指纹）、没有你的文字、标题或网址；文件名是这次调用的哈希，最多只能用来核对「是不是某段一模一样的文字」，无法还原出内容。多个 MCP 服务（例如 Claude Desktop 和 Cursor）可以同时用同一个文件夹，不会互相覆盖。随时可以删掉这个文件夹，工具照常工作；只有一种情况会受影响：某次保存还没有确认时你把它删了，之后重试这次保存，可能多出一条重复的条目，因为本来用来防重复的操作号已经没了。
