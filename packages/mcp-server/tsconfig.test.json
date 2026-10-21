@@ -1,0 +1,14 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "outDir": "./.test-build",
+        "rootDir": "./src",
+        "declaration": false,
+        "declarationMap": false,
+        "sourceMap": false,
+        "noEmit": false
+    },
+    "include": [
+        "src/workspace-*.ts"
+    ]
+}

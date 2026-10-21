@@ -103,7 +103,7 @@ Returns 1024×1536 base64 image (or `publicUrl` when `upload: true`) — ready t
 
 - **OpenClaw** — Merged into the official [community plugin registry](https://github.com/openclaw/openclaw/pull/52752) (4/21/2026, by Peter Steinberger)
 - **Hermes Agent** — Avatar skill PR submitted at [`NousResearch/hermes-agent#9754`](https://github.com/NousResearch/hermes-agent/pull/9754)
-- **Cursor / Claude Code / Any MCP Client** — Use the [`@prometheusavatar/mcp-server`](https://www.npmjs.com/package/@prometheusavatar/mcp-server) (10 tools) for direct MCP access to the same image engine
+- **Cursor / Claude Code / Any MCP Client** — Use the [`@prometheusavatar/mcp-server`](https://www.npmjs.com/package/@prometheusavatar/mcp-server) (17 tools) for direct MCP access to the same image engine
 
 ## 🔗 Links
 
