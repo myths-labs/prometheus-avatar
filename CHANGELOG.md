@@ -8,7 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased] — core 0.11.5 · openclaw-plugin 0.10.3
 
-Not published. npm republish waits for JC. Publish order stays core → openclaw-plugin.
+Not published yet. Publish order: core, then openclaw-plugin.
 mcp-server is not part of this release: 0.3.6 is already out and keeps its own notes below.
 
 ### Added
