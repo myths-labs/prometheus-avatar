@@ -42,9 +42,12 @@ embed.speak('Here is what I found.'); // held until the avatar has loaded
 // later: embed.destroy();
 ```
 
-> **Status:** `connectEmbed` is covered by tests against stand-in windows, and the message names it uses
-> match the script the live embed page serves (checked 2026-10-22). It has not been run end to end in a
-> browser against the live page yet, so treat it as untested there.
+> **Status:** `connectEmbed` is covered by tests against stand-in windows. It has also been run in a
+> headless browser against the live embed page (2026-10-22) for an avatar made with an agent key:
+> `prometheus:ready` and `prometheus:loaded` arrived, and the emotion messages it sent reached the page.
+> `speak` was not sent in that run, so treat `speak` as untested against the live page. The page frames
+> avatars made with an agent key; the id of a Marketplace listing answers "Avatar not found" and never
+> reports loaded.
 
 How it works (marketplace embed protocol):
 

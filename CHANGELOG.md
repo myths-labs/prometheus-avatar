@@ -18,8 +18,11 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
   origin only, and incoming ones are accepted only from that origin and that iframe. If no
   `prometheus:ready` arrives within 8 s (an older embed), everything is sent as before; if
   `prometheus:loaded` does not follow within 30 s, held `speak` messages are sent anyway.
-  Tested against stand-in windows; the message names match the live embed page's script
-  (checked 2026-10-22), but it has not been run in a browser against the live page yet.
+  Tested against stand-in windows, and run in a headless browser against the live embed page
+  (2026-10-22) for an avatar made with an agent key: `prometheus:ready` and `prometheus:loaded`
+  arrived and the emotion messages it sent reached the page. `speak` was not sent in that run. The id
+  of a Marketplace listing is not an embeddable id: the page answers "Avatar not found" and never
+  reports loaded.
 - **openclaw-plugin**: with no `modelUrl`, a config that has both a Prometheus agent key (`apiKey`,
   or the `PROMETHEUS_API_KEY` variable) and an `avatarId` now shows that hosted avatar: the plugin
   frames the hosted avatar page and drives its expression through core's `connectEmbed`. `modelUrl`
