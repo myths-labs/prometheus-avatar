@@ -5,8 +5,8 @@
  * the third-party runtime package listed in package.json.
  * Handles model loading, expression parameters, motions, and layout.
  *
- * The hosted 3D character (the default on prometheus.mythslabs.ai) is not drawn
- * here; frame its embed URL and drive it with `connectEmbed` (./embed.ts).
+ * A hosted avatar page is not drawn here; frame its embed URL and drive it with
+ * `connectEmbed` (./embed.ts).
  */
 
 import { Application } from 'pixi.js';

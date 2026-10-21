@@ -4,7 +4,13 @@
 // source comments, generated docs). Technical names that cannot change are allowed only where
 // they are needed: the third-party npm package `pixi-live2d-display` (dependency and import),
 // its exported class name in the renderer, and the deprecated alias kept for old imports.
-// LICENSE / third-party notice files may cite the engine; there are none in these packages today.
+// The one file that may, and must, name the engine is THIRD_PARTY_LICENSES.md at the repository root:
+// it is where users learn they need a licence of their own. No file inside a package is exempt.
+// packages/mcp-server/test/ is not scanned: it has its own public-text test, which spells the word on purpose.
+//
+// Owner decision 2026-10-10: core and openclaw-plugin say only what they do today, a 2D model file
+// (.model3.json) drawn in the page. They claim no 3D or 2.5D ability until the embed bridge has been run
+// in a browser against the live embed page. The second half of this file pins that.
 // Run: node --test packages/sdk/tests-node/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,10 +20,10 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packagesDir = join(here, '..', '..');
+const repoRoot = join(packagesDir, '..');
 const PACKAGES = ['sdk', 'mcp-server', 'openclaw-plugin'];
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage']);
 const TEXT_EXT = /\.(md|json|ts|tsx|mts|js|mjs|cjs|html|css|txt|ya?ml)$/i;
-const NOTICE_FILE = /(^|\/)(LICENSE|NOTICE|THIRD[_-]?PARTY[^/]*)(\.[a-z]+)?$/i;
 
 // The engine name in any spelling: "Live2D", "live2d", "Live 2D", "live-2d", plus its SDK name.
 const ENGINE = /live[\s_-]*2d|cubism/i;
@@ -45,8 +51,8 @@ function hits() {
     for (const pkg of PACKAGES) {
         for (const file of walk(join(packagesDir, pkg))) {
             const rel = relative(packagesDir, file).split('\\').join('/');
-            if (NOTICE_FILE.test(rel)) continue;
             if (rel.startsWith('sdk/tests-node/')) continue; // this file names the word on purpose
+            if (rel.startsWith('mcp-server/test/')) continue; // its public-text test names the word on purpose
             const allowed = ALLOW.filter((a) => a.file.test(rel)).flatMap((a) => a.tokens);
             readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
                 let rest = line;
@@ -58,7 +64,7 @@ function hits() {
     return found;
 }
 
-test('no public text in the three packages names the 2D runtime', () => {
+test('no public text in the three packages names the 2D runtime (no file inside a package is exempt)', () => {
     assert.deepEqual(hits(), []);
 });
 
@@ -84,7 +90,7 @@ test('the allowed technical tokens are still where the allowlist expects them', 
     }
 });
 
-test('the plugin manifest and package descriptions describe a 2D or 3D avatar', () => {
+test('the plugin manifest says 2D avatar, and no package description or keyword names the engine', () => {
     const manifest = JSON.parse(readFileSync(join(packagesDir, 'openclaw-plugin', 'openclaw.plugin.json'), 'utf8'));
     assert.match(manifest.description, /\b2D avatar\b/);
     assert.match(manifest.configSchema.modelUrl.description, /2D model file \(\.model3\.json\)/);
@@ -92,5 +98,78 @@ test('the plugin manifest and package descriptions describe a 2D or 3D avatar', 
         const json = JSON.parse(readFileSync(join(packagesDir, pkg, 'package.json'), 'utf8'));
         assert.ok(!ENGINE.test(json.description), `${pkg} description`);
         assert.ok(!(json.keywords ?? []).some((k) => ENGINE.test(k)), `${pkg} keywords`);
+    }
+});
+
+// ---------------------------------------------------------------------------------------------
+// The one place that names the engine, and the pointers to it
+// ---------------------------------------------------------------------------------------------
+
+test('THIRD_PARTY_LICENSES.md names the engine and says every user gets their own licence from its owner', () => {
+    const text = readFileSync(join(repoRoot, 'THIRD_PARTY_LICENSES.md'), 'utf8');
+    assert.ok(ENGINE.test(text), 'the file that is allowed to name the engine must name it');
+    assert.match(text, /## Live2D: you need a licence of your own/);
+    assert.match(text, /must get the licen[cs]e they require from Live2D Inc\. themselves/);
+    assert.match(text, /does not include a licen[cs]e from Live2D Inc\./);
+});
+
+test('no placeholder text is left in THIRD_PARTY_LICENSES.md', () => {
+    const text = readFileSync(join(repoRoot, 'THIRD_PARTY_LICENSES.md'), 'utf8');
+    assert.doesNotMatch(text, /\b(TODO|TBD|FIXME|XXX|coming soon|placeholder)\b|\[link\]|<link>/i);
+});
+
+test('the root README and the core and openclaw-plugin READMEs end with a pointer to THIRD_PARTY_LICENSES.md that does not name the engine', () => {
+    for (const rel of ['README.md', 'packages/sdk/README.md', 'packages/openclaw-plugin/README.md']) {
+        const lines = readFileSync(join(repoRoot, rel), 'utf8').trimEnd().split('\n');
+        const last = lines[lines.length - 1];
+        assert.match(last, /\(?(https:\/\/github\.com\/myths-labs\/prometheus-avatar\/blob\/main\/)?THIRD_PARTY_LICENSES\.md\)?/, `${rel}: last line is ${JSON.stringify(last)}`);
+        assert.ok(!ENGINE.test(last), `${rel}: the pointer must not name the engine`);
+        if (rel.startsWith('packages/')) {
+            // npm shows these READMEs away from the repository, so the link must be absolute
+            assert.match(last, /\]\(https:\/\/github\.com\/myths-labs\/prometheus-avatar\/blob\/main\/THIRD_PARTY_LICENSES\.md\)/, `${rel}: needs an absolute link`);
+        }
+    }
+});
+
+// ---------------------------------------------------------------------------------------------
+// No 3D / 2.5D claim in core or openclaw-plugin
+// ---------------------------------------------------------------------------------------------
+
+const CLAIM_PACKAGES = ['sdk', 'openclaw-plugin'];
+const CLAIM = /\b3D\b|2\.5D/i;
+// Prompts that the image engine is told to draw. They describe a picture, not what the package renders.
+const IMAGE_PROMPT_TOKENS = ['3D cel-shaded engine render'];
+
+function claimHits() {
+    const found = [];
+    for (const pkg of CLAIM_PACKAGES) {
+        for (const file of walk(join(packagesDir, pkg))) {
+            const rel = relative(packagesDir, file).split('\\').join('/');
+            if (rel.startsWith('sdk/tests-node/') || /^[^/]+\/test\//.test(rel)) continue;
+            readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+                let rest = line;
+                for (const token of IMAGE_PROMPT_TOKENS) rest = rest.split(token).join('');
+                if (CLAIM.test(rest)) found.push(`${rel}:${i + 1}: ${line.trim().slice(0, 160)}`);
+            });
+        }
+    }
+    return found;
+}
+
+test('core and openclaw-plugin claim no 3D or 2.5D ability anywhere in their public text', () => {
+    assert.deepEqual(claimHits(), []);
+});
+
+test('the claim scan catches the old wording (reverse check)', () => {
+    for (const s of [
+        'an embed bridge for the hosted 3D character',
+        '"3d-avatar",',
+        'Render a complete Prometheus digital character (2.5D / 3D)',
+        'vibrant 2.5D surface',
+    ]) {
+        assert.ok(CLAIM.test(s), s);
+    }
+    for (const s of ['a 2D model file (.model3.json)', '3/4 hero pose', 'NOT flat 2D illustration']) {
+        assert.ok(!CLAIM.test(s), s);
     }
 });

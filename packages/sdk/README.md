@@ -1,6 +1,6 @@
 # @prometheusavatar/core
 
-Give your AI agent an embodied avatar — an embed bridge for the hosted 3D character, a local 2D model renderer, TTS, lip-sync, and emotion analysis in one SDK.
+Give your AI agent an embodied avatar — a local 2D model renderer, an embed-page bridge, TTS, lip-sync, and emotion analysis in one SDK.
 
 ## Quick Start
 
@@ -20,11 +20,11 @@ const avatar = await createAvatar({
 await avatar.speak('Hello! How are you today? 😊');
 ```
 
-## Embed the hosted 3D character
+## Drive an avatar embed page
 
 The avatar people see on [prometheus.mythslabs.ai](https://prometheus.mythslabs.ai) is a hosted page:
-`POST /api/agent/avatar` (with your `pak_` agent key) answers an `embedUrl` that draws the default 3D
-character, or your own `.glb` / `.vrm` model. Frame it in an `<iframe>` and drive it with `connectEmbed`:
+`POST /api/agent/avatar` (with your `pak_` agent key) answers an `embedUrl`. Frame it in an `<iframe>`
+and drive it with `connectEmbed`:
 
 ```ts
 import { connectEmbed } from '@prometheusavatar/core';
@@ -41,6 +41,10 @@ embed.setEmotion('happy');
 embed.speak('Here is what I found.'); // held until the avatar has loaded
 // later: embed.destroy();
 ```
+
+> **Status:** `connectEmbed` is covered by tests against stand-in windows, and the message names it uses
+> match the script the live embed page serves (checked 2026-10-22). It has not been run end to end in a
+> browser against the live page yet, so treat it as untested there.
 
 How it works (marketplace embed protocol):
 
@@ -68,7 +72,7 @@ How it works (marketplace embed protocol):
 ## Local 2D renderer
 
 `createAvatar` draws a 2D model file (`.model3.json`) on a canvas in your own page, with TTS,
-lip-sync and emotion. Bring your own model file.
+lip-sync and emotion. The package ships no model: bring your own model file.
 
 ## API Reference
 
@@ -239,17 +243,15 @@ PrometheusAvatar (orchestrator)
 
 ## Changelog
 
-### 0.11.4
+### 0.11.5
 
-- **New:** `connectEmbed` / `EmbedBridge` drive the hosted embed: emotion and state wait for
+- **New:** `connectEmbed` / `EmbedBridge` drive an avatar embed page: emotion and state wait for
   `prometheus:ready` and are replayed once, `speak` waits for `prometheus:loaded`, origin and source
-  are checked, and an 8 s fallback keeps older embeds working (see "Embed the hosted 3D character").
+  are checked, and an 8 s fallback keeps older embeds working (see "Drive an avatar embed page",
+  including its status note).
 - **Renamed:** the renderer class is now `AvatarRenderer`. The old class name still works and is deprecated.
 - **Wording:** public text says "2D model file (`.model3.json`)" instead of naming the runtime.
 - **Agent API contract (marketplace side), documented here:**
-  - `POST /api/agent/avatar`: leave `model` out for the default 3D character, or pass an https
-    `.glb` / `.vrm` URL. The 2D sample names (`haru`, `shizuku`, `koharu`) are still accepted but
-    currently show the default 3D character, and the response carries `warning`.
   - `POST /api/marketplace/deploy` with `category: "personas"` must carry the prompt in
     `persona_config` or in a persona JSON file; the public `description` is never used as the prompt.
     `AssetDeployConfig` now has `persona_config`.
@@ -261,3 +263,5 @@ PrometheusAvatar (orchestrator)
 ## License
 
 MIT — [Myths Labs](https://github.com/myths-labs)
+
+Third-party components and the licences that come with them, including any you must get yourself to use a 2D model file: [THIRD_PARTY_LICENSES.md](https://github.com/myths-labs/prometheus-avatar/blob/main/THIRD_PARTY_LICENSES.md).

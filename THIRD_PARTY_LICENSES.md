@@ -4,6 +4,16 @@ This project uses the following open-source components:
 
 ---
 
+## Live2D: you need a licence of your own
+
+This repository's MIT licence covers this repository's code only. It does not include a licence from Live2D Inc.
+
+- The 2D model renderer in `@prometheusavatar/core` (also used by `@prometheusavatar/openclaw-plugin`) loads Live2D model files (`.model3.json`) through `pixi-live2d-display`.
+- Drawing such a model needs the Live2D Cubism runtime (Cubism Core). These packages do not include it: your page has to load it, as the [pixi-live2d-display README](https://github.com/guansss/pixi-live2d-display#cubism) explains.
+- Anyone who uses a Live2D model or the Cubism runtime, the sample models listed below included, must get the licence they require from Live2D Inc. themselves and follow its terms. Prometheus does not sell, sublicense or vouch for a Live2D licence.
+
+---
+
 ## pixi-live2d-display
 - **License:** MIT
 - **Copyright:** (c) guansss

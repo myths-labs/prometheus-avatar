@@ -1,9 +1,9 @@
 /**
- * Embed bridge: drive a hosted Prometheus avatar framed in an <iframe>.
+ * Embed bridge: drive a hosted Prometheus avatar page framed in an <iframe>.
  *
  * The embed page (`https://prometheus.mythslabs.ai/embed/<avatarId>`, the `embedUrl` that
- * `POST /api/agent/avatar` answers) draws the avatar, by default the 3D character. A parent
- * page talks to it with `postMessage`:
+ * `POST /api/agent/avatar` answers) draws the avatar. A parent page talks to it with
+ * `postMessage`:
  *
  *   embed → parent, once per page load and in this order
  *     { type: "prometheus:ready",  id }  its message listener is attached (it is listening)

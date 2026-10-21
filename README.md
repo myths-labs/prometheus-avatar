@@ -355,3 +355,5 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 <p align="center">
   <a href="https://prometheus.mythslabs.ai"><strong>🌐 prometheus.mythslabs.ai</strong></a>
 </p>
+
+Third-party components and the licences that come with them, including any you must get yourself to use a 2D model file: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
