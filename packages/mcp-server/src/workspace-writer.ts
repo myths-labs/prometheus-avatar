@@ -246,7 +246,9 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
             };
             reusePending = false;
             // A replay re-sends an operation an earlier call left unconfirmed; the website may already have committed that one.
-            const replaying = operation === pending;
+            // `uncertain` also turns true when this very try was answered "the account or key changed" after the website may
+            // have committed it: from then on, whatever the next answer is, this operation is not known to be unsaved.
+            let uncertain = operation === pending;
             const input: WorkspaceInput = {
                 entryId, expectedRevision: operation.expectedRevision, categoryId: spec.category, kind: spec.kind, content: fields.content,
                 occurredAt: operation.occurredAt, role: operation.role, inputMode: operation.inputMode, status: fields.status, dueOn: fields.dueOn, archived: false,
@@ -255,6 +257,7 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
             try {
                 const saved = await getApi().post(accountId, operation.operationId, input, signal).catch(async error => {
                     if (!(error instanceof WorkspaceAgentError) || error.code !== 'workspace_account_changed') throw error;
+                    if (error.outcome === 'unconfirmed') uncertain = true;
                     accountMemo = undefined; state.clearAccount();
                     const previous = accountId;
                     accountId = await ensureAccount(signal, true);
@@ -280,11 +283,11 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                 // status) only says this try failed; the earlier unconfirmed try may have been committed, so its record stays and the
                 // next call re-sends the same operation and entry id instead of minting new ones and duplicating the entry.
                 // The website's 409 answers about an operation id are the only ones that settle it, and they are handled above.
-                if (error.outcome !== 'unconfirmed' && !replaying) state.deletePending(accountId, spec.intent);
+                if (error.outcome !== 'unconfirmed' && !uncertain) state.deletePending(accountId, spec.intent);
                 // The website's own sentence often ends "Nothing was saved", which is true of this try only. Say so, and report the
                 // outcome as unknown (the tool result's `outcome` is what an Agent reads), or an Agent may tell the user nothing was
                 // saved, or rephrase the content to retry and so store a second copy next to the one the earlier try may have saved.
-                if (replaying && error.outcome !== 'unconfirmed' && !conflict) throw new WorkspaceAgentError(error.code,
+                if (uncertain && error.outcome !== 'unconfirmed' && !conflict) throw new WorkspaceAgentError(error.code,
                     `${error.message} An earlier try of this same save got no confirmation and may already be stored; calling again with the same arguments re-sends that try and cannot create a duplicate, so do not change the content just to retry.`,
                     { ...error.details, outcome: 'unconfirmed' });
                 if (conflict) throw new WorkspaceAgentError('workspace_revision_conflict',

@@ -5,6 +5,9 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENTRY_KEYS, UUID, fixedClock, harness, readTree, signal } from './helpers.mjs';
 import { deriveEntryId } from '../.test-build/workspace-ids.js';
+import { workspaceApi } from '../.test-build/workspace-api.js';
+import { createWorkspaceState } from '../.test-build/workspace-state.js';
+import { createWorkspaceWriter } from '../.test-build/workspace-writer.js';
 
 const rejects = (promise, code, check = () => {}) => assert.rejects(promise, error => { assert.equal(error.code, code, error.message); check(error); return true; });
 const posts = site => site.requests.filter(r => r.method === 'POST');
@@ -492,6 +495,38 @@ test('M1 the account cached for the key turns out wrong (409 account changed): t
         assert.equal(h.site.list('work').length, 1);
         assert.equal(existsSync(join(h.directory, 'workspace-state', 'pending-by-account', stale)) && readdirSync(join(h.directory, 'workspace-state', 'pending-by-account', stale)).length > 0, false,
             'nothing is left filed under the account the key does not belong to');
+    } finally { await h.stop(); }
+});
+
+test('"the account or key changed" after the website may have committed (409, unconfirmed), then the account re-read is refused (429): the write stays remembered and the repeat re-sends it, one entry', async () => {
+    const h = await harness({}, { persist: true });
+    try {
+        // The route answers this 409 from its guard after the write committed; the fake website cannot commit and then refuse, so a
+        // fetch in front of it does: the first trapped POST really reaches the website, and its answer is replaced.
+        let trap = false, trappedPosts = 0;
+        const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
+        const front = async (url, init) => {
+            if (trap && init.method === 'POST' && ++trappedPosts === 1) {
+                await (await fetch(url, init)).text();
+                return json(409, { error: 'The Agent account or key changed. Recover through the original account.' });
+            }
+            if (trap && init.method === 'GET') return json(429, { error: 'Too many workspace requests from this Agent key. Nothing was changed. Try again in 5s.', code: 'AGENT_KEY_RATE_LIMITED' }, { 'retry-after': '5' });
+            return fetch(url, init);
+        };
+        const writer = createWorkspaceWriter(() => workspaceApi(h.site.url, h.site.key, 'test', { fetch: front }), createWorkspaceState({ directory: h.directory, apiKey: h.site.key }));
+        await writer.saveWork({ content: 'Warm-up, so the account id is cached' }, signal());
+        const call = () => writer.saveWork({ content: 'Quarterly plan v1' }, signal());
+        trap = true;
+        await rejects(call(), 'workspace_rate_limited', error => {
+            assert.equal(error.outcome, 'unconfirmed', 'not "nothing was saved": the first try may be stored');
+            assert.match(error.message, /may already be stored/);
+        });
+        assert.equal(h.site.list('work').length, 2, 'the warm-up and the committed first try');
+        trap = false;
+        assert.equal((await call()).saved, true);
+        const writes = posts(h.site);
+        assert.equal(writes.at(-1).body.operationId, writes[1].body.operationId, 'the repeat re-sent the operation the website committed');
+        assert.equal(h.site.list('work').length, 2, 'no second copy');
     } finally { await h.stop(); }
 });
 
