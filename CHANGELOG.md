@@ -113,9 +113,9 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
 
 ---
 
-## [Unreleased] — core 0.11.4
+## [core 0.11.4] — 2026-10-14
 
-Not published. Security release candidate: core only. mcp-server does not depend on core, and
+Security release: core only. mcp-server does not depend on core, and
 openclaw-plugin (`^0.11.3`) does not use MemoryBridge and picks up 0.11.4 on a fresh install,
 so neither needs a new version.
 
