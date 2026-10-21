@@ -19,7 +19,8 @@
     "scripts": {
         "build": "tsup src/index.ts --format esm --dts --clean",
         "dev": "tsup src/index.ts --format esm --dts --watch",
-        "test": "vitest run",
+        "test": "vitest run && npm run test:package",
+        "test:package": "npm run build && node --test test/*.test.mjs",
         "test:watch": "vitest",
         "clean": "rm -rf dist",
         "lint": "tsc --noEmit"
