@@ -3,7 +3,8 @@
 // (README, package.json description/keywords, plugin manifest, skills, tool descriptions,
 // source comments, generated docs). Technical names that cannot change are allowed only where
 // they are needed: the third-party npm package `pixi-live2d-display` (dependency and import),
-// its exported class name in the renderer, and the deprecated alias kept for old imports.
+// its exported class name in the renderer, the deprecated alias kept for old imports, and the mock of that package
+// in the test that pins "no default model".
 // The one file that may, and must, name the engine is THIRD_PARTY_LICENSES.md at the repository root:
 // it is where users learn they need a licence of their own. No file inside a package is exempt.
 // packages/mcp-server/test/ is not scanned: it has its own public-text test, which spells the word on purpose.
@@ -34,6 +35,8 @@ const ALLOW = [
     { file: /^sdk\/package\.json$/, tokens: ['"pixi-live2d-display"'] },
     { file: /^sdk\/src\/renderer\.ts$/, tokens: ["'pixi-live2d-display'", 'Live2DModel: L2DModel', 'Live2DRenderer'] },
     { file: /^sdk\/src\/index\.ts$/, tokens: ['Live2DRenderer'] },
+    // The one test that replaces the third-party package with a recorder, to pin that core loads no default model.
+    { file: /^sdk\/tests\/no-default-model\.test\.ts$/, tokens: ["'pixi-live2d-display'", 'Live2DModel: { from: runtime.from }'] },
 ];
 
 function walk(dir, out = []) {
