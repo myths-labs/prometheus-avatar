@@ -20,6 +20,14 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
   `prometheus:loaded` does not follow within 30 s, held `speak` messages are sent anyway.
   Tested against stand-in windows; the message names match the live embed page's script
   (checked 2026-10-22), but it has not been run in a browser against the live page yet.
+- **openclaw-plugin**: with no `modelUrl`, a config that has both a Prometheus agent key (`apiKey`,
+  or the `PROMETHEUS_API_KEY` variable) and an `avatarId` now shows that hosted avatar: the plugin
+  frames the hosted avatar page and drives its expression through core's `connectEmbed`. `modelUrl`
+  still wins when set; every other combination keeps logging how to configure and shows nothing.
+  The page address carries nothing after the avatar id, agent events send expression only
+  (thinking, error, the sentiment of a message), the plugin never makes the hosted avatar speak, and
+  the key never goes into the address, the frame or a message. The plugin now depends on core
+  `^0.11.5` (the release that adds `connectEmbed`).
 - **core**: `AssetDeployConfig` gains `persona_config`, `source` and `body_type`; `license`
   accepts `mit`. **openclaw-plugin**: `prometheus_deploy_asset` passes them through.
 - `THIRD_PARTY_LICENSES.md` says that the MIT licence does not include a licence from the

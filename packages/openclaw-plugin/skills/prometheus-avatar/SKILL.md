@@ -1,6 +1,6 @@
 ---
 name: prometheus-avatar
-description: Show a 2D avatar (the .model3.json model file set as modelUrl) inside the agent's UI with TTS, lip-sync and emotion · plus generate AAA marketplace skin previews via the Prometheus image engine and deploy assets to the marketplace.
+description: Show an avatar inside the agent's UI — a 2D model file (.model3.json, set as modelUrl) with TTS, lip-sync and emotion, or a hosted avatar (apiKey + avatarId) with emotion — plus generate AAA marketplace skin previews via the Prometheus image engine and deploy assets to the marketplace.
 ---
 
 # Prometheus Avatar
@@ -13,20 +13,20 @@ Each Marketplace bundle is a complete digital body assembled by **Forge** — th
 
 1. **Skeleton (rig)** — bone hierarchy for animation
 2. **Skin (texture)** — vibrant surface
-3. **Voice** — cloned or preset TTS with audio-driven lipsync
+3. **Voice** — cloned or preset TTS
 4. **Expressions** — emotion reactions (happy / sad / thinking / surprised etc.)
 5. **Motion** — animation library (idle sway, gestures, full-body motions)
 6. **Personality** — chat tone and response style
 
 Browse bundles at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-The plugin draws one 2D model file (`.model3.json`, set as `modelUrl` in the plugin config) inside the agent's UI and connects it to the agent's event stream. It ships no model of its own and cannot load a Marketplace bundle by ID yet: without `modelUrl` it shows nothing and logs how to set it, and the 3 creator tools keep working. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus 3 marketplace creator tools.
+The plugin draws one 2D model file (`.model3.json`, set as `modelUrl` in the plugin config) inside the agent's UI and connects it to the agent's event stream. It ships no model of its own and cannot load a Marketplace bundle by ID. Without `modelUrl` it shows nothing and logs how to set it, and the 3 creator tools keep working. The exception: with a Prometheus agent key and the id of one of your hosted avatars (`apiKey` + `avatarId`, no `modelUrl`) it shows that hosted avatar and drives its expression; it never makes the hosted avatar speak. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus 3 marketplace creator tools.
 
 ## When to use
 
 Use this skill when the user asks for any of:
 
-- **A visible 2D character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character") — needs a 2D model file configured as `modelUrl`
+- **A visible 2D character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character") — needs a 2D model file configured as `modelUrl`, or a hosted avatar configured with `apiKey` + `avatarId`
 - **Text-to-speech with mouth movement** (not just plain audio): the viewer's browser voice speaks, and lip sync is estimated from the text
 - **Emotion / mood reflection** on the character (happy / sad / thinking / surprised)
 - **A different voice** for the agent — set `ttsVoice` to the name of a voice installed in the viewer's browser. This plugin cannot play cloned or Marketplace voices yet
@@ -103,7 +103,7 @@ Set via `openclaw.config.json`:
 }
 ```
 
-`modelUrl` is needed to show an avatar; `avatarId` is reserved and cannot choose a model yet. Browse the Marketplace at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
+`modelUrl` draws your own 2D model file and wins over `avatarId`. To show a hosted avatar instead, leave `modelUrl` out and set `apiKey` (a `pak_...` agent key) and `avatarId` (the id of an avatar made with that key; a Marketplace listing ID is not one). Setting only `avatarId` shows nothing. Browse the Marketplace at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
 **TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`), which uses the browser's built-in speech synthesis by default: no TTS API key and no request. The optional `ttsVoice` picks a voice installed in the viewer's browser by name; an unknown name is ignored. Marketplace and cloned voices are not played by this plugin yet.
 

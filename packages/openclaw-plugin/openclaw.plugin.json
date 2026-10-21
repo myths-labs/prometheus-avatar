@@ -13,17 +13,17 @@
     "configSchema": {
         "avatarId": {
             "type": "string",
-            "description": "Reserved: marketplace avatar ID. ID-based model resolution is not available yet — use modelUrl (a .model3.json URL) to pick a model. When only avatarId is set, no avatar is shown and the plugin logs an error that says to set modelUrl (the creator tools still work).",
+            "description": "ID of a hosted avatar made with your Prometheus agent key. With apiKey also set (and no modelUrl) the plugin shows that hosted avatar and drives its expression; it never makes it speak. A Marketplace listing ID cannot be shown. When only avatarId is set, no avatar is shown and the plugin logs an error that says to set apiKey or modelUrl (the creator tools still work).",
             "required": false
         },
         "apiKey": {
             "type": "string",
-            "description": "Prometheus agent API key (pak_...) used for marketplace deploys. Falls back to the PROMETHEUS_API_KEY environment variable. Get one at prometheus.mythslabs.ai/settings/agent-keys.",
+            "description": "Prometheus agent API key (pak_...) used for marketplace deploys, and, together with avatarId, to show a hosted avatar. It is never put into the avatar's page address or sent to it. Falls back to the PROMETHEUS_API_KEY environment variable. Get one at prometheus.mythslabs.ai/settings/agent-keys.",
             "required": false
         },
         "modelUrl": {
             "type": "string",
-            "description": "Direct URL to a 2D model file (.model3.json). Needed to show an avatar: without it the plugin logs how to set it and shows nothing (the creator tools still work).",
+            "description": "Direct URL to a 2D model file (.model3.json). Wins over avatarId. Needed to draw your own model: without it the plugin logs how to set it and shows nothing, unless apiKey and avatarId are both set (the creator tools still work).",
             "required": false
         },
         "ttsProvider": {
@@ -39,12 +39,12 @@
         "enableLipSync": {
             "type": "boolean",
             "default": true,
-            "description": "Enable audio-driven lip synchronization"
+            "description": "Speak agent messages aloud in a 2D model file's avatar, with mouth movement estimated from the text; false means agent messages are not spoken. Has no effect on a hosted avatar: the plugin never makes it speak."
         },
         "enableEmotion": {
             "type": "boolean",
             "default": true,
-            "description": "Enable emotion analysis from text"
+            "description": "Enable emotion analysis from text; the result drives the expression of the 2D model file's avatar and of a hosted avatar alike"
         }
     },
     "events": {
