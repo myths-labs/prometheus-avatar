@@ -122,6 +122,61 @@ test('no placeholder text is left in THIRD_PARTY_LICENSES.md', () => {
     assert.doesNotMatch(text, /\b(TODO|TBD|FIXME|XXX|coming soon|placeholder)\b|\[link\]|<link>/i);
 });
 
+test('THIRD_PARTY_LICENSES.md summarises the Live2D terms as the published ones: small-scale exemption except Expandable Application, and no looser summary of our own', () => {
+    const text = readFileSync(join(repoRoot, 'THIRD_PARTY_LICENSES.md'), 'utf8');
+    assert.match(text, /Expandable Application/);
+    assert.match(text, /small-scale enterprises/);
+    assert.match(text, /Publication License Agreement/);
+    // The two old one-line summaries said "free" without the exception, which made users believe they were covered.
+    assert.doesNotMatch(text, /Free for (small-scale|non-commercial)/i);
+    assert.doesNotMatch(text, /Commercial use requires a separate agreement/i);
+});
+
+// Wording that would say Prometheus holds, got or passes on a Live2D licence for the user.
+const LICENCE_OVERCLAIM = [
+    /\b(has|have|had|already) (obtained|secured|acquired|purchased|bought|paid for)\b/i,
+    /\bon your behalf\b/i,
+    /\blicen[cs]ed to you\b/i,
+    /\bwe (hold|have|own|obtained|secured)\b[^.]{0,60}licen[cs]e/i,
+    /\bprometheus (holds|owns|provides|grants|includes)\b[^.]{0,60}licen[cs]e/i,
+    /licen[cs]e[^.]{0,40}\b(is|are) (already )?(included|covered|provided|granted|taken care of)\b/i,
+    /\byou (do not|don't) need (a |your own )?(live2d )?licen[cs]e\b/i,
+    /\bno (live2d )?licen[cs]e (is |are )?(needed|required)\b/i,
+];
+
+test('no text that points at THIRD_PARTY_LICENSES.md says Prometheus obtained, holds or passes on a Live2D licence, and the file keeps its "does not sell, sublicense or vouch" sentence', () => {
+    const third = readFileSync(join(repoRoot, 'THIRD_PARTY_LICENSES.md'), 'utf8');
+    assert.match(third, /Prometheus does not sell, sublicense or vouch for a Live2D licen[cs]e/);
+    const found = [];
+    for (const rel of ['THIRD_PARTY_LICENSES.md', 'README.md', 'packages/sdk/README.md', 'packages/openclaw-plugin/README.md', 'packages/openclaw-plugin/openclaw.plugin.json', 'packages/openclaw-plugin/skills/prometheus-avatar/SKILL.md']) {
+        readFileSync(join(repoRoot, rel), 'utf8').split('\n').forEach((line, i) => {
+            if (LICENCE_OVERCLAIM.some((re) => re.test(line))) found.push(`${rel}:${i + 1}: ${line.trim().slice(0, 160)}`);
+        });
+    }
+    assert.deepEqual(found, []);
+});
+
+test('the licence-overclaim scan catches the wording it exists for (reverse check)', () => {
+    for (const s of [
+        'Prometheus has obtained the Live2D licence for you.',
+        'We hold the Live2D licence, so you are covered.',
+        'The licence is already included in this package.',
+        'You do not need a Live2D licence.',
+        'No licence is needed to use the sample models.',
+        'Prometheus licenses the runtime on your behalf.',
+        'The model is licensed to you under the plan.',
+    ]) {
+        assert.ok(LICENCE_OVERCLAIM.some((re) => re.test(s)), s);
+    }
+    for (const s of [
+        'Prometheus does not sell, sublicense or vouch for a Live2D licence.',
+        'It does not include a licence from Live2D Inc.',
+        'must get the licence they require from Live2D Inc. themselves',
+    ]) {
+        assert.ok(!LICENCE_OVERCLAIM.some((re) => re.test(s)), s);
+    }
+});
+
 test('the root README and the core and openclaw-plugin READMEs end with a pointer to THIRD_PARTY_LICENSES.md that does not name the engine', () => {
     for (const rel of ['README.md', 'packages/sdk/README.md', 'packages/openclaw-plugin/README.md']) {
         const lines = readFileSync(join(repoRoot, rel), 'utf8').trimEnd().split('\n');

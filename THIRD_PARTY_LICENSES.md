@@ -31,7 +31,7 @@ This repository's MIT licence covers this repository's code only. It does not in
 - **Copyright:** (c) Live2D Inc.
 - **URL:** https://www.live2d.com/en/sdk/about/
 - **Usage:** Live2D model core runtime
-- **Note:** Free for small-scale use. Commercial use requires a separate agreement with Live2D Inc.
+- **Note:** The terms depend on who you are and what you publish. Live2D Inc.'s published terms exempt individuals and small-scale enterprises from the release licence and payment, except for an "Expandable Application", which has to be reviewed and needs a special Publication License Agreement before release. Read Live2D Inc.'s terms, and ask Live2D Inc. if you are unsure which side you are on.
 
 ## Next.js
 - **License:** MIT
@@ -49,4 +49,4 @@ This repository's MIT licence covers this repository's code only. It does not in
 - **License:** Live2D Free Material License
 - **Copyright:** (c) Live2D Inc.
 - **URL:** https://www.live2d.com/en/community/FreeModels/
-- **Note:** Free for non-commercial and small-scale commercial use.
+- **Note:** The terms depend on who you are and how you use the material. Read Live2D Inc.'s Free Material License Agreement for the terms that apply to you.
