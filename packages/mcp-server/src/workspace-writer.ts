@@ -373,12 +373,12 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
             return perform(spec, signal);
         },
 
-        /** One Markdown link in `browse`. Only possible once the website has that category; otherwise a clear refusal, nothing saved. */
+        /** One Markdown link in `browse`. Only possible while the website lists that category for this key; otherwise a clear refusal, nothing saved. */
         async logVisitedPage(args: { url: unknown; title?: string }, signal: AbortSignal): Promise<WriteResult> {
             const url = checkVisitUrl(args.url);
             if (args.title !== undefined && typeof args.title !== 'string') fail('workspace_invalid_argument', 'title must be text.', { field: 'title' });
             const unavailable = () => new WorkspaceAgentError('workspace_browse_unavailable',
-                'The Prometheus website does not have the "browse" category yet, so visited pages cannot be saved. Nothing was saved. This is not an error in your call: logging turns on by itself once the website adds the category, so do not retry now and do not tell the user the page was logged.',
+                'The Prometheus website does not list the "browse" category for this key, so visited pages cannot be saved right now. Nothing was saved. This is not an error in your call: logging works again by itself once the website lists the category, so do not retry now and do not tell the user the page was logged.',
                 { field: 'category', outcome: 'rejected' });
             const listed = (all: WorkspaceCategory[]) => all.some(category => category.id === 'browse' && category.presentation === 'markdown');
             let { list, fresh } = await categories(signal, false);

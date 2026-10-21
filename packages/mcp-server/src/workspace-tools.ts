@@ -111,7 +111,7 @@ export function registerWorkspaceTools(server: McpServer, apiBase: string, apiKe
 
     server.registerTool('log_visited_page', {
         description: 'Record a web page you visited for the user, so it appears in the "pages the Agent visited" list in their Prometheus workspace. Pass `url` (http or https only) and the page `title`. '
-            + 'Do not log addresses that contain access tokens or passwords. If the Prometheus website does not support this list yet, the result says so and nothing is saved: do not retry and do not tell the user the page was logged.',
+            + 'Do not log addresses that contain access tokens or passwords. If the Prometheus website does not offer this list, the result says so and nothing is saved: do not retry and do not tell the user the page was logged.',
         inputSchema: {
             url: z.string().describe('Full page address, starting with http:// or https://. Required.'),
             title: z.string().optional().describe('The page title.'),

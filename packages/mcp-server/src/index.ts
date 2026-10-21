@@ -88,7 +88,7 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
 const server = new McpServer({
     name: "prometheus-avatar",
     version: PKG_VERSION,
-    description: "Give any AI agent an embodied Live2D avatar + AAA image generation via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
+    description: "Give any AI agent an embodied 3D / 2.5D avatar + AAA image generation via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
 });
 
 // Count tool registrations so the startup banner reports the real number of
@@ -714,7 +714,7 @@ server.resource(
 - SDK: npm install @prometheusavatar/core
 
 ## Features
-- **Live2D Avatars**: High-fidelity animated avatar rendering
+- **3D / 2.5D Avatars**: High-fidelity animated avatar rendering
 - **Multi-LLM TTS**: Text-to-speech with 12+ voices
 - **Real-time Lip Sync**: Audio-driven mouth animation
 - **Emotion Detection**: Automatic expression from text sentiment

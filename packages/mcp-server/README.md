@@ -1,6 +1,6 @@
 # @prometheusavatar/mcp-server
 
-Give any AI agent an embodied Live2D avatar via [Model Context Protocol](https://modelcontextprotocol.io) — and a place to put what it makes: reports, code, to-dos and the pages it visited land in your [Prometheus](https://prometheus.mythslabs.ai) workspace.
+Give any AI agent an embodied 3D / 2.5D avatar via [Model Context Protocol](https://modelcontextprotocol.io) — and a place to put what it makes: reports, code, to-dos and the pages it visited land in your [Prometheus](https://prometheus.mythslabs.ai) workspace.
 
 ```bash
 npx @prometheusavatar/mcp-server
@@ -133,7 +133,7 @@ then later `{ "external_key": "invoice-acme-10" }` to `complete_task`.
 { "url": "https://example.com/pricing", "title": "Pricing" }
 ```
 
-The "pages the Agent visited" list needs a category (`browse`) that the Prometheus website has not added yet. Until it has, `log_visited_page` answers with a plain explanation and saves nothing; it switches on by itself, with no update on your side, as soon as the website adds the category.
+The "pages the Agent visited" list is the website's `browse` category, live on prometheus.mythslabs.ai since 2026-10-19. If a website does not list that category for your key, `log_visited_page` answers with a plain explanation and saves nothing, and works by itself, with no update on your side, once the category is listed.
 
 ### No duplicates
 
@@ -196,7 +196,7 @@ Every workspace error says what was wrong, whether anything was saved, and what 
 | `workspace_key_missing` / `workspace_key_rejected` | `PROMETHEUS_API_KEY` is unset, mistyped, or was revoked by generating a newer key. Once a working key is in place, repeat the same call: a save that was left unconfirmed is re-sent, not duplicated |
 | `workspace_invalid_argument` with a `field` | The named argument is wrong (for example `due_on` must be a real date written `YYYY-MM-DD`); nothing was sent |
 | `workspace_result_unconfirmed` | The connection dropped; it may or may not have been saved. Call again with the same arguments, which cannot duplicate |
-| `workspace_browse_unavailable` | The website does not have the visited-pages list yet; nothing saved, do not retry |
+| `workspace_browse_unavailable` | The website did not list the visited-pages category (`browse`) for this key; nothing saved, do not retry now |
 | `workspace_category_full` | Work, To-do and Browse each hold at most 2,000 entries that are not archived; nothing saved, do not retry until you archive or delete some older entries |
 | `workspace_lookup_timeout` | Looking for the task (or reading an entry back) took longer than 60 seconds; nothing was changed. Try once more later |
 | `workspace_rate_limited` | The website is limiting how fast this key reads or writes; nothing was saved by that call. Wait the `retry_after_seconds` it gives, then send the same call again. If it answered the repeat of an unconfirmed save, `outcome` is `unknown_may_have_been_saved`: the earlier try may already be stored, and the same call re-sends it rather than adding a second entry |
@@ -247,7 +247,7 @@ MIT — [Myths Labs](https://mythslabs.ai)
 
 # 🇨🇳 中文文档
 
-让任何 AI Agent 拥有一个 Live2D 虚拟形象（通过 [Model Context Protocol](https://modelcontextprotocol.io)），并且有地方存放它的产出：报告、代码、待办、访问过的网页，都会进入你在 [Prometheus](https://prometheus.mythslabs.ai) 的工作区。
+让任何 AI Agent 拥有一个 3D / 2.5D 虚拟形象（通过 [Model Context Protocol](https://modelcontextprotocol.io)），并且有地方存放它的产出：报告、代码、待办、访问过的网页，都会进入你在 [Prometheus](https://prometheus.mythslabs.ai) 的工作区。
 
 ```bash
 npx @prometheusavatar/mcp-server
@@ -378,7 +378,7 @@ MCP 工具只有在模型决定调用时才会运行。所以要么你用话说�
 { "url": "https://example.com/pricing", "title": "价格页" }
 ```
 
-「Agent 访问过的页面」依赖一个叫 `browse` 的类别，网站还没有加上。在此之前，`log_visited_page` 会用一段清楚的说明回答，并且什么都不保存；网站加上这个类别后它会自动生效，你这边不用更新。
+「Agent 访问过的页面」就是网站的 `browse` 类别，prometheus.mythslabs.ai 已于 2026-10-19 上线。如果网站没有为你的密钥列出这个类别，`log_visited_page` 会用一段清楚的说明回答，并且什么都不保存；类别一旦列出它会自动生效，你这边不用更新。
 
 ### 不会重复
 
@@ -441,7 +441,7 @@ alwaysApply: true
 | `workspace_key_missing` / `workspace_key_rejected` | `PROMETHEUS_API_KEY` 没设、填错了，或被后来生成的新密钥作废了。换上能用的密钥后，原样重试即可：之前未确认的那次保存会被重新发送，不会重复 |
 | `workspace_invalid_argument` 并带 `field` | 指出的那个参数不对（例如 `due_on` 必须是真实日期，写成 `YYYY-MM-DD`）；什么都没发出去 |
 | `workspace_result_unconfirmed` | 连接断了，不知道有没有存上。用相同参数再调一次，不会重复 |
-| `workspace_browse_unavailable` | 网站还没有「访问过的页面」；没有保存，不要重试 |
+| `workspace_browse_unavailable` | 网站没有为这把密钥列出「访问过的页面」类别（`browse`）；没有保存，现在不要重试 |
 | `workspace_category_full` | Work、To-do、Browse 每类最多 2,000 条未归档条目；没有保存，先归档或删掉一些旧条目再试，不要直接重试 |
 | `workspace_lookup_timeout` | 查找那条待办（或把条目读回来）超过 60 秒；什么都没改。稍后再试一次 |
 | `workspace_rate_limited` | 网站在限制这把密钥的读写频率，这次调用什么都没存；等它给的 `retry_after_seconds` 秒后原样再调。如果被限的是一次「未确认保存」的重试，`outcome` 会是 `unknown_may_have_been_saved`：之前那次可能已经存上，原样再调只会重发那一次，不会多出一条 |

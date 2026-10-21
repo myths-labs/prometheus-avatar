@@ -32,7 +32,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
     nothing changed, and the model is told so, instead of paging back for minutes.
   - ids in the three exact-control tools are checked like the website checks them (any 8-4-4-4-12 hexadecimal digits),
     so the official account `00000000-0000-0000-0000-000000000001` is accepted.
-  - the website's request limit (HTTP 429 with `Retry-After`, per Agent key and per account; marketplace K11a) is
+  - the website's request limit (HTTP 429 with `Retry-After`, per Agent key and per account) is
     reported as `workspace_rate_limited` with `retry_after_seconds` and says whether a read or a write was limited.
     Nothing was saved or changed by that try, and it is not retried by itself; `next_step` names the wait in seconds.
     When the 429 (or a refused key) answers the replay of an earlier unconfirmed write, the result says
@@ -44,9 +44,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Notes for the release
 - Needs the website's `/api/agent/workspace` route (in production). `log_visited_page` also needs the `browse`
-  category, in production since 2026-10-19 (marketplace migration `20261014094100_workspace_agent_chat_browse.sql`).
-- Publish this before the website's request limit (marketplace PR #522, K11a) is deployed, so installed copies
-  already handle its 429.
+  category, in production since 2026-10-19.
+- No ordering dependency on the website's request limit: earlier versions of this package do not call the workspace
+  route, and this one handles its 429.
 - No ordering dependency on `core` or `openclaw-plugin`.
 
 ---

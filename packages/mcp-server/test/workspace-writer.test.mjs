@@ -274,7 +274,7 @@ test('log_visited_page: while the website has no browse category it says so plai
     try {
         await rejects(h.writer.logVisitedPage({ url: 'https://example.com/a', title: 'Example' }, signal()), 'workspace_browse_unavailable', error => {
             assert.equal(error.outcome, 'rejected');
-            assert.match(error.message, /does not have the "browse" category yet/);
+            assert.match(error.message, /does not list the "browse" category for this key/);
             assert.match(error.message, /do not retry now/);
             assert.doesNotMatch(error.message, /409|account changed|HTTP 400/);
         });
