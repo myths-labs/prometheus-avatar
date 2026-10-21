@@ -240,12 +240,19 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
 
     async function write(spec: Spec, signal: AbortSignal): Promise<WriteResult> {
         const budget = lookupBudget(signal);
-        let accountId = await withinBudget(budget, spec, read => ensureAccount(read));
+        let accountId: string;
+        try { accountId = await withinBudget(budget, spec, read => ensureAccount(read)); }
+        // The lookup failed, so the account is not known and neither is this call's record: a record of this very call under
+        // any account (a replaced key's, say) counts. A wrong "unknown" costs one more identical call; a wrong "nothing was
+        // saved" can cost a second copy.
+        catch (error) { throw state.hasPendingCall(spec.intent) ? earlierTryMayBeStored(error) : error; }
         const pending = state.getPending(accountId, spec.intent);
         const entryId = spec.entryId ?? pending?.entryId ?? newId();
         let existing: WorkspaceEntry | null = null, fresh = false;
         if (spec.existingOnly) {
-            const found = await withinBudget(budget, spec, read => findEntry(spec.category, entryId, read));
+            let found: { entry: WorkspaceEntry | null; complete: boolean };
+            try { found = await withinBudget(budget, spec, read => findEntry(spec.category, entryId, read)); }
+            catch (error) { throw pending ? earlierTryMayBeStored(error) : error; }
             if (!found.entry) { state.deletePending(accountId, spec.intent); throw notFound(spec, found.complete); }
             existing = found.entry; fresh = true;
         } else existing = known.get(entryId) ?? null;
@@ -404,11 +411,15 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                 'The Prometheus website does not list the "browse" category for this key, so visited pages cannot be saved right now. Nothing was saved. This is not an error in your call: logging works again by itself once the website lists the category, so do not retry now and do not tell the user the page was logged.',
                 { field: 'category', outcome: 'rejected' });
             const listed = (all: WorkspaceCategory[]) => all.some(category => category.id === 'browse' && category.presentation === 'markdown');
-            let { list, fresh } = await categories(signal, false);
-            if (!listed(list) && !fresh) list = (await categories(signal, true)).list; // the website may have gained the category since the last read
-            if (!listed(list)) throw unavailable();
             const content = composeVisit(url, args.title);
-            try { return await perform(messageSpec('log_visited_page', 'browse', content, undefined, [content]), signal); }
+            const spec = messageSpec('log_visited_page', 'browse', content, undefined, [content]);
+            // These reads come before any replay, like the account lookup in write(): with a record of this call, a failure is "unknown".
+            const lookUp = (refresh: boolean) => categories(signal, refresh)
+                .catch(error => { throw state.hasPendingCall(spec.intent) ? earlierTryMayBeStored(error) : error; });
+            let { list, fresh } = await lookUp(false);
+            if (!listed(list) && !fresh) list = (await lookUp(true)).list; // the website may have gained the category since the last read
+            if (!listed(list)) throw unavailable();
+            try { return await perform(spec, signal); }
             catch (error) {
                 if (error instanceof WorkspaceAgentError && ['workspace_category_missing', 'workspace_input_rejected'].includes(error.code) && !listed((await categories(signal, true)).list)) throw unavailable();
                 throw error;

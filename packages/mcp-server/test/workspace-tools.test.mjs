@@ -3,6 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -371,4 +374,85 @@ test('R-M2 a read that dropped, timed out, or was answered 408 / 5xx: nothing ch
         assert.equal((await mcp.call('prometheus_read_workspace', { category: 'work' })).result.isError, undefined, 'the same call works once the website answers');
         assert.equal(site.writes().length, 0);
     } finally { await mcp.close(); await site.close(); }
+});
+
+test('R-M2 the account lookup a repeat needs before it can replay an unconfirmed save fails (dropped, 503, 429): the outcome is unknown, not "nothing was saved"; the same call afterwards stores one entry', async () => {
+    const OLD = 'pak_k10r2_key_before_rotation', NEW = 'pak_k10r2_key_after_rotation';
+    const dir = mkdtempSync(join(tmpdir(), 'k10r2-lookup-'));
+    const site = await startFakeSite({ keys: [OLD, NEW] });
+    try {
+        const args = { content: 'Committed, answer lost, then the key was replaced' };
+        const first = await connect(site.url, OLD, { stateDirectory: dir });
+        site.intercept = dropFirstWrite('after');
+        assert.equal((await first.call('save_work', args)).json.outcome, 'unknown_may_have_been_saved');
+        await first.close();
+        site.keys.delete(OLD);
+        const second = await connect(site.url, NEW, { stateDirectory: dir }); // a new key: its account has to be looked up
+        try {
+            site.intercept = ctx => ctx.isWrite ? undefined : { drop: 'before' };
+            const control = await second.call('save_work', { content: 'Never tried before' });
+            assert.deepEqual([control.json.error, control.json.outcome], ['workspace_result_unconfirmed', 'nothing_was_saved'], 'no earlier try of this call anywhere');
+
+            const dropped = await second.call('save_work', args);
+            assert.deepEqual([dropped.json.error, dropped.json.outcome], ['workspace_result_unconfirmed', 'unknown_may_have_been_saved']);
+            assert.match(dropped.json.message, /may already be stored/);
+            assert.match(dropped.json.next_step, /^Call this tool again with exactly the same arguments/);
+
+            site.intercept = ctx => ctx.isWrite ? undefined : { status: 503, body: { error: 'The workspace is unavailable. Keep the original operation for recovery.' } };
+            const unavailable = await second.call('save_work', args);
+            assert.deepEqual([unavailable.json.error, unavailable.json.http_status, unavailable.json.outcome], ['workspace_result_unconfirmed', 503, 'unknown_may_have_been_saved']);
+
+            site.intercept = ctx => ctx.isWrite ? undefined : { status: 429, body: { error: 'Too many workspace requests from this Agent key. Nothing was changed. Try again in 9s.', code: 'AGENT_KEY_RATE_LIMITED' }, headers: { 'retry-after': '9' } };
+            const limited = await second.call('save_work', args);
+            assert.deepEqual([limited.json.error, limited.json.outcome, limited.json.retry_after_seconds], ['workspace_rate_limited', 'unknown_may_have_been_saved', 9]);
+            assert.match(limited.json.next_step, /^Wait 9 seconds \(retry_after_seconds\), then call this tool again with exactly the same arguments/);
+
+            site.intercept = null;
+            const done = await second.call('save_work', args);
+            assert.equal(done.json.saved, true);
+            assert.equal(site.list('work').length, 1, 'one entry, not two');
+            const writes = site.writes();
+            assert.equal(writes.at(-1).body.operationId, writes[0].body.operationId, 'the original operation was re-sent');
+        } finally { await second.close(); }
+    } finally { await site.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('R-M2 complete_task with an unconfirmed earlier try: a failed read-back is reported as unknown too; the same call afterwards finds the task done', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        const task = await mcp.call('upsert_task', { text: 'File the report' });
+        site.intercept = ctx => ctx.isWrite && ctx.writes === 2 ? { drop: 'after' } : undefined;
+        assert.equal((await mcp.call('complete_task', { task_id: task.json.entry_id })).json.outcome, 'unknown_may_have_been_saved');
+        assert.equal(site.list('todo')[0].status, 'done', 'the website did mark it done');
+        site.intercept = ctx => ctx.isWrite ? undefined : { drop: 'before' };
+        const lookup = await mcp.call('complete_task', { task_id: task.json.entry_id });
+        assert.deepEqual([lookup.json.error, lookup.json.outcome], ['workspace_result_unconfirmed', 'unknown_may_have_been_saved']);
+        site.intercept = null;
+        const done = await mcp.call('complete_task', { task_id: task.json.entry_id });
+        assert.deepEqual([done.json.saved, done.json.status], [true, 'done']);
+    } finally { await mcp.close(); await site.close(); }
+});
+
+test('R-M2 log_visited_page with an unconfirmed earlier try: the category read it makes first fails after a restart, and the outcome is unknown too', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'k10r2-browse-'));
+    const site = await startFakeSite({ browse: true });
+    try {
+        const args = { url: 'https://example.com/pricing', title: 'Pricing' };
+        const first = await connect(site.url, site.key, { stateDirectory: dir });
+        site.intercept = dropFirstWrite('after');
+        assert.equal((await first.call('log_visited_page', args)).json.outcome, 'unknown_may_have_been_saved');
+        await first.close();
+        const second = await connect(site.url, site.key, { stateDirectory: dir }); // restarted: the categories are read again
+        try {
+            site.intercept = ctx => ctx.isWrite ? undefined : { drop: 'before' };
+            const control = await second.call('log_visited_page', { url: 'https://example.com/other' });
+            assert.deepEqual([control.json.error, control.json.outcome], ['workspace_result_unconfirmed', 'nothing_was_saved'], 'no earlier try of that page');
+            const lookup = await second.call('log_visited_page', args);
+            assert.deepEqual([lookup.json.error, lookup.json.outcome], ['workspace_result_unconfirmed', 'unknown_may_have_been_saved']);
+            site.intercept = null;
+            assert.equal((await second.call('log_visited_page', args)).json.saved, true);
+            assert.equal(site.list('browse').length, 1, 'one entry, not two');
+        } finally { await second.close(); }
+    } finally { await site.close(); rmSync(dir, { recursive: true, force: true }); }
 });

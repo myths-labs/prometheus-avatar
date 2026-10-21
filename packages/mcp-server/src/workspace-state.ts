@@ -67,6 +67,12 @@ export interface WorkspaceState {
      * the same call (and so replaced the file with its own unconfirmed operation), its record stays.
      */
     deletePending(accountId: string, intent: string, operationId?: string): void;
+    /**
+     * Whether any live record of this call exists: under any account, or in an earlier build's per-key folder. Only for when the
+     * account could not be looked up, so the call's own record cannot be told from another account's; the answer is a yes or no
+     * that only makes an error say "may already be stored". Reads only.
+     */
+    hasPendingCall(intent: string): boolean;
 }
 
 const LEGACY_FILE = 'workspace-state.json';
@@ -320,6 +326,23 @@ export function createWorkspaceState(options: { directory: string | null; apiKey
                 if (record(stored) && stored.operationId !== operationId) return; // another server's try of the same call: not ours to finish
             }
             removeFile(path);
+        },
+        hasPendingCall(intent) {
+            upgrade(); // an old single-file state lands in the per-key folders, which are looked into below
+            const name = intentFileName(intent), at = now();
+            for (const [key, kept] of pendingMemory) {
+                if (!key.endsWith(`/${name}`) || !validPending(kept.operation, at)) continue;
+                // Written to a folder that is still there: the folder is the truth (another server may have finished it), read below.
+                if (kept.onDisk && root && folderExists(join(root, ACCOUNT_FOLDERS, key.slice(0, -name.length - 1)))) continue;
+                return true;
+            }
+            if (!root) return false;
+            for (const parent of [ACCOUNT_FOLDERS, KEY_FOLDERS]) {
+                let folders: string[];
+                try { folders = readdirSync(join(root, parent)); } catch { continue; }
+                if (folders.some(folder => readPending(join(root, parent, folder, name)))) return true;
+            }
+            return false;
         },
     };
 }

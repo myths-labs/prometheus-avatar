@@ -371,3 +371,25 @@ test('two MCP servers starting at the same moment over the same old per-key fold
     for (let n = 0; n < 150; n++) assert.deepEqual(reader.getPending(ACCOUNT, `old-${n}`), operation(1000 + n, { savedAt }), `old-${n}`);
     for (const [path, item] of Object.entries(readTree(root))) assert.equal(item.mode, item.directory ? '700' : '600', path);
 }));
+
+// ───────────── Is there any record of this call? (asked only when the account could not be looked up) ─────────────
+test('hasPendingCall: a live record of the call under any account, or in an earlier build\'s per-key folder, counts; other calls, expired records and finished ones do not', () => withFolder('has-pending', root => {
+    const OTHER_ACCOUNT = randomUUID();
+    const state = createWorkspaceState({ directory: root, apiKey: KEY, now: () => NOW });
+    assert.equal(state.hasPendingCall('call-a'), false, 'nothing anywhere');
+    createWorkspaceState({ directory: root, apiKey: 'pak_another_key_of_another_account', now: () => NOW }).setPending(OTHER_ACCOUNT, 'call-a', operation(1));
+    assert.equal(state.hasPendingCall('call-a'), true, 'a record under an account this key has not been linked to yet (a replaced key) is found');
+    assert.equal(state.hasPendingCall('call-b'), false, 'another call is not');
+    plant(join(keyFolder(root, 'pak_a_key_whose_account_is_unknown'), intentFile('call-c')), operation(3));
+    assert.equal(state.hasPendingCall('call-c'), true, 'a per-key folder whose account is not known yet is looked into as well');
+    plant(join(pendingFolder(root, OTHER_ACCOUNT), intentFile('call-d')), operation(4, { savedAt: NOW - 25 * 3600 * 1000 }));
+    assert.equal(state.hasPendingCall('call-d'), false, 'an expired record does not count');
+    createWorkspaceState({ directory: root, apiKey: KEY, now: () => NOW }).deletePending(OTHER_ACCOUNT, 'call-a');
+    assert.equal(state.hasPendingCall('call-a'), false, 'a record another server finished does not count');
+    const memory = createWorkspaceState({ directory: null, apiKey: KEY, now: () => NOW });
+    assert.equal(memory.hasPendingCall('call-e'), false);
+    memory.setPending(ACCOUNT, 'call-e', operation(5));
+    assert.equal(memory.hasPendingCall('call-e'), true, 'memory only: what this process remembers counts');
+    memory.deletePending(ACCOUNT, 'call-e');
+    assert.equal(memory.hasPendingCall('call-e'), false);
+}));
