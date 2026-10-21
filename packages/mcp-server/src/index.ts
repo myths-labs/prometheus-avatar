@@ -2,7 +2,7 @@
 /**
  * Prometheus Avatar MCP Server (S068 · Phase 11 Day 3 — version lives in package.json only, see PKG_VERSION below)
  *
- * Model Context Protocol server that exposes 10 tools for AI agents
+ * Model Context Protocol server that exposes 17 tools for AI agents
  * to interact with the Prometheus Avatar platform:
  *
  *   1. create_avatar       — Initialize an avatar instance
@@ -15,6 +15,15 @@
  *   5. get_avatar_status   — Get current avatar state
  *   6. share_avatar        — Generate a shareable link for an avatar
  *   7. speak               — Make the avatar speak text with TTS
+ *
+ *  Workspace tools (workspace-tools.ts) — what the agent produces lands in the user's
+ *  Prometheus workspace panes:
+ *   8. save_work            — Save Markdown work output (Work pane)
+ *   9. upsert_task          — Add or update a to-do (To-do pane)
+ *  10. complete_task        — Mark a to-do done
+ *  11. log_visited_page     — Record a page the agent visited (browse list)
+ *  12-14. prometheus_read_workspace / prometheus_save_workspace_entry /
+ *         prometheus_get_workspace_operation — low-level read, exact save, receipt lookup
  * 
  * Usage:
  *   npx @prometheusavatar/mcp-server
@@ -34,6 +43,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { createRequire } from "node:module";
+import { registerWorkspaceTools } from "./workspace-tools.js";
 
 // Read the version from package.json at runtime. It used to be typed in by
 // hand in two places and both had drifted: serverInfo said 0.3.2 while the
@@ -78,7 +88,7 @@ async function apiCall(path: string, method: string = "GET", body?: unknown): Pr
 const server = new McpServer({
     name: "prometheus-avatar",
     version: PKG_VERSION,
-    description: "Give any AI agent an embodied 3D avatar + AAA image generation via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
+    description: "Give any AI agent an embodied 3D / 2.5D avatar + AAA image generation via MCP. Skins, voices, expressions, motions, scenes, plus pro-grade image creation for marketplace and social.",
 });
 
 // Count tool registrations so the startup banner reports the real number of
@@ -101,7 +111,7 @@ registerTool(
     "Create a new Prometheus Avatar instance. Returns an avatar ID and embed URL that can be used in a browser.",
     {
         name: z.string().optional().describe("Display name for the avatar (default: 'My Avatar')"),
-        model: z.string().optional().describe("Leave out for the default 3D character, or pass an https URL to a .glb or .vrm model. The 2D sample names (haru, shizuku, koharu) are still accepted but currently show the default 3D character, and the answer then carries a warning."),
+        model: z.string().optional().describe("Model ID or URL. Available: 'haru' (default), 'koharu', or a full model3.json URL"),
         voice: z.string().optional().describe("Voice name for TTS. Options: Kore, Aoede, Leda, Despina, Puck, Charon, Fenrir, Zephyr"),
         persona: z.string().optional().describe("Custom system prompt / personality for the avatar's conversation style"),
     },
@@ -136,7 +146,6 @@ registerTool(
                 embedUrl: string;
                 availableModels?: string[];
                 availableVoices?: string[];
-                warning?: string;
             };
 
             return {
@@ -150,7 +159,6 @@ registerTool(
                         voice: result.voice,
                         persona: result.persona,
                         embed_url: result.embedUrl,
-                        ...(result.warning ? { warning: result.warning } : {}),
                         instructions: `Avatar is live. Open embed_url in a browser (or embed it as an <iframe src="${result.embedUrl}">) to see it render. Use 'speak' to generate speech, 'equip_asset' to customize it, or 'share_avatar' for a shareable link.`,
                     }, null, 2),
                 }],
@@ -551,7 +559,7 @@ registerTool(
     "Generate a shareable link and iframe embed code for an avatar. The link opens the interactive avatar page.",
     {
         avatar_id: z.string().optional().describe("Avatar ID from create_avatar. If omitted, uses the account's current avatar (requires PROMETHEUS_API_KEY)."),
-        message: z.string().optional().describe("Optional welcome line the avatar speaks when the link opens (added to the link as ?speak=)."),
+        message: z.string().optional().describe("Optional welcome message to deliver to iframe embedders via window.postMessage."),
         referral_code: z.string().optional().describe("Referral code appended to the share link for tracking."),
     },
     async ({ avatar_id, message, referral_code }) => {
@@ -664,7 +672,7 @@ registerTool(
                         audio_generated: !!result.audio,
                         audio_format: result.mimeType || "audio/wav",
                         audio_bytes: audioBytes,
-                        instructions: "Speech audio (base64 WAV) was generated. Play it in your client, or — to see an avatar lip-sync it in a browser — open the avatar's embed URL in an iframe, wait for the embed's { type: 'prometheus:loaded' } message, then post { type: 'prometheus:speak', text } to the iframe from the parent window (or greet with ?speak= on the embed URL). @prometheusavatar/core's connectEmbed does this waiting for you.",
+                        instructions: "Speech audio (base64 WAV) was generated. Play it in your client, or — to see an avatar lip-sync it in a browser — open the avatar's embed URL and post a { type: 'prometheus:speak', text } message to the iframe from the parent window.",
                     }, null, 2),
                 }],
             };
@@ -706,7 +714,7 @@ server.resource(
 - SDK: npm install @prometheusavatar/core
 
 ## Features
-- **3D Avatars**: the default 3D character, or your own .glb / .vrm model, rendered in an embeddable page
+- **3D / 2.5D Avatars**: High-fidelity animated avatar rendering
 - **Multi-LLM TTS**: Text-to-speech with 12+ voices
 - **Real-time Lip Sync**: Audio-driven mouth animation
 - **Emotion Detection**: Automatic expression from text sentiment
@@ -731,6 +739,8 @@ MIT — Myths Labs
 // ═══════════════════════════════════════════════════════════════
 
 async function main() {
+    // Workspace tools are built lazily inside, so a bad PROMETHEUS_API_URL cannot stop the other tools from starting.
+    toolCount += registerWorkspaceTools(server, API_BASE, API_KEY, PKG_VERSION);
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error(`[Prometheus MCP] Server started — ${toolCount} tools available`);

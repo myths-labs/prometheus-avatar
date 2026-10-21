@@ -29,6 +29,8 @@ jobs:
       - name: Build SDK
         run: pnpm --filter @prometheusavatar/core build
 
+      # The test script runs the vitest suites, then rebuilds dist/ and checks what
+      # `npm pack` would publish (LICENSE included) via test/package-files.test.mjs.
       - name: Test SDK
         run: pnpm --filter @prometheusavatar/core test
 
@@ -37,6 +39,21 @@ jobs:
       - name: Test SDK (plain node)
         if: matrix.node-version == 22
         run: node --experimental-strip-types --test packages/sdk/tests-node/*.test.mjs
+
+      # The MCP server writes into users' Prometheus workspaces (account header,
+      # operation replay, 409 read-back), so its tests run on every change. The
+      # script type-checks, builds dist/ and runs node:test, including a stdio
+      # round-trip against the built server. Everything stays on 127.0.0.1: each
+      # test file starts its own fake website on the first free port of
+      # 54860-54869 and needs no outside network.
+      - name: Test MCP server
+        run: pnpm --filter @prometheusavatar/mcp-server test
+
+      # The OpenClaw plugin is published to npm too and had no CI step at all: its
+      # 0.10.2 went out without LICENSE. The script builds dist/ and checks what
+      # `npm pack` would publish (test/package-files.test.mjs).
+      - name: Test OpenClaw plugin
+        run: pnpm --filter @prometheusavatar/openclaw-plugin test
 
       # ws-proxy is where the relay's credential gate lives (S307 P0-1: tickets
       # verified here, platform keys never leave this Worker). Until now CI ran
