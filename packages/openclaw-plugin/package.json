@@ -11,6 +11,7 @@
         "skills",
         "openclaw.plugin.json",
         "README.md",
+        "LICENSE",
         "tsconfig.json"
     ],
     "keywords": [
@@ -46,7 +47,8 @@
         ]
     },
     "scripts": {
-        "build": "tsup src/index.ts --format esm --clean"
+        "build": "tsup src/index.ts --format esm --clean",
+        "test": "npm run build && node --test test/*.test.mjs"
     },
     "devDependencies": {
         "tsup": "^8.0.0"
