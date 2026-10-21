@@ -327,6 +327,20 @@ test('no doc or manifest of core or the plugin says a default or bundled model e
     assert.deepEqual(found, []);
 });
 
+test('no source comment, generated docs page or plugin skill of core or the plugin points at a third-party sample model', () => {
+    const SAMPLE_MODEL = /\b(haru|shizuku|koharu)\b/i;
+    const roots = ['packages/sdk/src', 'packages/sdk/docs', 'packages/openclaw-plugin/src', 'packages/openclaw-plugin/skills'];
+    const found = [];
+    for (const rel of roots) {
+        for (const file of walk(join(repoRoot, rel))) {
+            readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+                if (SAMPLE_MODEL.test(line)) found.push(`${relative(repoRoot, file)}:${i + 1}: ${line.trim().slice(0, 120)}`);
+            });
+        }
+    }
+    assert.deepEqual(found, []);
+});
+
 test('the plugin manifest says an avatarId alone shows no avatar and points at modelUrl; modelUrl says what happens without it', () => {
     const manifest = JSON.parse(readFileSync(join(packagesDir, 'openclaw-plugin', 'openclaw.plugin.json'), 'utf8'));
     assert.match(manifest.configSchema.avatarId.description, /only avatarId is set[^.]*no avatar is shown/);

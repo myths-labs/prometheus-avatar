@@ -7,7 +7,7 @@
  * Usage:
  *   const avatar = await createAvatar({
  *     container: document.getElementById('avatar'),
- *     modelUrl: '/models/haru/haru.model3.json',
+ *     modelUrl: '/models/your-model/your-model.model3.json',
  *   });
  *   await avatar.speak('Hello! How are you today? 😊');
  */
@@ -239,7 +239,7 @@ export class PrometheusAvatar {
  * ```ts
  * const avatar = await createAvatar({
  *   container: document.getElementById('avatar')!,
- *   modelUrl: '/models/haru/haru.model3.json',
+ *   modelUrl: '/models/your-model/your-model.model3.json',
  * });
  * await avatar.speak('Hello world! 😊');
  * ```
