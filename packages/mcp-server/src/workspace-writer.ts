@@ -421,7 +421,8 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
             if (!listed(list)) throw unavailable();
             try { return await perform(spec, signal); }
             catch (error) {
-                if (error instanceof WorkspaceAgentError && ['workspace_category_missing', 'workspace_input_rejected'].includes(error.code) && !listed((await categories(signal, true)).list)) throw unavailable();
+                // The re-read is a lookup like the ones above: if it fails while this call's earlier try is unconfirmed, that is "unknown" too.
+                if (error instanceof WorkspaceAgentError && ['workspace_category_missing', 'workspace_input_rejected'].includes(error.code) && !listed((await lookUp(true)).list)) throw unavailable();
                 throw error;
             }
         },

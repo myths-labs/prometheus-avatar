@@ -510,3 +510,20 @@ test('S2 the read-back a repeat needs runs out of time while an earlier try is u
         assert.deepEqual([done.json.saved, done.json.status], [true, 'done']);
     } finally { await mcp.close(); await site.close(); }
 });
+
+test('S3 log_visited_page: the replay is refused and the category re-read made to explain the refusal drops: still unknown, not "nothing was saved"', async () => {
+    const site = await startFakeSite({ browse: true });
+    const mcp = await connect(site.url, site.key);
+    try {
+        const args = { url: 'https://example.com/pricing', title: 'Pricing' };
+        site.intercept = dropFirstWrite('after');
+        assert.equal((await mcp.call('log_visited_page', args)).json.outcome, 'unknown_may_have_been_saved');
+        site.intercept = ctx => ctx.isWrite ? { status: 400, body: { error: 'Use an existing workspace category.' } } : { drop: 'before' };
+        const refused = await mcp.call('log_visited_page', args);
+        assert.equal(refused.json.outcome, 'unknown_may_have_been_saved');
+        assert.match(refused.json.message, /may already be stored/);
+        site.intercept = null;
+        assert.equal((await mcp.call('log_visited_page', args)).json.saved, true);
+        assert.equal(site.list('browse').length, 1, 'one entry, not two');
+    } finally { await mcp.close(); await site.close(); }
+});
