@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — mcp-server 0.3.6
+## [mcp-server 0.3.6] — 2026-10-21
 
 ### Added
 - **mcp-server**: seven workspace tools (17 tools total) that put what an agent produces into the user's
