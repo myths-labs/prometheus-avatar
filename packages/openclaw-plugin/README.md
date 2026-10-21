@@ -16,7 +16,7 @@ openclaw plugins install @prometheusavatar/openclaw-plugin
 
 This plugin bridges OpenClaw agent events to the [Prometheus Avatar SDK](https://www.npmjs.com/package/@prometheusavatar/core), giving your AI agent a visual body and the ability to create marketplace assets:
 
-- **🎭 2D Avatar** — Renders a 2D model file (`.model3.json`) in your agent's UI. For the hosted 3D character, frame its embed URL and drive it with `connectEmbed` from [`@prometheusavatar/core`](https://www.npmjs.com/package/@prometheusavatar/core) (see its README, "Embed the hosted 3D character")
+- **🎭 2D Avatar** — Renders the 2D model file (`.model3.json`) that `modelUrl` points at, in your agent's UI. The plugin ships no model of its own, so set `modelUrl` (see Configuration)
 - **🗣️ Text-to-Speech** — Agent messages spoken aloud with lip-sync
 - **😊 Emotion Detection** — Text sentiment drives expressions (happy / sad / angry / surprised / thinking)
 - **🎨 AAA Image Generation (v0.9+)** — Generate game-store-tier skin preview cards directly from your agent conversation
@@ -42,9 +42,9 @@ Add to your `openclaw.config.json`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `avatarId` | `string` | — | Reserved — ID-based model resolution is not available yet; use `modelUrl` (when only `avatarId` is set the default model is used) |
+| `avatarId` | `string` | — | Reserved — ID-based model resolution is not available yet. Setting only `avatarId` shows no avatar; set `modelUrl` |
 | `apiKey` | `string` | `PROMETHEUS_API_KEY` env var | Prometheus agent API key (`pak_...`) — required for marketplace deploys (the live gate rejects unauthenticated writes). Get one at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) |
-| `modelUrl` | `string` | bundled 2D sample | Direct URL to a 2D model file (`.model3.json`) |
+| `modelUrl` | `string` | — | Direct URL to a 2D model file (`.model3.json`). Needed to show an avatar: without it the plugin logs an error that says how to set it and shows nothing (the three creator tools below still work) |
 | `ttsProvider` | `string` | — | **DEPRECATED in v0.10.0** — ignored. TTS is now delegated to the Prometheus SDK. |
 | `ttsVoice` | `string` | — | Prometheus Marketplace voice ID (e.g. `saturn_zh_female_keainvsheng_tob`). Browse voices at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace) |
 | `enableLipSync` | `boolean` | `true` | Audio-driven lip synchronization |
@@ -115,9 +115,12 @@ Returns 1024×1536 base64 image (or `publicUrl` when `upload: true`) — ready t
 
 ## 📝 Changes in 0.10.3
 
+- **No default model.** The plugin used to fall back to a sample path that was never part of the package, which could only fail to load. Without `modelUrl` it now logs one error that says how to set it (and, when only `avatarId` is set, that `avatarId` cannot choose a model yet), shows no avatar and keeps the creator tools working. If you relied on the old fallback, set `modelUrl` to a 2D model file you host.
 - Public text says "2D avatar" / "2D model file (`.model3.json`)" instead of naming the runtime.
 - `prometheus_deploy_asset` passes `persona_config` (personas: the prompt; the public description is never the prompt), `source` (motions: `original` or `licensed_resale`; library clips without resale rights cannot be listed) and `body_type`.
 
 ## 📄 License
 
 MIT © [Myths Labs](https://mythslabs.ai)
+
+Third-party components and the licences that come with them, including any you must get yourself to use a 2D model file: [THIRD_PARTY_LICENSES.md](https://github.com/myths-labs/prometheus-avatar/blob/main/THIRD_PARTY_LICENSES.md).

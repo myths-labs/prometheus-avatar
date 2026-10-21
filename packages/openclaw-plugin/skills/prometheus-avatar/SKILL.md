@@ -1,6 +1,6 @@
 ---
 name: prometheus-avatar
-description: Render a complete Prometheus digital character (2.5D / 3D · Forge-generated with rig + skin + voice + expressions + motion + personality) inside the agent's UI · plus generate AAA marketplace skin previews via the Prometheus image engine.
+description: Show a 2D avatar (the .model3.json model file set as modelUrl) inside the agent's UI with TTS, lip-sync and emotion · plus generate AAA marketplace skin previews via the Prometheus image engine and deploy assets to the marketplace.
 ---
 
 # Prometheus Avatar
@@ -12,7 +12,7 @@ This skill ships with `@prometheusavatar/openclaw-plugin`. It bridges OpenClaw a
 Each Marketplace bundle is a complete digital body assembled by **Forge** — the Prometheus generation pipeline — combining 6 alive-feel layers:
 
 1. **Skeleton (rig)** — bone hierarchy for animation
-2. **Skin (texture)** — vibrant 2.5D / 3D surface
+2. **Skin (texture)** — vibrant surface
 3. **Voice** — cloned or preset TTS with audio-driven lipsync
 4. **Expressions** — emotion reactions (happy / sad / thinking / surprised etc.)
 5. **Motion** — animation library (idle sway, gestures, full-body motions)
@@ -20,13 +20,13 @@ Each Marketplace bundle is a complete digital body assembled by **Forge** — th
 
 Browse bundles at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-The plugin renders the character inside the agent's UI and connects it to the agent's event stream. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus 3 marketplace creator tools.
+The plugin draws one 2D model file (`.model3.json`, set as `modelUrl` in the plugin config) inside the agent's UI and connects it to the agent's event stream. It ships no model of its own and cannot load a Marketplace bundle by ID yet: without `modelUrl` it shows nothing and logs how to set it, and the 3 creator tools keep working. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus 3 marketplace creator tools.
 
 ## When to use
 
 Use this skill when the user asks for any of:
 
-- **A visible digital character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character")
+- **A visible 2D character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character") — needs a 2D model file configured as `modelUrl`
 - **Real-time TTS with audio-driven lipsync** (not just plain audio)
 - **Emotion / mood reflection** on the character (happy / sad / thinking / surprised)
 - **A cloned or preset voice** for the agent — reference a Prometheus Marketplace voice ID

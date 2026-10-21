@@ -197,18 +197,24 @@ export async function activate(context: {
         );
     }
 
-
-    // Resolve model URL. avatarId → model-URL resolution has no live endpoint
-    // (the old marketplace.prometheus-avatar.dev resolver never shipped, and no
-    // /api/models route exists in production), so don't fabricate a URL that can
-    // only 404 — warn and fall back to the default model instead.
-    if (!config.modelUrl && config.avatarId) {
-        console.warn('[Prometheus Plugin] avatarId-based model resolution is not available yet — pass modelUrl (a 2D model file, .model3.json) instead. Using the default model.');
-    }
-    const modelUrl = config.modelUrl || '/models/haru/haru_greeter_t03.model3.json'; // default
-
     if (!container) {
         console.warn('[Prometheus Plugin] No container provided. Avatar will not render; creator tools remain available.');
+        return;
+    }
+
+    // The plugin draws the 2D model file that `modelUrl` points at. It ships no model of its own: the sample it used to
+    // fall back to was never part of the package, so that path could only 404. avatarId cannot stand in for modelUrl
+    // either (no /api/models route exists in production, and the old marketplace.prometheus-avatar.dev resolver never
+    // shipped). With no modelUrl, say what to set and leave the creator tools running.
+    const modelUrl = typeof config.modelUrl === 'string' ? config.modelUrl.trim() : '';
+    if (!modelUrl) {
+        console.error(
+            '[Prometheus Plugin] No avatar is shown because "modelUrl" is not set. '
+            + (config.avatarId ? '"avatarId" alone cannot choose a model yet. ' : '')
+            + 'Set "modelUrl" in the plugin config (openclaw.config.json) to the URL of a 2D model file (.model3.json), '
+            + 'for example "modelUrl": "https://your-cdn.example/models/your-model.model3.json". '
+            + 'The creator tools keep working without it.'
+        );
         return;
     }
 

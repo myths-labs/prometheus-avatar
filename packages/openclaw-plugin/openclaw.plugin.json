@@ -23,7 +23,7 @@
         },
         "modelUrl": {
             "type": "string",
-            "description": "Direct URL to a 2D model file (.model3.json). The hosted 3D character is shown through its embed URL instead (see README).",
+            "description": "Direct URL to a 2D model file (.model3.json). Needed to show an avatar: without it the plugin logs how to set it and shows nothing (the creator tools still work).",
             "required": false
         },
         "ttsProvider": {
