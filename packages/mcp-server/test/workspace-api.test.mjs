@@ -229,3 +229,14 @@ test('Retry-After is read as whole seconds only (RFC 9110 delay-seconds) and cap
         });
     }
 });
+
+test('S1 a write answered with something this server cannot read: outcome unconfirmed, and the message does not tell the model to call again right away', async () => {
+    for (const response of [{ raw: '{broken' }, { headers: { 'content-type': 'text/html' }, raw: '<html>' }, { value: { accountId, operationId } }]) {
+        await run(() => response, async api => {
+            await rejects(api.post(accountId, operationId, input, controller()), 'workspace_response_invalid', error => {
+                assert.equal(error.outcome, 'unconfirmed');
+                assert.doesNotMatch(error.message, /Call this tool again with exactly the same arguments:/, JSON.stringify(response).slice(0, 60));
+            });
+        });
+    }
+});

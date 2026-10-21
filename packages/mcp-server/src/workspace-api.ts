@@ -27,6 +27,8 @@ const validCategory = (value: string) => /^[a-z][a-z0-9_-]{0,63}$/.test(value);
 const KEY_PAGE = 'https://prometheus.mythslabs.ai/settings/agent-keys';
 const maxResponseBytes = 4 * 1024 * 1024; // a page of 20 entries of 64 KB, with room for JSON escaping
 const RETRY_SAFE = 'Call this tool again with exactly the same arguments: the operation id is remembered, so a repeat cannot create a duplicate.';
+/** For an answer that cannot be read: it usually repeats, so the repeat waits for the cause to be fixed. */
+const RETRY_SAFE_ONCE_FIXED = 'Once that is fixed, calling this tool again with exactly the same arguments cannot create a duplicate: the operation id is remembered.';
 /** The longest wait passed on from Retry-After. A larger value is still a "wait", just not one an agent should sit through blindly. */
 const MAX_RETRY_AFTER_SECONDS = 3600;
 
@@ -159,14 +161,14 @@ export function workspaceApi(apiBase: string, apiKey: string, version: string, o
             if ((length !== null && (!/^\d+$/.test(length) || Number(length) > maxResponseBytes))
                 || response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
                 await response.body?.cancel();
-                fail('workspace_response_invalid', 'The address in PROMETHEUS_API_URL did not answer like the Prometheus workspace (not JSON, or too large). Nothing was changed by this server.', { outcome: writing ? 'unconfirmed' : 'not_sent' });
+                fail('workspace_response_invalid', 'The address in PROMETHEUS_API_URL did not answer like the Prometheus workspace (not JSON, or too large). ' + (writing ? 'Whether anything was saved is unknown. ' + RETRY_SAFE_ONCE_FIXED : 'Nothing was changed.'), { outcome: writing ? 'unconfirmed' : 'not_sent' });
             }
             return await readWorkspaceJson(response.body, combined, maxResponseBytes);
         } catch (error) {
             if (error instanceof WorkspaceAgentError) throw error;
             // A 2xx whose body is not valid UTF-8 JSON (or is oversized) is a foreign server, not a dropped connection.
             if (error instanceof WorkspaceRequestError && error.status !== 408)
-                fail('workspace_response_invalid', 'The address in PROMETHEUS_API_URL did not answer like the Prometheus workspace (invalid or oversized JSON). ' + (writing ? 'Whether anything was saved is unknown. ' + RETRY_SAFE : 'Nothing was changed.'), { outcome: writing ? 'unconfirmed' : 'not_sent' });
+                fail('workspace_response_invalid', 'The address in PROMETHEUS_API_URL did not answer like the Prometheus workspace (invalid or oversized JSON). ' + (writing ? 'Whether anything was saved is unknown. ' + RETRY_SAFE_ONCE_FIXED : 'Nothing was changed.'), { outcome: writing ? 'unconfirmed' : 'not_sent' });
             return unreached();
         }
     };
@@ -197,7 +199,7 @@ export function workspaceApi(apiBase: string, apiKey: string, version: string, o
         const input = checkedEntry(value);
         const result = await request('POST', new URLSearchParams(), accountId, signal, { operationId, entry: input });
         const saved = parseWorkspaceReceipt(result, { accountId, operationId, input });
-        if (!saved) fail('workspace_response_invalid', 'The website answered, but its confirmation does not match what was sent, so it cannot be treated as saved. ' + RETRY_SAFE, { outcome: 'unconfirmed' });
+        if (!saved) fail('workspace_response_invalid', 'The website answered, but its confirmation does not match what was sent, so it cannot be treated as saved. If this keeps happening, this server and the website disagree about the format: ask the user to update @prometheusavatar/mcp-server. ' + RETRY_SAFE_ONCE_FIXED, { outcome: 'unconfirmed' });
         return saved;
     };
 

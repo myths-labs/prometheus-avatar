@@ -35,7 +35,11 @@ function nextStep(code: string, unknown: boolean, retryAfterSeconds?: number): s
             // Dropped, timed out, 408 or 5xx. A write: this very try may be stored. A read: nothing changed, and it usually works next time.
             return unknown ? REPEAT : 'Nothing was changed. Wait a moment, then call this tool again with the same arguments.';
         case 'workspace_response_invalid':
-            return unknown ? REPEAT : 'Fix the problem named in message before calling again; calling again unchanged will fail the same way.';
+            // An answer this server cannot read (a foreign page, a newer website shape, a confirmation that does not match)
+            // usually comes back the same way, so repeating at once would not end.
+            return unknown
+                ? `Tell the user what message says, and that this save may already be stored. Do not call this tool again until that is fixed: an answer this server cannot read usually comes back the same way. Once it is fixed, ${SAME_AGAIN}`
+                : 'Fix the problem named in message before calling again; calling again unchanged will fail the same way.';
         case 'workspace_lookup_timeout':
             return unknown ? `Wait a moment, then ${SAME_AGAIN}` : 'Nothing was changed. You may try once more later; if it times out again, tell the user.';
         case 'workspace_revision_conflict': case 'workspace_account_changed':

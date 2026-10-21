@@ -456,3 +456,38 @@ test('R-M2 log_visited_page with an unconfirmed earlier try: the category read i
         } finally { await second.close(); }
     } finally { await site.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+// ───────────── B review of dde55b31: S1, S2, S3 ─────────────
+test('S1 an answer this server cannot read while the save may be stored: next_step says to tell the user and repeat once it is fixed, not to call again at once; message agrees; then the same call stores one entry', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        // the write itself was answered with a 2xx that cannot be read: a foreign page, or a confirmation that does not match
+        const odd = [['foreign page', { status: 200, body: '<html>', headers: { 'content-type': 'text/html' } }],
+            ['mismatched confirmation', { status: 200, body: { accountId: site.accountId, operationId: randomUUID() } }]];
+        for (const [label, injected] of odd) {
+            site.intercept = ctx => ctx.isWrite ? injected : undefined;
+            const result = await mcp.call('save_work', { content: `Answered oddly: ${label}` });
+            assert.deepEqual([result.json.error, result.json.outcome], ['workspace_response_invalid', 'unknown_may_have_been_saved'], label);
+            assert.match(result.json.next_step, /^Tell the user what message says, and that this save may already be stored\. Do not call this tool again until that is fixed/, label);
+            assert.doesNotMatch(result.json.message, /Call this tool again with exactly the same arguments:/, label);
+        }
+        // a read the repeat needs first (complete_task's read-back) is answered in a shape this version does not know
+        site.intercept = null;
+        const task = await mcp.call('upsert_task', { text: 'File the report' });
+        const before = site.writes().length;
+        site.intercept = ctx => ctx.isWrite && ctx.writes === before + 1 ? { drop: 'after' } : undefined;
+        assert.equal((await mcp.call('complete_task', { task_id: task.json.entry_id })).json.outcome, 'unknown_may_have_been_saved');
+        site.intercept = ctx => ctx.isWrite ? undefined : { status: 200, body: { hello: 'a newer website shape' } };
+        for (let i = 0; i < 2; i++) {
+            const unread = await mcp.call('complete_task', { task_id: task.json.entry_id });
+            assert.deepEqual([unread.json.error, unread.json.outcome], ['workspace_response_invalid', 'unknown_may_have_been_saved']);
+            assert.match(unread.json.next_step, /^Tell the user what message says/);
+            assert.doesNotMatch(unread.json.next_step, /^Call this tool again/);
+        }
+        site.intercept = null;
+        for (const [label] of odd) assert.equal((await mcp.call('save_work', { content: `Answered oddly: ${label}` })).json.saved, true, label);
+        assert.equal(site.list('work').length, 2, 'one entry for each, not two');
+        assert.deepEqual([(await mcp.call('complete_task', { task_id: task.json.entry_id })).json.status, site.list('todo')[0].status], ['done', 'done']);
+    } finally { await mcp.close(); await site.close(); }
+});
