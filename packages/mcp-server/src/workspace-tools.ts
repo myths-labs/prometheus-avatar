@@ -11,23 +11,49 @@ const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: t
 const idText = () => z.string().regex(workspaceUuid, 'must be a UUID: 8-4-4-4-12 hexadecimal digits');
 
 const SAME_AGAIN = 'call this tool again with exactly the same arguments. An earlier try may already be stored: the same arguments re-send that try and cannot create a duplicate, so do not change the content, and do not tell the user it was not saved.';
+const REPEAT = 'Call this tool again with exactly the same arguments. The operation is remembered, so a repeat cannot create a duplicate.';
+/** A refusal the same call cannot get past, while an earlier try of it may be stored: do not loop, do not rephrase blindly, let the user look. */
+const REFUSED_BUT_EARLIER_MAY_BE_STORED = 'Do not call this tool again unchanged now: it would be refused the same way. Tell the user what message says, and that an earlier try of this save got no confirmation and may already be in their workspace, so they should look there before anything is saved again. Once the cause is fixed, calling again with exactly the same arguments re-sends that earlier try and cannot create a duplicate; changed content would be saved as a separate entry.';
 
-/** What the model should do next. `unknown`: an earlier try of this save may already be stored (outcome unknown_may_have_been_saved). */
+/**
+ * What the model should do next. What the answer means comes first; `unknown` (an earlier try of this save may already be
+ * stored, outcome unknown_may_have_been_saved) only changes how a repeat has to look, never turns a refusal into "call again".
+ */
 function nextStep(code: string, unknown: boolean, retryAfterSeconds?: number): string {
-    if (code === 'workspace_rate_limited') {
-        const wait = retryAfterSeconds ? `Wait ${retryAfterSeconds} seconds (retry_after_seconds)` : 'Wait a minute';
-        return unknown ? `${wait}, then ${SAME_AGAIN}` : `${wait}, then call this tool again with the same arguments.`;
+    switch (code) {
+        // Final whatever came before: the writer reports these as nothing_was_saved even when they answer a replay.
+        case 'workspace_category_full':
+            return 'Do not retry. Tell the user this category is full and nothing was saved, and ask them to make room as described in message.';
+        case 'workspace_account_unavailable':
+            return 'Do not retry. Tell the user the Prometheus account behind this Agent key is unavailable, as described in message, so nothing can be saved to it.';
+        // A wait: the same call is expected to work afterwards.
+        case 'workspace_rate_limited': {
+            const wait = retryAfterSeconds ? `Wait ${retryAfterSeconds} seconds (retry_after_seconds)` : 'Wait a minute';
+            return unknown ? `${wait}, then ${SAME_AGAIN}` : `${wait}, then call this tool again with the same arguments.`;
+        }
+        case 'workspace_result_unconfirmed': case 'workspace_cancelled':
+            // Dropped, timed out, 408 or 5xx. A write: this very try may be stored. A read: nothing changed, and it usually works next time.
+            return unknown ? REPEAT : 'Nothing was changed. Wait a moment, then call this tool again with the same arguments.';
+        case 'workspace_response_invalid':
+            return unknown ? REPEAT : 'Fix the problem named in message before calling again; calling again unchanged will fail the same way.';
+        case 'workspace_lookup_timeout':
+            return unknown ? `Wait a moment, then ${SAME_AGAIN}` : 'Nothing was changed. You may try once more later; if it times out again, tell the user.';
+        case 'workspace_revision_conflict': case 'workspace_account_changed':
+            return unknown ? `Wait a moment, then ${SAME_AGAIN}` : 'Wait a moment, then call this tool again.';
+        // The user has to act first.
+        case 'workspace_key_missing': case 'workspace_key_rejected':
+            return unknown
+                ? `Tell the user to fix the Agent key as described in message. Once they have, ${SAME_AGAIN}`
+                : 'Tell the user to fix the Agent key as described in message. Do not retry until they have.';
+        case 'workspace_invalid_api_url':
+            return unknown
+                ? `Tell the user to fix PROMETHEUS_API_URL as described in message. Once they have, ${SAME_AGAIN}`
+                : 'Tell the user to fix PROMETHEUS_API_URL as described in message.';
+        case 'workspace_browse_unavailable':
+            return 'Do not retry now, and do not tell the user the page was logged. See message.';
     }
-    if (code === 'workspace_key_missing' || code === 'workspace_key_rejected') return unknown
-        ? `Tell the user to fix the Agent key as described in message. Once they have, ${SAME_AGAIN}`
-        : 'Tell the user to fix the Agent key as described in message. Do not retry until they have.';
-    if (unknown) return 'Call this tool again with exactly the same arguments. The operation is remembered, so a repeat cannot create a duplicate.';
-    if (code === 'workspace_browse_unavailable') return 'Do not retry now, and do not tell the user the page was logged. See message.';
-    if (code === 'workspace_category_full') return 'Do not retry. Tell the user this category is full and nothing was saved, and ask them to make room as described in message.';
-    if (code === 'workspace_revision_conflict' || code === 'workspace_account_changed') return 'Wait a moment, then call this tool again.';
-    if (code === 'workspace_lookup_timeout') return 'Nothing was changed. You may try once more later; if it times out again, tell the user.';
-    if (code === 'workspace_invalid_api_url') return 'Tell the user to fix PROMETHEUS_API_URL as described in message.';
-    return 'Fix the problem named in message before calling again; calling again unchanged will fail the same way.';
+    // Anything else was refused for a reason the same call cannot get past (a 400, 403, 413, 415, an unknown status, a bad argument).
+    return unknown ? REFUSED_BUT_EARLIER_MAY_BE_STORED : 'Fix the problem named in message before calling again; calling again unchanged will fail the same way.';
 }
 
 /** Every failure is a structured object the model can act on: what was wrong, whether anything was saved, and what to do next. */

@@ -71,6 +71,29 @@ const knownLimit = 100;
 function fail(code: string, message: string, details: { field?: string; outcome?: 'not_sent' | 'rejected' | 'unconfirmed' } = {}): never {
     throw new WorkspaceAgentError(code, message, details);
 }
+
+/**
+ * Answers that settle a save whatever an earlier try of it did, so they stay "nothing was saved" even when they answer a replay
+ * (marketplace src/app/api/agent/workspace/route.ts:74-102 and the database function it calls):
+ *  - workspace_category_full (HTTP 422): raised by the cap trigger on insert, which runs after the function's replay check;
+ *    an operation id the website had stored would have been answered with its receipt (migration 20261014094200 :4, :12-13).
+ *    So a 422 to a replay means the earlier try was not stored, and no receipt was stored now either.
+ *  - workspace_account_unavailable (409): the account row is gone (migration 20260917140000 :63, :86, :101 raise it when the
+ *    point_accounts row is not found), and its entries and receipts go with it (:12, :36 on delete cascade), so nothing of
+ *    this save is stored, whatever the earlier try did.
+ * Every other refusal comes before the website looks at its operation ledger (key, body, size, category checks), may come from
+ * something between this machine and the website, or is a status nobody documented: it says nothing about an earlier try.
+ */
+const SETTLES_EARLIER_TRY = new Set(['workspace_category_full', 'workspace_account_unavailable']);
+const EARLIER_TRY_SENTENCE = 'An earlier try of this same save got no confirmation and may already be stored; calling again with the same arguments re-sends that try and cannot create a duplicate, so do not change the content just to retry.';
+/** This call failed while an earlier try of the same call is unconfirmed: unless the answer settles it, the outcome is unknown. */
+function earlierTryMayBeStored(error: unknown): unknown {
+    if (!(error instanceof WorkspaceAgentError) || error.outcome === 'unconfirmed' || SETTLES_EARLIER_TRY.has(error.code)) return error;
+    // The website's own sentence often ends "Nothing was saved", which is true of this try only. Say so, and report the outcome
+    // as unknown (the tool result's `outcome` is what an Agent reads), or an Agent may tell the user nothing was saved, or
+    // rephrase the content to retry and so store a second copy next to the one the earlier try may have saved.
+    return new WorkspaceAgentError(error.code, `${error.message} ${EARLIER_TRY_SENTENCE}`, { ...error.details, outcome: 'unconfirmed' });
+}
 const sha = (parts: unknown[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 const byteLength = (text: string) => new TextEncoder().encode(text).length;
 
@@ -279,17 +302,14 @@ export function createWorkspaceWriter(getApi: () => WorkspaceApi, state: Workspa
                     existing = found.entry; fresh = true;
                     continue;
                 }
-                // A refused fresh operation wrote nothing, so its record can go. A refused replay (429, rejected key, unknown HTTP
-                // status) only says this try failed; the earlier unconfirmed try may have been committed, so its record stays and the
-                // next call re-sends the same operation and entry id instead of minting new ones and duplicating the entry.
-                // The website's 409 answers about an operation id are the only ones that settle it, and they are handled above.
-                if (error.outcome !== 'unconfirmed' && !uncertain) state.deletePending(accountId, spec.intent, operation.operationId);
-                // The website's own sentence often ends "Nothing was saved", which is true of this try only. Say so, and report the
-                // outcome as unknown (the tool result's `outcome` is what an Agent reads), or an Agent may tell the user nothing was
-                // saved, or rephrase the content to retry and so store a second copy next to the one the earlier try may have saved.
-                if (uncertain && error.outcome !== 'unconfirmed' && !conflict) throw new WorkspaceAgentError(error.code,
-                    `${error.message} An earlier try of this same save got no confirmation and may already be stored; calling again with the same arguments re-sends that try and cannot create a duplicate, so do not change the content just to retry.`,
-                    { ...error.details, outcome: 'unconfirmed' });
+                // A refused fresh operation wrote nothing, so its record can go. A refused replay (429, rejected key, a 400/403/413,
+                // an unknown HTTP status) only says this try failed; the earlier unconfirmed try may have been committed, so its record
+                // stays and the next call re-sends the same operation and entry id instead of minting new ones and duplicating the entry.
+                // What settles it: the website's 409 answers about an operation id (handled above), and the answers in
+                // SETTLES_EARLIER_TRY (a 422 "category full" comes after the replay check; an unavailable account holds nothing).
+                const settled = SETTLES_EARLIER_TRY.has(error.code);
+                if (error.outcome !== 'unconfirmed' && (!uncertain || settled)) state.deletePending(accountId, spec.intent, operation.operationId);
+                if (uncertain && !conflict) throw earlierTryMayBeStored(error);
                 if (conflict) throw new WorkspaceAgentError('workspace_revision_conflict',
                     'The entry kept changing while it was being saved (someone else is editing it). Nothing was saved by this call. Try again in a moment.', { field: 'expectedRevision', outcome: 'rejected' });
                 throw error;

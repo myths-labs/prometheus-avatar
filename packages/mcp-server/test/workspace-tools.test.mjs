@@ -246,3 +246,129 @@ test('the website\'s own error sentence never reaches the model: not as a field,
         assert.doesNotMatch(odd.result.content[0].text, /private supplier detail/);
     } finally { await mcp.close(); await site.close(); }
 });
+
+// ───────────── What next_step says when an earlier try of the same save is unconfirmed ─────────────
+// The website (marketplace src/app/api/agent/workspace/route.ts, migrations 20260917140000 and 20261014094200) answers the
+// replay of an operation id it has stored with the original receipt; its replay check runs inside the database function,
+// after the key, body and category checks and before the revision check and the category cap.
+const dropFirstWrite = when => ctx => ctx.isWrite && ctx.writes === 1 ? { drop: when } : undefined;
+
+test('contract: the replay of a save the website did store gets its receipt even when the category has filled up since (the replay check runs before the cap)', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        const args = { content: 'Committed, answer lost; then the category filled up' };
+        site.intercept = dropFirstWrite('after');
+        assert.equal((await mcp.call('save_work', args)).json.outcome, 'unknown_may_have_been_saved');
+        site.intercept = null; site.cap = 0;
+        const replayed = await mcp.call('save_work', args);
+        assert.deepEqual([replayed.json.saved, replayed.json.action], [true, 'created']);
+        assert.equal(site.list('work').length, 1);
+    } finally { await mcp.close(); await site.close(); }
+});
+
+test('R-M1 the replay of an unconfirmed save answered 422 (category full): nothing was saved, do not retry, exactly as message says; once there is room the next call stores one entry', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        const args = { content: 'Lost before it reached the website; meanwhile the category filled up' };
+        site.intercept = dropFirstWrite('before');
+        assert.equal((await mcp.call('save_work', args)).json.outcome, 'unknown_may_have_been_saved');
+        assert.equal(site.list('work').length, 0, 'the first try never reached the website');
+        site.intercept = null; site.cap = 0; // the fake website's own 422, after its replay check found no receipt
+        const full = await mcp.call('save_work', args);
+        assert.equal(full.result.isError, true);
+        assert.deepEqual([full.json.error, full.json.http_status, full.json.outcome], ['workspace_category_full', 422, 'nothing_was_saved'],
+            'a 422 on the replay means the website holds no receipt for that operation: the earlier try was not stored');
+        assert.match(full.json.message, /Do not retry/);
+        assert.doesNotMatch(full.json.message, /may already be stored/);
+        assert.match(full.json.next_step, /^Do not retry\. Tell the user this category is full and nothing was saved/);
+        assert.doesNotMatch(full.json.next_step, /call this tool again/i);
+        const still = await mcp.call('save_work', args);
+        assert.deepEqual([still.json.error, still.json.outcome], ['workspace_category_full', 'nothing_was_saved'], 'still full: still final');
+        site.cap = undefined;
+        const done = await mcp.call('save_work', args);
+        assert.equal(done.json.saved, true);
+        assert.equal(site.list('work').length, 1);
+    } finally { await mcp.close(); await site.close(); }
+});
+
+test('R-M1 the replay answered "account unavailable": final, nothing was saved (the account is gone, and with it everything it held), do not retry', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key);
+    try {
+        const args = { content: 'Sent just before the account was deleted' };
+        site.intercept = dropFirstWrite('before');
+        assert.equal((await mcp.call('save_work', args)).json.outcome, 'unknown_may_have_been_saved');
+        site.intercept = ctx => ctx.isWrite ? { status: 409, body: { error: 'The Agent account is unavailable.' } } : undefined;
+        const gone = await mcp.call('save_work', args);
+        assert.deepEqual([gone.json.error, gone.json.http_status, gone.json.outcome], ['workspace_account_unavailable', 409, 'nothing_was_saved']);
+        assert.doesNotMatch(gone.json.message, /may already be stored/);
+        assert.match(gone.json.next_step, /^Do not retry\. Tell the user the Prometheus account behind this Agent key is unavailable/);
+        const fresh = await mcp.call('save_work', { content: 'A different save' });
+        assert.deepEqual([fresh.json.error, fresh.json.outcome], ['workspace_account_unavailable', 'nothing_was_saved']);
+        assert.match(fresh.json.next_step, /^Do not retry/, 'the same answer without an earlier try');
+    } finally { await mcp.close(); await site.close(); }
+});
+
+test('R-M1 every other refusal of a replay: the outcome stays unknown, and next_step never says to call again unchanged now, does not contradict message, and tells the user to look first; once fixed, the same call stores one entry', async () => {
+    const cases = [
+        ['workspace_request_shape', 400, { error: 'Use the original entry and operation.' }],
+        ['workspace_entry_rejected', 400, { error: 'Use Agent work output or an existing task with its original creation details.' }],
+        ['workspace_input_rejected', 400, { error: 'Check the workspace entry or filter.' }],
+        ['workspace_category_missing', 400, { error: 'Use an existing workspace category.' }],
+        ['workspace_category_kind_mismatch', 400, { error: 'Use the matching work or task category.' }],
+        ['workspace_category_forbidden', 403, { error: 'This Agent path is for work output and tasks.' }],
+        ['workspace_too_large', 413, { error: 'The request is too large.' }],
+        ['workspace_unsupported_media', 415, { error: 'JSON content is required.' }],
+        ['workspace_http_418', 418, { error: 'something nobody expects' }],
+    ];
+    for (const [code, status, body] of cases) {
+        const site = await startFakeSite();
+        const mcp = await connect(site.url, site.key);
+        try {
+            const args = { content: `Committed, answer lost, then refused: ${code}` };
+            site.intercept = dropFirstWrite('after');
+            assert.equal((await mcp.call('save_work', args)).json.outcome, 'unknown_may_have_been_saved', code);
+            site.intercept = ctx => ctx.isWrite ? { status, body } : undefined;
+            const refused = await mcp.call('save_work', args);
+            assert.deepEqual([refused.json.error, refused.json.http_status, refused.json.outcome], [code, status, 'unknown_may_have_been_saved'], code);
+            assert.match(refused.json.message, /may already be stored/, code);
+            assert.match(refused.json.next_step, /^Do not call this tool again unchanged now: it would be refused the same way\./, code);
+            assert.match(refused.json.next_step, /may already be in their workspace/, code);
+            assert.match(refused.json.next_step, /changed content would be saved as a separate entry/, code);
+            site.intercept = null;
+            const done = await mcp.call('save_work', args);
+            assert.equal(done.json.saved, true, code);
+            assert.equal(site.list('work').length, 1, `${code}: one entry, not two`);
+            assert.equal(new Set(site.writes().map(write => write.body.operationId)).size, 1, `${code}: the same operation every time`);
+        } finally { await mcp.close(); await site.close(); }
+    }
+});
+
+test('R-M2 a read that dropped, timed out, or was answered 408 / 5xx: nothing changed; wait a moment and call again unchanged, as message says (not "fails the same way")', async () => {
+    const site = await startFakeSite();
+    const mcp = await connect(site.url, site.key, { api: { requestTimeoutMs: 300 } });
+    try {
+        const failures = [
+            ['dropped', { drop: 'before' }],
+            ['timed out', { delayMs: 3000 }],
+            ['408', { status: 408, body: { error: 'The request was cancelled. Recover the original operation.' } }],
+            ['503', { status: 503, body: { error: 'The workspace is unavailable. Keep the original operation for recovery.' } }],
+        ];
+        for (const [label, injected] of failures) {
+            site.intercept = ctx => ctx.isWrite ? undefined : injected;
+            const read = await mcp.call('prometheus_read_workspace', { category: 'work' });
+            assert.deepEqual([read.json.error, read.json.outcome], ['workspace_result_unconfirmed', 'nothing_was_saved'], label);
+            assert.match(read.json.message, /try again/, label);
+            assert.equal(read.json.next_step, 'Nothing was changed. Wait a moment, then call this tool again with the same arguments.', label);
+            // save_work with no earlier try: its account lookup is a read too
+            const save = await mcp.call('save_work', { content: `Nothing earlier: ${label}` });
+            assert.deepEqual([save.json.error, save.json.outcome], ['workspace_result_unconfirmed', 'nothing_was_saved'], label);
+            assert.equal(save.json.next_step, 'Nothing was changed. Wait a moment, then call this tool again with the same arguments.', label);
+        }
+        site.intercept = null;
+        assert.equal((await mcp.call('prometheus_read_workspace', { category: 'work' })).result.isError, undefined, 'the same call works once the website answers');
+        assert.equal(site.writes().length, 0);
+    } finally { await mcp.close(); await site.close(); }
+});
