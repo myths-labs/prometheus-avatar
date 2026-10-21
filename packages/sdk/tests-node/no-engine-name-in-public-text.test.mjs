@@ -210,6 +210,40 @@ test('the plugin docs promise no Marketplace or cloned voice: the SDK matches th
         'voice selection changed: update the plugin docs about ttsVoice');
 });
 
+test('the live-voice wording in the root README matches the example: the backend only issues a token, the browser connects to a third-party service and the audio never touches the backend', () => {
+    const src = readFileSync(join(repoRoot, 'examples', 'live-voice', 'live-voice.ts'), 'utf8');
+    assert.match(src, /fetch\('\/api\/live-token'\)/, 'the example no longer fetches a token: update the README live-voice rows');
+    assert.match(src, /const wsUrl = `wss:\/\/(?!localhost)[a-z0-9.-]+\//, 'the WebSocket no longer points at an external host: update the README live-voice rows');
+    assert.match(src, /new WebSocket\(wsUrl\)/);
+    assert.equal(src.match(/\bfetch\(/g).length, 1, 'the example now sends something to the backend besides the token: update the README live-voice rows');
+    const rows = readme().split('\n').filter((line) => line.includes('examples/live-voice/'));
+    assert.equal(rows.length, 3, 'expected the feature row, the example row and the Chinese feature row');
+    for (const row of rows) {
+        assert.doesNotMatch(row, /through a backend you run|via a backend you run|经由你自己后端|通过你自己的后端/, row);
+    }
+    const [featureEn, exampleEn, featureZh] = rows;
+    for (const row of [featureEn, exampleEn]) {
+        assert.match(row, /short-lived token/, row);
+        assert.match(row, /directly from the browser/, row);
+        assert.match(row, /audio does not pass through your backend/, row);
+    }
+    assert.match(featureZh, /短期令牌/);
+    assert.match(featureZh, /浏览器直接连接/);
+    assert.match(featureZh, /音频不经过你的后端/);
+    assert.doesNotMatch(readme(), /Gemini Live|generativelanguage/i, 'the root README does not name the upstream voice service');
+});
+
+test('the live-voice scan catches the old wording (reverse check)', () => {
+    const OLD = /through a backend you run|via a backend you run|经由你自己后端|通过你自己的后端/;
+    for (const s of [
+        'shows microphone capture and a streaming voice connection through a backend you run.',
+        'Real-time voice over a WebSocket, through a backend you run',
+        '演示麦克风采集和经由你自己后端的流式语音连接',
+    ]) {
+        assert.ok(OLD.test(s), s);
+    }
+});
+
 // ---------------------------------------------------------------------------------------------
 // No default model: nothing in core or the plugin may say one exists
 // ---------------------------------------------------------------------------------------------

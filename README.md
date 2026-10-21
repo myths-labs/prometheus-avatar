@@ -51,7 +51,7 @@
 | Feature | Description |
 |---------|-------------|
 | 🎭 **2D Avatars** | Draws a 2D model file (`.model3.json`) on a canvas in your page, auto-scaled and centred. The package ships no model: bring your own |
-| ⚡ **Real-Time Voice** | Example only: [`examples/live-voice/`](examples/live-voice/) shows microphone capture and a streaming voice connection through a backend you run. It is not part of `@prometheusavatar/core` |
+| ⚡ **Real-Time Voice** | Example only: [`examples/live-voice/`](examples/live-voice/) shows microphone capture and a WebSocket connection to a third-party real-time voice service, opened directly from the browser with a short-lived token that your own backend issues. The audio does not pass through your backend. It is not part of `@prometheusavatar/core` |
 | 🗣️ **Text-to-Speech** | By default the browser's built-in speech synthesis: no key, no request from the SDK, and the voices are the ones installed on the viewer's device (pick one by name with `ttsOptions.voice`; an unknown name falls back to the default voice). For any other voice, a cloned one included, pass your own engine as `ttsEngine` (implement `ITTSEngine`). The SDK ships no such engine and does no voice cloning |
 | 👄 **Lip Sync** | Mouth movement while the avatar speaks: estimated from the text with the browser voice, or driven by audio amplitude when your own engine supplies it (`onAudioData`) |
 | 😊 **Emotion Engine** | Auto-detect emotions from text → avatar expressions + motions |
@@ -210,7 +210,7 @@ Key exports:
 | [`examples/basic/`](examples/basic/) | Minimal HTML — zero build tools, loads from CDN |
 | [`examples/react/`](examples/react/) | React component with hooks and emotion tracking |
 | [`examples/multi-llm/`](examples/multi-llm/) | Several OpenAI-compatible providers with auto-fallback |
-| [`examples/live-voice/`](examples/live-voice/) | Real-time voice over a WebSocket, through a backend you run |
+| [`examples/live-voice/`](examples/live-voice/) | Microphone capture and a real-time voice WebSocket opened directly from the browser with a short-lived token from your own backend; the audio does not pass through your backend |
 
 ## 💬 Community & Social
 
@@ -270,7 +270,7 @@ MIT © [Myths Labs](https://github.com/myths-labs)
 | 功能 | 说明 |
 |------|------|
 | 🎭 **2D 虚拟形象** | 在你页面的画布上渲染 2D 模型文件（`.model3.json`），自动缩放居中。包内不带模型，请自备 |
-| ⚡ **实时语音** | 仅示例：[`examples/live-voice/`](examples/live-voice/) 演示麦克风采集和经由你自己后端的流式语音连接，不属于 `@prometheusavatar/core` |
+| ⚡ **实时语音** | 仅示例：[`examples/live-voice/`](examples/live-voice/) 演示麦克风采集，以及用你自己后端签发的短期令牌，从浏览器直接连接一个第三方实时语音服务的 WebSocket；音频不经过你的后端；不属于 `@prometheusavatar/core` |
 | 🗣️ **文字转语音** | 默认使用浏览器自带的语音合成：不需要密钥，SDK 不发请求，声音取决于观看者设备上已安装的语音（用 `ttsOptions.voice` 按名称选择，名称对不上则用默认声音）。要用其他声音（包括克隆声音），自己实现 `ITTSEngine` 并通过 `ttsEngine` 传入；SDK 本身不带这类引擎，也不做声音克隆 |
 | 👄 **唇形同步** | 说话时的嘴部动作：用浏览器语音时按文字估算；自带语音引擎并提供音频振幅（`onAudioData`）时按音频驱动 |
 | 😊 **情感引擎** | 从文字自动检测情绪 → 触发表情 + 动作 |
