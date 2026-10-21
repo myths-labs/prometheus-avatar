@@ -32,7 +32,10 @@ import { workspaceUuid } from './workspace-contract.js';
  *
  * A file is written to a private temporary name and then renamed into place, so a reader sees the old file or the new
  * one, never half of one; a pending operation is removed with a single unlink. Two processes therefore only ever touch
- * the same file when they work on the same call, and then the last complete write wins. Folders are 0700, files 0600.
+ * the same file when they work on the same call, and then the last complete write wins. Finishing a write reads the file
+ * and unlinks it only if it holds this server's operation; the read and the unlink are two steps, not one, so another
+ * server's try of the very same call that lands in between is removed with it (a later repeat of that call may then add a
+ * second copy). Folders are 0700, files 0600. A folder that is a symbolic link is never swept.
  *
  * Earlier layouts are moved into this one, never overwriting anything already there, and nothing in them can make a
  * start or a call fail (unreadable, expired or malformed files are dropped):
@@ -64,7 +67,8 @@ export interface WorkspaceState {
     setPending(accountId: string, intent: string, operation: PendingOperation): void;
     /**
      * With `operationId`, only that operation's record is removed: when another MCP server sharing the folder has since tried
-     * the same call (and so replaced the file with its own unconfirmed operation), its record stays.
+     * the same call (and so replaced the file with its own unconfirmed operation), its record stays, unless it was written in
+     * the instant between the check and the unlink (see the comment on top).
      */
     deletePending(accountId: string, intent: string, operationId?: string): void;
     /**

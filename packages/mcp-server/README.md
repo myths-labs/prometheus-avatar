@@ -185,7 +185,7 @@ You have the Prometheus tools. When you finish something I will want to keep (a 
 | `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`). The 7 workspace tools only accept an `https://` address with no path, credentials or query (`http://` only for localhost); the other tools use the value as given |
 | `PROMETHEUS_MCP_STATE_DIR` | No | Where the workspace tools keep their small state files (default `~/.prometheus-mcp`). `off` keeps everything in memory, so an unconfirmed save is forgotten when the client restarts the server (for example after a key change) |
 
-**What is stored on your machine:** the `workspace-state` folder inside it holds one small file per key with the account id behind it and, only while a save is unconfirmed (at most 24 hours), one small file per unconfirmed save with its operation id, entry id and timestamp, filed under your account so that a new key of the same account still finds it. It never contains your key (only a 16-character fingerprint of it), your text, titles or URLs; a file's name is a hash of the call, which could only confirm a guess of the exact text, never reveal it. Several MCP servers (for example Claude Desktop and Cursor) can use the same folder at once without erasing each other's entries. You can delete the folder at any time and the tools keep working. The one thing it guards against: if you delete it while a save is still unconfirmed, retrying that save can leave a duplicate entry, because the operation id that would have prevented it is gone.
+**What is stored on your machine:** the `workspace-state` folder inside it holds one small file per key with the account id behind it and, only while a save is unconfirmed (at most 24 hours), one small file per unconfirmed save with its operation id, entry id and timestamp, filed under your account so that a new key of the same account still finds it. It never contains your key (only a 16-character fingerprint of it), your text, titles or URLs; a file's name is a hash of the call, which could only confirm a guess of the exact text, never reveal it. Several MCP servers (for example Claude Desktop and Cursor) can use the same folder at once: each unconfirmed save has its own file, so they never touch each other's records of different saves. (If two of them make the very same call at the same instant, one record can be lost, and a later repeat of that save may then add a second copy.) You can delete the folder at any time and the tools keep working. The one thing it guards against: if you delete it while a save is still unconfirmed, retrying that save can leave a duplicate entry, because the operation id that would have prevented it is gone.
 
 ## When something goes wrong
 
@@ -195,11 +195,13 @@ Every workspace error says what was wrong, whether anything was saved, and what 
 |---------|----------|
 | `workspace_key_missing` / `workspace_key_rejected` | `PROMETHEUS_API_KEY` is unset, mistyped, or was revoked by generating a newer key. Once a working key is in place, repeat the same call: a save that was left unconfirmed is re-sent, not duplicated |
 | `workspace_invalid_argument` with a `field` | The named argument is wrong (for example `due_on` must be a real date written `YYYY-MM-DD`); nothing was sent |
-| `workspace_result_unconfirmed` | The connection dropped; it may or may not have been saved. Call again with the same arguments, which cannot duplicate |
+| `workspace_result_unconfirmed` | The connection dropped, timed out, or the website answered 408 / 5xx. For a save: it may or may not have been saved; call again with the same arguments, which cannot duplicate. For a read: nothing changed; wait a moment and call again |
 | `workspace_browse_unavailable` | The website did not list the visited-pages category (`browse`) for this key; nothing saved, do not retry now |
-| `workspace_category_full` | Work, To-do and Browse each hold at most 2,000 entries that are not archived; nothing saved, do not retry until you archive or delete some older entries |
+| `workspace_category_full` | Work, To-do and Browse each hold at most 2,000 entries that are not archived; nothing saved, do not retry until you archive or delete some older entries. Final even when it answers the repeat of an unconfirmed save: the website checks its record of operations first, so that earlier try was not stored |
+| `workspace_account_unavailable` | The Prometheus account behind the key no longer exists; nothing is stored there, do not retry |
 | `workspace_lookup_timeout` | Looking for the task (or reading an entry back) took longer than 60 seconds; nothing was changed. Try once more later |
 | `workspace_rate_limited` | The website is limiting how fast this key reads or writes; nothing was saved by that call. Wait the `retry_after_seconds` it gives, then send the same call again. If it answered the repeat of an unconfirmed save, `outcome` is `unknown_may_have_been_saved`: the earlier try may already be stored, and the same call re-sends it rather than adding a second entry |
+| any other refusal of the repeat of an unconfirmed save | `outcome` stays `unknown_may_have_been_saved`, because the refusal says nothing about the earlier try. `next_step` tells the model not to repeat it unchanged now and to tell you, so you can look in your workspace first; once the cause is fixed, the same call re-sends the earlier try instead of adding a second entry |
 
 ## Example Conversation
 
@@ -430,7 +432,7 @@ alwaysApply: true
 | `PROMETHEUS_API_URL` | 否 | 自定义 API 地址（默认 `https://prometheus.mythslabs.ai`）。7 个工作区工具只接受不带路径、账号密码和查询串的 `https://` 地址（只有本机地址允许 `http://`）；其余工具按原样使用 |
 | `PROMETHEUS_MCP_STATE_DIR` | 否 | 工作区工具的小状态文件放哪个文件夹（默认 `~/.prometheus-mcp`）。填 `off` 则只放内存，客户端重启 MCP 服务（例如换密钥后）时，未确认的保存就记不住了 |
 
-**本机存了什么：** 该文件夹里的 `workspace-state` 子文件夹放着几个很小的文件：每把密钥一个，记着它对应的账户号；另外，只在「保存结果尚未确认」期间（最多 24 小时），每一次未确认的保存各有一个文件，记着它的操作号、条目号和时间，按账户归档，所以同一账户换了新密钥也找得到。里面没有你的密钥（只有密钥的 16 位指纹）、没有你的文字、标题或网址；文件名是这次调用的哈希，最多只能用来核对「是不是某段一模一样的文字」，无法还原出内容。多个 MCP 服务（例如 Claude Desktop 和 Cursor）可以同时用同一个文件夹，不会互相覆盖。随时可以删掉这个文件夹，工具照常工作；只有一种情况会受影响：某次保存还没有确认时你把它删了，之后重试这次保存，可能多出一条重复的条目，因为本来用来防重复的操作号已经没了。
+**本机存了什么：** 该文件夹里的 `workspace-state` 子文件夹放着几个很小的文件：每把密钥一个，记着它对应的账户号；另外，只在「保存结果尚未确认」期间（最多 24 小时），每一次未确认的保存各有一个文件，记着它的操作号、条目号和时间，按账户归档，所以同一账户换了新密钥也找得到。里面没有你的密钥（只有密钥的 16 位指纹）、没有你的文字、标题或网址；文件名是这次调用的哈希，最多只能用来核对「是不是某段一模一样的文字」，无法还原出内容。多个 MCP 服务（例如 Claude Desktop 和 Cursor）可以同时用同一个文件夹：每次未确认的保存各有一个文件，不同的保存互不影响。（如果两个服务在同一瞬间发出一模一样的调用，其中一条记录可能丢失，之后再重试那次保存时可能多出一条重复的条目。）随时可以删掉这个文件夹，工具照常工作；只有一种情况会受影响：某次保存还没有确认时你把它删了，之后重试这次保存，可能多出一条重复的条目，因为本来用来防重复的操作号已经没了。
 
 ## 出错时
 
@@ -440,11 +442,13 @@ alwaysApply: true
 |--------|------|
 | `workspace_key_missing` / `workspace_key_rejected` | `PROMETHEUS_API_KEY` 没设、填错了，或被后来生成的新密钥作废了。换上能用的密钥后，原样重试即可：之前未确认的那次保存会被重新发送，不会重复 |
 | `workspace_invalid_argument` 并带 `field` | 指出的那个参数不对（例如 `due_on` 必须是真实日期，写成 `YYYY-MM-DD`）；什么都没发出去 |
-| `workspace_result_unconfirmed` | 连接断了，不知道有没有存上。用相同参数再调一次，不会重复 |
+| `workspace_result_unconfirmed` | 连接断了、超时了，或网站回了 408 / 5xx。保存时：不知道有没有存上，用相同参数再调一次，不会重复。读取时：什么都没改，等一下再原样调一次 |
 | `workspace_browse_unavailable` | 网站没有为这把密钥列出「访问过的页面」类别（`browse`）；没有保存，现在不要重试 |
-| `workspace_category_full` | Work、To-do、Browse 每类最多 2,000 条未归档条目；没有保存，先归档或删掉一些旧条目再试，不要直接重试 |
+| `workspace_category_full` | Work、To-do、Browse 每类最多 2,000 条未归档条目；没有保存，先归档或删掉一些旧条目再试，不要直接重试。即使它回的是一次「未确认保存」的重试，也是定论：网站先查自己的操作记录，所以之前那次没有存上 |
+| `workspace_account_unavailable` | 这把密钥背后的 Prometheus 账户已经不存在；那里什么都没存，不要重试 |
 | `workspace_lookup_timeout` | 查找那条待办（或把条目读回来）超过 60 秒；什么都没改。稍后再试一次 |
 | `workspace_rate_limited` | 网站在限制这把密钥的读写频率，这次调用什么都没存；等它给的 `retry_after_seconds` 秒后原样再调。如果被限的是一次「未确认保存」的重试，`outcome` 会是 `unknown_may_have_been_saved`：之前那次可能已经存上，原样再调只会重发那一次，不会多出一条 |
+| 「未确认保存」的重试被其它原因拒绝 | `outcome` 仍是 `unknown_may_have_been_saved`，因为这个拒绝说明不了之前那次的结果。`next_step` 会让模型现在不要原样重调、先告诉你，你可以先去工作区看一眼；原因排除后，原样再调只会重发之前那次，不会多出一条 |
 
 ## 对话示例
 

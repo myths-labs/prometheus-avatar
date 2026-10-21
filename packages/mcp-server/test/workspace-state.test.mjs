@@ -1,6 +1,6 @@
 // What the package keeps on disk between calls and across restarts of the MCP server (default ~/.prometheus-mcp/workspace-state/):
 // the account id behind the key and, only while a write is unconfirmed, its operation id. One file per unconfirmed write, so that
-// several MCP servers sharing the folder (Claude Desktop and Cursor) cannot erase each other's entries, and private to the user.
+// several MCP servers sharing the folder (Claude Desktop and Cursor) cannot erase each other's records of different calls, and private to the user.
 // Unconfirmed writes are filed per account, so a new key of the same account (the old one revoked) still finds them.
 import test from 'node:test';
 import assert from 'node:assert/strict';

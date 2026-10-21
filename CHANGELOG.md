@@ -18,15 +18,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
     `prometheus_get_workspace_operation`.
   - `external_key` derives the entry id deterministically (UUIDv5), so repeating a call updates the same entry;
     an unconfirmed write (network drop, timeout, 5xx, a key revoked mid-save) is remembered for 24 hours with its
-    operation id and replayed unchanged, so a retry never creates a second entry; a 409 re-reads the entry and retries once.
+    operation id and replayed unchanged, so a retry does not create a second entry; a 409 re-reads the entry and retries once.
+    A repeat after those 24 hours, after the state folder was deleted, or after a restart with
+    `PROMETHEUS_MCP_STATE_DIR=off` (memory only) counts as a new save.
     The record is kept per account, the way the website counts operations, not per key: after the user replaces a
     revoked key, the repeated call still re-sends the original operation.
-  - errors say which field is wrong, whether anything was saved, and what to do next.
+  - errors say which field is wrong, whether anything was saved, and what to do next. `next_step` follows from what the
+    answer means, and an earlier unconfirmed try of the same save only changes how a repeat must look: a refusal is never
+    answered with "call again unchanged now". A read that dropped, timed out or got a 408 / 5xx says to wait a moment and
+    call again unchanged.
+  - when the repeat of an unconfirmed write is refused, the result says whether that settles it. `workspace_category_full`
+    (the website's replay check runs before its cap, so the earlier try was not stored) and `workspace_account_unavailable`
+    (the account, and everything it held, is gone) are final: `nothing_was_saved`, the record is dropped, do not retry.
+    Any other refusal (key, request shape, category, size, an unknown status) keeps `unknown_may_have_been_saved` and the
+    record, and `next_step` says not to repeat unchanged now but to tell the user, who can look in their workspace first.
+    When a read the repeat needs before it can re-send (the account lookup, the task read-back, the category list) fails,
+    the outcome is `unknown_may_have_been_saved` as well.
   - a full category (HTTP 422 `WORKSPACE_CATEGORY_FULL`: work, todo and browse hold at most 2,000 entries that are not
     archived) is reported as final (`workspace_category_full`): nothing saved, not retried, the user is asked to make room.
   - the state kept between calls is one small file per unconfirmed write, filed under the account (plus one per key
     for the account id behind it), created and removed atomically, so several MCP servers sharing `~/.prometheus-mcp`
-    (Claude Desktop and Cursor) do not erase each other's entries. State left by pre-release builds (a single
+    (Claude Desktop and Cursor) never touch each other's records of different calls. (Two servers making the very same call
+    at the same instant can still lose one record, and a later repeat of that call may then add a second copy.)
+    A state folder or subfolder that is a symbolic link is not swept. State left by pre-release builds (a single
     `workspace-state.json`, or per-key folders) is moved into this layout on start; unreadable files cannot stop a start.
   - `complete_task` (and any read-back after a 409) gives up after 60 seconds in total with `workspace_lookup_timeout`:
     nothing changed, and the model is told so, instead of paging back for minutes.
@@ -38,7 +52,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
     Nothing was saved or changed by that try, and it is not retried by itself; `next_step` names the wait in seconds.
     When the 429 (or a refused key) answers the replay of an earlier unconfirmed write, the result says
     `unknown_may_have_been_saved`, that write stays remembered, and the next call re-sends the same operation and
-    entry id, so the entry cannot be stored twice.
+    entry id, so the entry is not stored twice (within the 24 hours and the state folder above).
   - README: setup for Claude Desktop, Claude Code and Cursor, and a standing-rule snippet for each.
 - **mcp-server**: reads (snapshots, receipts) ignore keys they do not know, so a website that adds fields later
   does not break installed copies. Requests still follow the website's current shape exactly.
