@@ -1,4 +1,4 @@
-// JC 2026-10-09: public text in the SDK packages never names the 2D runtime (the engine).
+// Public text in the SDK packages never names the 2D runtime (the engine).
 // Scans every text file in packages/sdk, packages/mcp-server and packages/openclaw-plugin
 // (README, package.json description/keywords, plugin manifest, skills, tool descriptions,
 // source comments, generated docs). Technical names that cannot change are allowed only where
@@ -10,9 +10,9 @@
 // packages/mcp-server/test/ is not scanned: it has its own public-text test, which spells the word on purpose.
 // The root README.md is scanned too (no exemption); the rest of the repository root, apps/ and examples/ are not.
 //
-// Owner decision 2026-10-10: core and openclaw-plugin say only what they do today, a 2D model file
-// (.model3.json) drawn in the page. They claim no 3D or 2.5D ability until the embed bridge has been run
-// in a browser against the live embed page. The second half of this file pins that.
+// core and openclaw-plugin say only what they do: draw a 2D model file (.model3.json) in the page, and, in the plugin
+// with an agent key and an avatarId, frame a hosted avatar page and drive its expression through the embed bridge.
+// They claim no 3D or 2.5D ability. The second half of this file pins that.
 // Run: node --test packages/sdk/tests-node/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
