@@ -30,7 +30,7 @@ and drive it with `connectEmbed`:
 import { connectEmbed } from '@prometheusavatar/core';
 
 const frame = document.getElementById('prometheus-embed') as HTMLIFrameElement;
-frame.src = `${embedUrl}?speak=${encodeURIComponent('Hi there!')}`; // greet on load
+frame.src = embedUrl;
 const embed = connectEmbed(frame, {
   onLoaded: () => console.log('avatar can speak now'),
   onViewerMessage: (text) => console.log('viewer typed', text),
@@ -38,7 +38,7 @@ const embed = connectEmbed(frame, {
 
 embed.setState('thinking');      // queued until the embed is listening, then sent once
 embed.setEmotion('happy');
-embed.speak('Here is what I found.'); // held until the avatar has loaded
+embed.speak('Hi there!');        // held until the avatar has loaded, then sent (the way to greet on load)
 // later: embed.destroy();
 ```
 
@@ -54,7 +54,8 @@ How it works (marketplace embed protocol):
 - The embed posts `{ type: "prometheus:ready", id }` when its message listener is attached and
   `{ type: "prometheus:loaded", id }` when the avatar has loaded and can speak, once per page load.
 - `setEmotion` / `setState` are queued until `prometheus:ready`, then the queue is sent once, in order.
-- `speak` is held until `prometheus:loaded`. To greet on load, put `?speak=` on the embed URL.
+- `speak` is held until `prometheus:loaded`, then sent. To greet when the avatar loads, call
+  `embed.speak(...)` right after `connectEmbed`; do not put text in the embed address.
 - Messages go to the embed's own origin only (taken from `iframe.src`, or `options.origin`), and
   incoming messages are accepted only from that origin and from that iframe's window.
 - **Fallback (old embeds):** if no `prometheus:ready` arrives within 8 s (`readyTimeoutMs`), everything

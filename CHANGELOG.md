@@ -49,6 +49,9 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
   viewer's browser. The plugin docs no longer promise Marketplace or cloned voices, and the bundled
   skill no longer says the plugin renders a 2.5D / 3D character. The root README is rewritten the
   same way (no sample model, features that are only examples or only in the demo app say so).
+- **core**: the embed docs (README, the `connectEmbed` / `EmbedBridge` comments, the bundled skill)
+  no longer suggest `?speak=` (the embed page is dropping it). To greet on load, call
+  `embed.speak(...)`; it is held until the avatar has loaded.
 - The API reference in `packages/sdk/docs` is regenerated from the current sources.
 
 ### Agent API contract (marketplace)

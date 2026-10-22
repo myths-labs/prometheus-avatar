@@ -18,7 +18,7 @@
  * Rules this bridge follows:
  *   - emotion and state are queued until `prometheus:ready`, then the queue is sent once, in order;
  *   - speak is held until `prometheus:loaded` (a speak sent while the avatar is still loading fails
- *     in the embed); to greet on load, prefer `?speak=Hello` on the embed URL;
+ *     in the embed); to greet on load, call speak() right away and it is sent after the load;
  *   - messages are posted to the embed's own origin only (never "*"), and incoming messages are
  *     accepted only from that origin and from this iframe's window;
  *   - fallback for embeds that predate the ready/loaded messages: if no `prometheus:ready` arrives
@@ -318,7 +318,7 @@ function isValidOutgoing(message: unknown): message is EmbedOutgoingMessage {
  *
  * @example
  *   const frame = document.querySelector('iframe#prometheus-embed') as HTMLIFrameElement;
- *   frame.src = embedUrl + '?speak=' + encodeURIComponent('Hi there');
+ *   frame.src = embedUrl;
  *   const embed = connectEmbed(frame);
  *   embed.setState('thinking');   // queued until the embed is listening, then sent once
  *   embed.speak('Here you go.');  // held until the avatar has loaded
