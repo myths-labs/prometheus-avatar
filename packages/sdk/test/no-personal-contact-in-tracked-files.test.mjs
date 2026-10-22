@@ -7,13 +7,20 @@
 // number, so a phone number does not get copied into CI logs.
 //
 // It lives in packages/sdk/test/ next to package-files.test.mjs: `npm run test:package` (and so `npm test`) runs it, and
-// it needs no build. It is the only file allowed to contain the sample strings below.
+// it needs no build. It is the only file allowed to contain the fake phone numbers below. The mailbox and the initials
+// are assembled from parts, so even this file never spells them out and a plain `git grep` for them stays empty.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// The founder's mailbox and initials, assembled so this file does not contain them as one string.
+const INITIALS = ['J', 'C'].join('');
+const FOUNDER_LOCAL = INITIALS.toLowerCase();
+const mailbox = local => [local, 'mythslabs.ai'].join('@');
+const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SELF = 'packages/sdk/test/no-personal-contact-in-tracked-files.test.mjs';
@@ -23,7 +30,7 @@ const ALLOWED = new Set([SELF]);
 // A "+" that starts a phone number is not part of a word, a version ("0.3.6+20261021"), base64 ("a+b") or an offset.
 const NOT_AFTER = '(?<![\\w.+/=-])';
 const RULES = [
-    { kind: 'founder mailbox', pattern: /jc@mythslabs\.ai/i },
+    { kind: 'founder mailbox', pattern: new RegExp(escapeRegExp(mailbox(FOUNDER_LOCAL)), 'i') },
     // +86 130 0000 0000, +86-130-0000-0000, +86 (130) 0000 0000, +8613000000000, +886 900 000 000: 8 to 15 digits (E.164).
     { kind: 'international phone number', pattern: new RegExp(`${NOT_AFTER}\\+\\d(?:[\\s.()-]{0,2}\\d){7,14}(?!\\w)`) },
     // A mainland China mobile number written without the country code: 11 digits, 1 then 3-9, standing alone.
@@ -49,7 +56,7 @@ function credits(manifest) {
     return people.map(person => (typeof person === 'string' ? person : [person.name, person.email, person.url].filter(Boolean).join(' ')));
 }
 
-const FOUNDER_INITIALS = /\bJC\b/;
+const FOUNDER_INITIALS = new RegExp(`\\b${INITIALS}\\b`);
 
 function trackedTextFiles() {
     const listed = execFileSync('git', ['ls-files', '-z'], { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -67,8 +74,8 @@ function trackedTextFiles() {
 
 test('the patterns catch the personal contacts they are meant to catch', () => {
     const bad = [
-        'contact us at jc@mythslabs.ai',
-        'mailto:JC@MythsLabs.AI',
+        `contact us at ${mailbox(FOUNDER_LOCAL)}`,
+        `mailto:${mailbox(INITIALS)}`.replace('mythslabs.ai', 'MythsLabs.AI'),
         'call +86 130 0000 0000',
         'call +86-130-0000-0000',
         'call +86 (130) 0000 0000',
@@ -108,9 +115,9 @@ test('the patterns leave versions, hashes, timestamps and role addresses alone',
 });
 
 test('a founder name in a package author field is caught, the company name is not', () => {
-    assert.equal(credits({ author: 'Myths Labs (JC)' }).some(entry => FOUNDER_INITIALS.test(entry)), true);
-    assert.equal(credits({ author: { name: 'JC', email: 'x@example.com' } }).some(entry => FOUNDER_INITIALS.test(entry)), true);
-    assert.equal(credits({ contributors: ['Someone (JC)'] }).some(entry => FOUNDER_INITIALS.test(entry)), true);
+    assert.equal(credits({ author: `Myths Labs (${INITIALS})` }).some(entry => FOUNDER_INITIALS.test(entry)), true);
+    assert.equal(credits({ author: { name: INITIALS, email: 'x@example.com' } }).some(entry => FOUNDER_INITIALS.test(entry)), true);
+    assert.equal(credits({ contributors: [`Someone (${INITIALS})`] }).some(entry => FOUNDER_INITIALS.test(entry)), true);
     assert.equal(credits({ author: 'Myths Labs' }).some(entry => FOUNDER_INITIALS.test(entry)), false);
 });
 
