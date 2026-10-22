@@ -34,7 +34,7 @@ importers:
   packages/openclaw-plugin:
     dependencies:
       '@prometheusavatar/core':
-        specifier: ^0.11.3
+        specifier: ^0.11.5
         version: link:../sdk
     devDependencies:
       tsup:

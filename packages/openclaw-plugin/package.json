@@ -1,7 +1,7 @@
 {
     "name": "@prometheusavatar/openclaw-plugin",
-    "version": "0.10.2",
-    "description": "Prometheus Avatar plugin for OpenClaw — Live2D body with TTS, lip-sync, emotion, plus AAA image generation for marketplace skin previews. Now ships with bundled Skill that teaches the agent when and how to use the 3 creator tools.",
+    "version": "0.10.3",
+    "description": "Prometheus Avatar plugin for OpenClaw — a 2D avatar body (.model3.json) with TTS, lip-sync, emotion, plus AAA image generation for marketplace skin previews. Now ships with bundled Skill that teaches the agent when and how to use the 3 creator tools.",
     "type": "module",
     "main": "./dist/index.js",
     "license": "MIT",
@@ -16,7 +16,7 @@
     "keywords": [
         "openclaw",
         "openclaw-plugin",
-        "live2d",
+        "2d-avatar",
         "avatar",
         "lip-sync",
         "tts",
@@ -32,7 +32,7 @@
     "author": "Myths Labs (JC)",
     "homepage": "https://prometheus.mythslabs.ai",
     "dependencies": {
-        "@prometheusavatar/core": "^0.11.3"
+        "@prometheusavatar/core": "^0.11.5"
     },
     "openclaw": {
         "compat": {

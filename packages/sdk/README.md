@@ -1,6 +1,6 @@
 # @prometheusavatar/core
 
-Give your AI agent an embodied avatar — Live2D rendering, TTS, lip-sync, and emotion analysis in one SDK.
+Give your AI agent an embodied avatar — a local 2D model renderer, an embed-page bridge, TTS, lip-sync, and emotion analysis in one SDK.
 
 ## Quick Start
 
@@ -13,12 +13,70 @@ import { createAvatar } from '@prometheusavatar/core';
 
 const avatar = await createAvatar({
   container: document.getElementById('avatar')!,
-  modelUrl: '/models/haru/haru.model3.json',
+  modelUrl: '/models/your-model/your-model.model3.json', // a 2D model file you host
 });
 
 // Avatar speaks with auto-detected emotion + lip-sync
 await avatar.speak('Hello! How are you today? 😊');
 ```
+
+## Drive an avatar embed page
+
+The avatar people see on [prometheus.mythslabs.ai](https://prometheus.mythslabs.ai) is a hosted page:
+`POST /api/agent/avatar` (with your `pak_` agent key) answers an `embedUrl`. Frame it in an `<iframe>`
+and drive it with `connectEmbed`:
+
+```ts
+import { connectEmbed } from '@prometheusavatar/core';
+
+const frame = document.getElementById('prometheus-embed') as HTMLIFrameElement;
+frame.src = embedUrl;
+const embed = connectEmbed(frame, {
+  onLoaded: () => console.log('avatar can speak now'),
+  onViewerMessage: (text) => console.log('viewer typed', text),
+});
+
+embed.setState('thinking');      // queued until the embed is listening, then sent once
+embed.setEmotion('happy');
+embed.speak('Hi there!');        // held until the avatar has loaded, then sent (the way to greet on load)
+// later: embed.destroy();
+```
+
+> **Status:** `connectEmbed` is covered by tests against stand-in windows. It has also been run in a
+> headless browser against the live embed page (2026-10-22) for an avatar made with an agent key:
+> `prometheus:ready` and `prometheus:loaded` arrived, and the emotion messages it sent reached the page.
+> `speak` was not sent in that run, so treat `speak` as untested against the live page. The page frames
+> avatars made with an agent key; the id of a Marketplace listing answers "Avatar not found" and never
+> reports loaded.
+
+How it works (marketplace embed protocol):
+
+- The embed posts `{ type: "prometheus:ready", id }` when its message listener is attached and
+  `{ type: "prometheus:loaded", id }` when the avatar has loaded and can speak, once per page load.
+- `setEmotion` / `setState` are queued until `prometheus:ready`, then the queue is sent once, in order.
+- `speak` is held until `prometheus:loaded`, then sent. To greet when the avatar loads, call
+  `embed.speak(...)` right after `connectEmbed`; do not put text in the embed address.
+- Messages go to the embed's own origin only (taken from `iframe.src`, or `options.origin`), and
+  incoming messages are accepted only from that origin and from that iframe's window.
+- **Fallback (old embeds):** if no `prometheus:ready` arrives within 8 s (`readyTimeoutMs`), everything
+  queued is sent anyway and later messages go straight through, as before. If `prometheus:ready`
+  arrived but `prometheus:loaded` does not within 30 s (`loadedTimeoutMs`), held `speak` messages are
+  sent anyway. `onFallback(reason)` tells you when either happens.
+- Queues hold at most 20 messages each (`maxQueue`); the oldest is dropped beyond that.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `origin` | origin of `iframe.src` | The embed's origin. Required if the iframe has no `src` yet |
+| `avatarId` | — | Ignore ready/loaded messages that carry a different `id` |
+| `readyTimeoutMs` | `8000` | Wait for `prometheus:ready` before sending anyway |
+| `loadedTimeoutMs` | `30000` | Wait (after ready) for `prometheus:loaded` before sending held `speak` anyway |
+| `maxQueue` | `20` | Per-queue cap |
+| `onReady` / `onLoaded` / `onViewerMessage` / `onFallback` | — | Callbacks |
+
+## Local 2D renderer
+
+`createAvatar` draws a 2D model file (`.model3.json`) on a canvas in your own page, with TTS,
+lip-sync and emotion. The package ships no model: bring your own model file.
 
 ## API Reference
 
@@ -29,7 +87,7 @@ Factory function to create and initialize an avatar.
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `container` | `HTMLElement` | required | DOM element to render into |
-| `modelUrl` | `string` | required | URL to Live2D model JSON |
+| `modelUrl` | `string` | required | URL to a 2D model file (`.model3.json`) |
 | `width` | `number` | `800` | Canvas width |
 | `height` | `number` | `600` | Canvas height |
 | `backgroundColor` | `number` | `0x00000000` | Canvas background (hex) |
@@ -177,14 +235,37 @@ Defaults that protect the file (since 0.11.4):
 
 ## Architecture
 
+`EmbedBridge` (`connectEmbed`) is separate: it talks to the hosted embed page and draws nothing itself.
+
 ```
 PrometheusAvatar (orchestrator)
-├── Live2DRenderer  — PIXI.js + Live2D Cubism SDK
+├── AvatarRenderer  — PIXI.js 2D model renderer (.model3.json)
 ├── WebSpeechTTS    — pluggable TTS (Web Speech API default)
 ├── LipSyncEngine   — audio → mouth shape mapping
 └── EmotionAnalyzer — text → emotion detection
 ```
 
+## Changelog
+
+### 0.11.5
+
+- **New:** `connectEmbed` / `EmbedBridge` drive an avatar embed page: emotion and state wait for
+  `prometheus:ready` and are replayed once, `speak` waits for `prometheus:loaded`, origin and source
+  are checked, and an 8 s fallback keeps older embeds working (see "Drive an avatar embed page",
+  including its status note).
+- **Renamed:** the renderer class is now `AvatarRenderer`. The old class name still works and is deprecated.
+- **Wording:** public text says "2D model file (`.model3.json`)" instead of naming the runtime.
+- **Agent API contract (marketplace side), documented here:**
+  - `POST /api/marketplace/deploy` with `category: "personas"` must carry the prompt in
+    `persona_config` or in a persona JSON file; the public `description` is never used as the prompt.
+    `AssetDeployConfig` now has `persona_config`.
+  - Motions need `source`: `original` or `licensed_resale` (plus `body_type`). Library clips without
+    resale rights cannot be listed (400 `MOTION_SOURCE_NOT_LISTABLE`; no `source` is 400
+    `MOTION_SOURCE_REQUIRED`). `AssetDeployConfig` now has `source` and `body_type`, and `license`
+    accepts `mit`.
+
 ## License
 
 MIT — [Myths Labs](https://github.com/myths-labs)
+
+Third-party components and the licences that come with them, including any you must get yourself to use a 2D model file: [THIRD_PARTY_LICENSES.md](https://github.com/myths-labs/prometheus-avatar/blob/main/THIRD_PARTY_LICENSES.md).

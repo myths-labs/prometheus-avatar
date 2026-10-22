@@ -1,16 +1,20 @@
 /**
- * Live2D Renderer
+ * Avatar Renderer (2D)
  *
- * Wraps pixi-live2d-display to load and control Live2D models.
+ * Loads and controls a 2D model file (.model3.json) on a PixiJS canvas through
+ * the third-party runtime package listed in package.json.
  * Handles model loading, expression parameters, motions, and layout.
+ *
+ * A hosted avatar page is not drawn here; frame its embed URL and drive it with
+ * `connectEmbed` (./embed.ts).
  */
 
 import { Application } from 'pixi.js';
 import type { Emotion } from './types';
 
-// pixi-live2d-display types (loaded at runtime)
+// Runtime model type (the third-party runtime is loaded on demand)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Live2DModel = any;
+type RuntimeModel = any;
 
 /** Expression parameter presets for each emotion */
 const EMOTION_PARAMS: Record<Emotion, Record<string, number>> = {
@@ -58,9 +62,9 @@ export interface RendererOptions {
     debug?: boolean;
 }
 
-export class Live2DRenderer {
+export class AvatarRenderer {
     private app: Application | null = null;
-    private model: Live2DModel | null = null;
+    private model: RuntimeModel | null = null;
     private container: HTMLElement;
     private width: number;
     private height: number;
@@ -82,7 +86,7 @@ export class Live2DRenderer {
     async init(): Promise<void> {
         if (this.initialized) return;
 
-        // Dynamically import pixi-live2d-display to register Live2D with PixiJS
+        // Load PixiJS; the 2D model runtime registers itself when loadModel imports it
         await import('pixi.js');
 
         this.app = new Application({
@@ -105,7 +109,7 @@ export class Live2DRenderer {
     }
 
     /**
-     * Load a Live2D model from URL
+     * Load a 2D model file (.model3.json) from URL
      */
     async loadModel(modelUrl: string): Promise<void> {
         if (!this.app) {
@@ -113,7 +117,7 @@ export class Live2DRenderer {
         }
 
         try {
-            // Dynamic import of pixi-live2d-display
+            // Dynamic import of the third-party 2D model runtime (its export name is technical)
             const { Live2DModel: L2DModel } = await import('pixi-live2d-display');
 
             // Remove current model if any
@@ -193,7 +197,7 @@ export class Live2DRenderer {
     /**
      * Get the current model instance
      */
-    getModel(): Live2DModel | null {
+    getModel(): RuntimeModel | null {
         return this.model;
     }
 
@@ -288,3 +292,12 @@ export class Live2DRenderer {
         }
     }
 }
+
+/**
+ * Former name of {@link AvatarRenderer}, kept so existing imports keep working.
+ * @deprecated Use `AvatarRenderer`.
+ * @hidden
+ */
+export const Live2DRenderer = AvatarRenderer;
+/** @hidden */
+export type Live2DRenderer = AvatarRenderer;

@@ -2,14 +2,14 @@
  * Prometheus AssetManager
  * 
  * Handles loading, applying, and managing ALL marketplace asset categories:
- * - Skins: Live2D .model3.json + textures
+ * - Skins: 2D model files (.model3.json) + textures
  * - Voices: TTS voice config or audio samples
- * - Motions: Live2D .motion3.json animations
- * - Expressions: Live2D .exp3.json facial expressions  
+ * - Motions: 2D motion files (.motion3.json)
+ * - Expressions: 2D expression files (.exp3.json)
  * - Effects: Particle/shader overlays (JSON config)
  * - Scenes: Background images/videos
  * - Personas: Personality prompt/behavior JSON
- * - Accessories: Additional Live2D attachments
+ * - Accessories: additional 2D layers or sprites
  * - Bundles: Multi-asset packages
  */
 
@@ -101,7 +101,7 @@ export class AssetManager {
     // ═══ Category-specific apply methods ═══
 
     private async applySkin(manifest: AssetManifest): Promise<void> {
-        // Skin = Live2D model — the SDK's loadModel() handles this
+        // Skin = 2D model file — the SDK's loadModel() handles this
         this.callbacks.onSkinLoaded?.(manifest.fileUrl);
     }
 
@@ -112,12 +112,12 @@ export class AssetManager {
     }
 
     private async applyMotion(manifest: AssetManifest): Promise<void> {
-        // Motion = Live2D motion3.json or animation data
+        // Motion = 2D motion3.json or animation data
         this.callbacks.onMotionPlay?.(manifest.fileUrl);
     }
 
     private async applyExpression(manifest: AssetManifest): Promise<void> {
-        // Expression = Live2D exp3.json or parameter preset
+        // Expression = 2D exp3.json or parameter preset
         this.callbacks.onExpressionLoaded?.(manifest.fileUrl);
     }
 
@@ -140,7 +140,7 @@ export class AssetManager {
     }
 
     private async applyAccessory(manifest: AssetManifest): Promise<void> {
-        // Accessory = additional Live2D layer or sprite overlay
+        // Accessory = additional 2D layer or sprite overlay
         this.callbacks.onAccessoryAdded?.(manifest.fileUrl);
     }
 
@@ -181,7 +181,7 @@ export class AssetManager {
             skins: {
                 formats: [".model3.json", ".zip (with textures)"],
                 maxSize: "50MB",
-                description: "Live2D model package — includes .model3.json, textures (.png), and physics config",
+                description: "2D model package — includes .model3.json, textures (.png), and physics config",
             },
             voices: {
                 formats: [".json (voice config)", ".mp3", ".wav"],
@@ -191,12 +191,12 @@ export class AssetManager {
             motions: {
                 formats: [".motion3.json", ".zip"],
                 maxSize: "10MB",
-                description: "Motion animations — Live2D motion3.json files for dance, idle, wave, etc.",
+                description: "Motion animations — 2D motion3.json files for dance, idle, wave, etc.",
             },
             expressions: {
                 formats: [".exp3.json", ".json"],
                 maxSize: "5MB",
-                description: "Expression presets — Live2D exp3.json or parameter preset JSON",
+                description: "Expression presets — 2D exp3.json or parameter preset JSON",
             },
             effects: {
                 formats: [".json (config)", ".zip"],
@@ -216,7 +216,7 @@ export class AssetManager {
             accessories: {
                 formats: [".model3.json", ".png", ".zip"],
                 maxSize: "20MB",
-                description: "Accessories — Live2D overlay model or sprite images (ears, hats, glasses, etc.)",
+                description: "Accessories — 2D overlay model or sprite images (ears, hats, glasses, etc.)",
             },
             bundles: {
                 formats: [".zip"],

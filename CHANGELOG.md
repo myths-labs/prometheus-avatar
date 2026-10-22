@@ -6,7 +6,62 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased]
+## [Unreleased] — core 0.11.5 · openclaw-plugin 0.10.3
+
+Not published yet. Publish order: core, then openclaw-plugin.
+mcp-server is not part of this release: 0.3.6 is already out and keeps its own notes below.
+
+### Added
+- **core**: `connectEmbed` / `EmbedBridge` drive an avatar embed page from a parent page.
+  Emotion and state are queued until the embed posts `prometheus:ready`, then sent once in
+  order; `speak` is held until it posts `prometheus:loaded`; messages go to the embed's own
+  origin only, and incoming ones are accepted only from that origin and that iframe. If no
+  `prometheus:ready` arrives within 8 s (an older embed), everything is sent as before; if
+  `prometheus:loaded` does not follow within 30 s, held `speak` messages are sent anyway.
+  Tested against stand-in windows, and run in a headless browser against the live embed page
+  (2026-10-22) for an avatar made with an agent key: `prometheus:ready` and `prometheus:loaded`
+  arrived and the emotion messages it sent reached the page. `speak` was not sent in that run. The id
+  of a Marketplace listing is not an embeddable id: the page answers "Avatar not found" and never
+  reports loaded.
+- **openclaw-plugin**: with no `modelUrl`, a config that has both a Prometheus agent key (`apiKey`,
+  or the `PROMETHEUS_API_KEY` variable) and an `avatarId` now shows that hosted avatar: the plugin
+  frames the hosted avatar page and drives its expression through core's `connectEmbed`. `modelUrl`
+  still wins when set; every other combination keeps logging how to configure and shows nothing.
+  The page address carries nothing after the avatar id, agent events send expression only
+  (thinking, error, the sentiment of a message), the plugin never makes the hosted avatar speak, and
+  the key never goes into the address, the frame or a message. The plugin now depends on core
+  `^0.11.5` (the release that adds `connectEmbed`).
+- **core**: `AssetDeployConfig` gains `persona_config`, `source` and `body_type`; `license`
+  accepts `mit`. **openclaw-plugin**: `prometheus_deploy_asset` passes them through.
+- `THIRD_PARTY_LICENSES.md` says that the MIT licence does not include a licence from the
+  owner of the 2D model runtime, that the runtime is not bundled, and that users get their own.
+  It links the owner's own terms (the runtime's licence agreement, the release licence, the rules
+  for Expandable Applications, and the two documents for the sample models) and points the sample
+  models at their current page; the old free-models address no longer exists.
+
+### Changed
+- **openclaw-plugin**: no default model. It used to fall back to a sample path that was never in
+  the package, which could only fail to load. Without `modelUrl` it now logs one error that says
+  how to set it, shows no avatar and keeps the creator tools working. Set `modelUrl` to a 2D model
+  file you host.
+- Public text in core and openclaw-plugin says "2D avatar" / "2D model file (.model3.json)"
+  instead of naming the runtime, and claims no 3D or 2.5D ability. The renderer class is now
+  `AvatarRenderer`; the old class name is a deprecated alias.
+- Docs now match the code on voices: the default text-to-speech is the browser's built-in speech
+  synthesis (no key, no request), and `ttsVoice` in openclaw-plugin names a voice installed in the
+  viewer's browser. The plugin docs no longer promise Marketplace or cloned voices, and the bundled
+  skill no longer says the plugin renders a 2.5D / 3D character. The root README is rewritten the
+  same way (no sample model, features that are only examples or only in the demo app say so).
+- **core**: the embed docs (README, the `connectEmbed` / `EmbedBridge` comments, the bundled skill)
+  no longer suggest `?speak=` (the embed page is dropping it). To greet on load, call
+  `embed.speak(...)`; it is held until the avatar has loaded.
+- The API reference in `packages/sdk/docs` is regenerated from the current sources.
+
+### Agent API contract (marketplace)
+- `POST /api/marketplace/deploy`, category `personas`: the prompt comes from `persona_config` or
+  a persona file; the public description is never the prompt.
+- Motions need `source` (`original` | `licensed_resale`); library clips without resale rights
+  cannot be listed.
 
 ### Fixed
 - **core**, **openclaw-plugin**: the published packages now include the MIT `LICENSE` file (core 0.11.4 and
@@ -75,9 +130,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — core 0.11.4
+## [core 0.11.4] — 2026-10-14
 
-Not published. Security release candidate: core only. mcp-server does not depend on core, and
+Security release: core only. mcp-server does not depend on core, and
 openclaw-plugin (`^0.11.3`) does not use MemoryBridge and picks up 0.11.4 on a fresh install,
 so neither needs a new version.
 
