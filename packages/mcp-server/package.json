@@ -50,7 +50,7 @@
         "prometheus"
     ],
     "license": "MIT",
-    "author": "Myths Labs (JC)",
+    "author": "Myths Labs",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/myths-labs/prometheus-avatar.git"

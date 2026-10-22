@@ -50,7 +50,7 @@
         "vtuber"
     ],
     "license": "MIT",
-    "author": "Myths Labs (JC)",
+    "author": "Myths Labs",
     "repository": {
         "type": "git",
         "url": "https://github.com/myths-labs/prometheus-avatar"

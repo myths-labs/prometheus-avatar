@@ -13,6 +13,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   openclaw-plugin 0.10.2 went out without it), and a test in each package pins what it publishes. Takes effect with
   the next release of each package.
 
+### Changed
+- **demo**, **core**, **mcp-server**, **openclaw-plugin**: the contact on the demo legal pages and the package `author`
+  field now use the company role address / name (`support@mythslabs.ai`, `Myths Labs`).
+
 ---
 
 ## [mcp-server 0.3.6] — 2026-10-21

@@ -59,7 +59,7 @@ export default function PrivacyPage() {
 
                     <section>
                         <h2 className="text-lg font-semibold text-[#eae6df] mb-3">7. Contact</h2>
-                        <p>For privacy-related inquiries, contact us at <a href="mailto:jc@mythslabs.ai" className="text-[#00d4aa] hover:underline">jc@mythslabs.ai</a>.</p>
+                        <p>For privacy-related inquiries, contact us at <a href="mailto:support@mythslabs.ai" className="text-[#00d4aa] hover:underline">support@mythslabs.ai</a>.</p>
                     </section>
                 </div>
             </div>
