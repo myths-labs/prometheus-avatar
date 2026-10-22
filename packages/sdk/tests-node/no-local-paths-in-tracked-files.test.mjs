@@ -57,7 +57,7 @@ test('no tracked file carries a path from a maintainer machine or a sibling work
 });
 
 test('the patterns catch the shapes that leaked before, and leave ordinary relative links alone', () => {
-    const leaks = ['href="../desk-k10-mcp/node_modules/pixi.js/lib/index.d.ts"', '/Users/someone/src/x.ts', '/Volumes/Drive/app/x.ts', 'C:\\Users\\someone\\x.ts'];
+    const leaks = ['href="../other-tree/node_modules/pixi.js/lib/index.d.ts"', '/Users/someone/src/x.ts', '/Volumes/Drive/app/x.ts', 'C:\\Users\\someone\\x.ts'];
     for (const sample of leaks) assert.ok(LOCAL_PATH.some(pattern => pattern.test(sample)), sample);
     const fine = ['href="../classes/MemoryBridge.html"', '[docs](../docs/README.md)', 'https://github.com/myths-labs/prometheus-avatar/blob/main/packages/sdk/src/memory-bridge.ts'];
     for (const sample of fine) assert.ok(!LOCAL_PATH.some(pattern => pattern.test(sample)), sample);
