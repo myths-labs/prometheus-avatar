@@ -58,3 +58,18 @@ test('the README says the https-only rule for PROMETHEUS_API_URL belongs to the 
     assert.match(rows[0], /workspace tools/);
     assert.match(rows[1], /工作区工具/);
 });
+
+// POST /api/agent/speak answers audio to the caller and does not make an open embed speak (the website's llms.txt says
+// the same). The tool's description and its README row must not promise that the avatar plays it with lip-sync.
+test('the speak tool says it returns audio to the caller and does not promise lip-sync playback', () => {
+    const source = read('src/index.ts');
+    const description = source.match(/registerTool\(\s*"speak",\s*"([^"]+)"/)?.[1];
+    assert.ok(description, 'the speak tool description was not found');
+    assert.doesNotMatch(description, /played with lip-sync|lip-sync animation/i, 'tool description');
+    assert.match(description, /returns? the audio/i, 'tool description says the audio comes back to the caller');
+    assert.match(description, /does not make an open embed speak/i, 'tool description says the embed is not driven');
+    const row = read('README.md').split('\n').find(line => line.startsWith('| `speak` |'));
+    assert.ok(row, 'README has a speak row');
+    assert.doesNotMatch(row, /lip-sync animation/i, 'README speak row');
+    assert.match(row, /audio/i, 'README speak row says it returns audio');
+});

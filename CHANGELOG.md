@@ -20,6 +20,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **mcp-server** (0.3.7): `share_avatar` refuses an `avatar_id` that is not a plain id (1-64 letters, digits, `_` or
   `-`), whether the caller passed it or the account lookup returned it: the answer is an error and no link or embed
   code is made. An empty `avatar_id` is refused instead of being treated as left out.
+- **mcp-server** (0.3.7): the `speak` tool's description and README row no longer say the avatar plays the audio
+  with lip-sync animation. The tool returns the audio to your client; it does not make an open embed speak.
 
 ### Fixed
 - **core**, **openclaw-plugin**: the published packages now include the MIT `LICENSE` file (core 0.11.4 and

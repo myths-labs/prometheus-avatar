@@ -639,7 +639,7 @@ registerTool(
 
 registerTool(
     "speak",
-    "Make the avatar speak text aloud. The text is synthesized to speech and played with lip-sync animation. Supports emotion detection.",
+    "Synthesize text to speech in the avatar's voice and return the audio (base64 WAV) for your client to play. It does not make an open embed speak; for that, post prometheus:speak to the embed iframe after it has posted prometheus:loaded. Supports emotion detection.",
     {
         text: z.string().describe("Text for the avatar to speak aloud"),
         voice: z.string().optional().describe("Voice override: Kore (warm female), Puck (energetic male), Charon (deep male), Zephyr (neutral)"),
