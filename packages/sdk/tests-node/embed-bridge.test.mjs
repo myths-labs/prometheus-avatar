@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { EmbedBridge, connectEmbed, EMBED_READY_TIMEOUT_MS, EMBED_LOADED_TIMEOUT_MS } from '../src/embed.ts';
 
 const ORIGIN = 'https://prometheus.mythslabs.ai';
-const SRC = `${ORIGIN}/embed/abc123?speak=Hi`;
+const SRC = `${ORIGIN}/embed/abc123?ref=x`;
 
 function setup(options = {}) {
     const posted = [];
