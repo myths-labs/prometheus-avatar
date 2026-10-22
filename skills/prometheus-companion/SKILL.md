@@ -20,7 +20,7 @@ Auth on every call: `Authorization: Bearer $PROMETHEUS_API_KEY` + `Content-Type:
 | Action | Call | Body | Notes |
 |---|---|---|---|
 | Create avatar | `POST /api/agent/avatar` | `{"model":"haru","voice":"Kore","persona":"..."}` | All fields optional. `model`: `haru`/`shizuku`/`koharu` or a `.model3.json` URL. **Synchronous** — response has `avatarId` + `embedUrl`, no task polling. |
-| Show it | open `embedUrl` | — | Or embed: `<iframe src="{embedUrl}" width="400" height="600" allow="microphone"></iframe>`. `?speak=Hello` makes it greet on load. |
+| Show it | open `embedUrl` | — | Or embed: `<iframe src="{embedUrl}" width="400" height="600" allow="microphone"></iframe>`. Opening the link only shows the avatar; it does not speak by itself. A page that embeds it can make it speak by posting `{type:'prometheus:speak', text}` to the iframe. |
 | Push state | `POST /api/agent/avatar/state` | `{"state":"thinking"}` and/or `{"emotion":"happy"}` | `state` ∈ `listening\|thinking\|acting\|done`; `emotion` ∈ `happy\|sad\|angry\|surprised\|thinking\|neutral`. At least one required. Open embeds apply it within ~3 s. |
 | Speak | `POST /api/agent/speak` | `{"text":"Tests passed!"}` | `text` ≤ 2000 chars. Returns audio; embeds lip-sync. |
 | Status | `GET /api/agent/avatar` | — | Current avatar, equipped assets, `embedUrl`. `{"avatar":null,...}` = create one first. |

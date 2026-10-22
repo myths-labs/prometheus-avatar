@@ -559,10 +559,9 @@ registerTool(
     "Generate a shareable link and iframe embed code for an avatar. The link opens the interactive avatar page.",
     {
         avatar_id: z.string().optional().describe("Avatar ID from create_avatar. If omitted, uses the account's current avatar (requires PROMETHEUS_API_KEY)."),
-        message: z.string().optional().describe("Optional welcome message to deliver to iframe embedders via window.postMessage."),
         referral_code: z.string().optional().describe("Referral code appended to the share link for tracking."),
     },
-    async ({ avatar_id, message, referral_code }) => {
+    async ({ avatar_id, referral_code }) => {
         try {
             let avatarId = avatar_id;
 
@@ -592,8 +591,9 @@ registerTool(
                 };
             }
 
+            // The link carries the referral code and nothing else. Text in a link must not be something the embed
+            // page speaks when someone opens it, so share_avatar takes no message and sets no speak parameter.
             const qp = new URLSearchParams();
-            if (message) qp.set("speak", message);
             if (referral_code) qp.set("ref", referral_code);
             const query = qp.toString() ? `?${qp.toString()}` : "";
             const shareUrl = `${API_BASE}/embed/${avatarId}${query}`;
@@ -608,9 +608,7 @@ registerTool(
                         share_url: shareUrl,
                         embed_url: shareUrl,
                         embed_html: embedHtml,
-                        instructions: message
-                            ? "Share share_url — opening it renders the avatar and it auto-speaks your message. Or embed embed_html in any webpage."
-                            : "Share share_url (renders the interactive avatar), or embed embed_html in any webpage.",
+                        instructions: "Share share_url (renders the interactive avatar), or embed embed_html in any webpage. Opening the link only shows the avatar; it does not speak by itself. A page that embeds it can make the avatar speak by posting { type: 'prometheus:speak', text } to the iframe from its own code.",
                     }, null, 2),
                 }],
             };
