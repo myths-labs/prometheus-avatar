@@ -25,12 +25,23 @@ test('the README does not say the visited-pages (browse) category is missing fro
     assert.match(readme, /2026-10-19[^\n]*上线|上线[^\n]*2026-10-19/, 'Chinese: says since when it is live');
 });
 
-test('the mcp-server 0.3.6 changelog entry names no private pull request, internal ticket or website migration file', () => {
+/** The text of the changelog section whose heading starts with `heading`, up to the next rule line. */
+function changelogSection(changelog, heading) {
+    const start = changelog.indexOf(`\n${heading}`);
+    assert.ok(start >= 0, `the changelog has a section "${heading}"`);
+    const end = changelog.indexOf('\n---', start + 1);
+    return changelog.slice(start, end < 0 ? undefined : end);
+}
+const PRIVATE_REFERENCE = /PR #\d+|#5\d\d\b|K\d+[a-z]?\b|\d{14}_[a-z_]+\.sql/;
+
+test('the changelog text of mcp-server 0.3.6 and of the release that is not published yet (0.3.7) names no private pull request, internal ticket or website migration file', () => {
     const changelog = readFileSync(join(PACKAGE, '..', '..', 'CHANGELOG.md'), 'utf8');
-    const start = changelog.indexOf('mcp-server 0.3.6');
-    assert.ok(start > 0, 'the entry exists');
-    const entry = changelog.slice(start, changelog.indexOf('\n---', start));
-    assert.doesNotMatch(entry, /PR #\d+|#5\d\d\b|K\d+[a-z]?\b|\d{14}_[a-z_]+\.sql/);
+    const sections = { 'mcp-server 0.3.6': changelogSection(changelog, '## [mcp-server 0.3.6]'), 'Unreleased': changelogSection(changelog, '## [Unreleased]') };
+    assert.match(sections.Unreleased, /\*\*mcp-server\*\* \(0\.3\.7\)/, 'the 0.3.7 entry is inside the section that is scanned');
+    for (const [name, text] of Object.entries(sections)) {
+        const found = PRIVATE_REFERENCE.exec(text);
+        assert.equal(found, null, `${name}: "${found?.[0]}" near "${found ? text.slice(Math.max(0, found.index - 40), found.index + 40).replace(/\s+/g, ' ') : ''}"`);
+    }
 });
 
 test('wherever the key page\'s button is named, both of its labels are: "Generate key" (no key yet) and "Rotate key" (once the account has one)', () => {

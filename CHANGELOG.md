@@ -6,29 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — mcp-server 0.3.7
+## [Unreleased]
 
 ### Changed
-- **mcp-server**: share links no longer carry a message that the page speaks on open. `share_avatar` has no `message`
-  parameter any more and never puts `speak` in `share_url`, `embed_url` or `embed_html`; the link carries only the
-  referral code (`ref`), as before. A caller that still passes `message` is not refused, the value is ignored. The
-  result now says that opening the link only shows the avatar, and that a page embedding it can make it speak by
-  posting `{ type: 'prometheus:speak', text }` to the iframe from its own code.
-  Why: the website's embed page does not read `?speak=` any more, and text that rides in a link should not be spoken
-  because someone opened the link.
-
-### Notes for the release
-- Links made by 0.3.6 and earlier still contain `?speak=...`; the embed page ignores it.
-- No ordering dependency on `core` or `openclaw-plugin`.
-
----
-
-## [Unreleased]
+- **mcp-server** (0.3.7): share links no longer carry a message for the page to speak. `share_avatar` has no `message`
+  parameter any more and builds the link from the avatar id and the referral code (`ref`) only. A caller that still
+  passes `message` is not refused, the value is ignored. The result now says that opening the link only shows the
+  avatar, and that a page embedding it can make it speak by posting `{ type: 'prometheus:speak', text }` to the iframe
+  from its own code, after the iframe has posted `{ type: 'prometheus:loaded' }`; a speak message sent earlier is not
+  kept. The `speak` tool's result says the same.
+  Why: text that rides in a link should not be spoken because someone opened the link, so links should not ask the
+  page to speak.
+- **mcp-server** (0.3.7): `share_avatar` refuses an `avatar_id` that is not a plain id (1-64 letters, digits, `_` or
+  `-`), whether the caller passed it or the account lookup returned it: the answer is an error and no link or embed
+  code is made. An empty `avatar_id` is refused instead of being treated as left out.
 
 ### Fixed
 - **core**, **openclaw-plugin**: the published packages now include the MIT `LICENSE` file (core 0.11.4 and
   openclaw-plugin 0.10.2 went out without it), and a test in each package pins what it publishes. Takes effect with
   the next release of each package.
+
+### Notes for the release
+- mcp-server 0.3.7: links made by 0.3.6 and earlier may still carry the speak query parameter; this release does not
+  change links that already exist.
+- No ordering dependency on `core` or `openclaw-plugin`.
 
 ---
 
@@ -92,9 +93,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — core 0.11.4
+## [core 0.11.4] — 2026-10-14
 
-Not published. Security release candidate: core only. mcp-server does not depend on core, and
+Security release: core only. mcp-server does not depend on core, and
 openclaw-plugin (`^0.11.3`) does not use MemoryBridge and picks up 0.11.4 on a fresh install,
 so neither needs a new version.
 
