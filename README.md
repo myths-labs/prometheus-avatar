@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@prometheusavatar/core"><img src="https://img.shields.io/badge/npm-v0.8.0-00d4aa?style=for-the-badge&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://www.npmjs.com/package/@prometheusavatar/mcp-server"><img src="https://img.shields.io/badge/MCP_Server-v0.3.6-c9a84c?style=for-the-badge&logo=npm&logoColor=white" alt="MCP Server" /></a>
+  <a href="https://www.npmjs.com/package/@prometheusavatar/mcp-server"><img src="https://img.shields.io/badge/MCP_Server-v0.3.7-c9a84c?style=for-the-badge&logo=npm&logoColor=white" alt="MCP Server" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar"><img src="https://img.shields.io/github/stars/myths-labs/prometheus-avatar?color=c9a84c&style=for-the-badge&logo=github" alt="Stars" /></a>
   <a href="https://github.com/myths-labs/prometheus-avatar/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/myths-labs/prometheus-avatar/ci.yml?style=for-the-badge&logo=github-actions&logoColor=white&label=CI" alt="CI" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge" alt="License" />

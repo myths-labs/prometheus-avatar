@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased] — mcp-server 0.3.7
+
+### Changed
+- **mcp-server**: share links no longer carry a message that the page speaks on open. `share_avatar` has no `message`
+  parameter any more and never puts `speak` in `share_url`, `embed_url` or `embed_html`; the link carries only the
+  referral code (`ref`), as before. A caller that still passes `message` is not refused, the value is ignored. The
+  result now says that opening the link only shows the avatar, and that a page embedding it can make it speak by
+  posting `{ type: 'prometheus:speak', text }` to the iframe from its own code.
+  Why: the website's embed page does not read `?speak=` any more, and text that rides in a link should not be spoken
+  because someone opened the link.
+
+### Notes for the release
+- Links made by 0.3.6 and earlier still contain `?speak=...`; the embed page ignores it.
+- No ordering dependency on `core` or `openclaw-plugin`.
+
+---
+
 ## [Unreleased]
 
 ### Fixed
