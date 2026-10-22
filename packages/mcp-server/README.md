@@ -23,7 +23,7 @@ npx @prometheusavatar/mcp-server
 | `list_marketplace` | Browse available marketplace assets by category |
 | `get_avatar_status` | Get current avatar state and equipped assets |
 | `share_avatar` | Generate shareable links and embed codes |
-| `speak` | Make the avatar speak text with TTS and lip-sync animation |
+| `speak` | Synthesize text to speech in the avatar's voice and return the audio (base64 WAV) to your client; it does not make an open embed speak |
 
 ### Workspace (7) — **NEW in v0.3.6**
 
