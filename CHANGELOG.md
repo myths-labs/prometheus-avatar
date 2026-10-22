@@ -35,6 +35,9 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
   accepts `mit`. **openclaw-plugin**: `prometheus_deploy_asset` passes them through.
 - `THIRD_PARTY_LICENSES.md` says that the MIT licence does not include a licence from the
   owner of the 2D model runtime, that the runtime is not bundled, and that users get their own.
+  It links the owner's own terms (the runtime's licence agreement, the release licence, the rules
+  for Expandable Applications, and the two documents for the sample models) and points the sample
+  models at their current page; the old free-models address no longer exists.
 
 ### Changed
 - **openclaw-plugin**: no default model. It used to fall back to a sample path that was never in

@@ -135,6 +135,25 @@ test('THIRD_PARTY_LICENSES.md summarises the Live2D terms as the published ones:
     assert.doesNotMatch(text, /Commercial use requires a separate agreement/i);
 });
 
+// The owner's own terms pages, opened and read before they were written in. The file has to point at them, not only at
+// a third-party README, so a reader can check the terms at the source.
+const LIVE2D_TERMS = [
+    'https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html', // Cubism Core
+    'https://www.live2d.com/en/sdk/license/', // SDK Release License (Publication License Agreement)
+    'https://www.live2d.com/en/sdk/license/expandable/', // Expandable Applications
+    'https://www.live2d.com/eula/live2d-free-material-license-agreement_en.html', // sample models
+    'https://www.live2d.com/en/learn/sample/model-terms/', // sample models: Terms of Use for Live2D Cubism Sample Data
+];
+
+test('THIRD_PARTY_LICENSES.md links Live2D Inc.\'s own terms: Cubism Core, the release licence, Expandable Applications and the sample models', () => {
+    const text = readFileSync(join(repoRoot, 'THIRD_PARTY_LICENSES.md'), 'utf8');
+    for (const url of LIVE2D_TERMS) assert.ok(text.includes(`](${url})`), `THIRD_PARTY_LICENSES.md must link ${url}`);
+    const section = text.slice(text.indexOf('## Live2D: you need a licence of your own'), text.indexOf('## pixi-live2d-display'));
+    for (const url of LIVE2D_TERMS) assert.ok(section.includes(url), `the "you need a licence of your own" section must link ${url}`);
+    // The old free-models page answers 404; the sample models now live under /en/learn/sample/.
+    assert.ok(!text.includes('/en/community/FreeModels/'), 'the old free-models address no longer exists');
+});
+
 // Wording that would say Prometheus holds, got or passes on a Live2D licence for the user.
 const LICENCE_OVERCLAIM = [
     /\b(has|have|had|already) (obtained|secured|acquired|purchased|bought|paid for)\b/i,
