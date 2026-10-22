@@ -1,22 +1,24 @@
 // share_avatar over stdio, the way an MCP client calls it. A share link must open a page that only shows the avatar:
-// no text in the link is spoken when someone opens it (the page does not read `?speak=` any more, and a sentence
-// that rides in a link should not be something the person who opens the link triggers).
+// no text in the link is spoken when someone opens it (a sentence that rides in a link is not something the person who
+// opens the link should trigger). The avatar id goes into the link as a path segment, so it must be a plain id.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { startFakeSite } from './fake-site.mjs';
+import { listenOnFreePort } from './port.mjs';
 
 const PACKAGE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const entry = join(PACKAGE, 'dist', 'index.js');
 const AVATAR = '7d0f6f0e-2c1b-4f4e-9a55-3a1f0c9d8b21';
+const SKILL_PATH = join(PACKAGE, '..', '..', 'skills', 'prometheus-companion', 'SKILL.md');
 
-/** Start the built server against the fake site (share_avatar with an avatar_id makes no request at all), run `body`, stop both. */
-async function withServer(body) {
-    const site = await startFakeSite({});
+/** Start the built server against `site` (anything with url, key and close), run `body`, stop both. */
+async function withSite(site, body) {
     const transport = new StdioClientTransport({ command: process.execPath, args: [entry], stderr: 'pipe',
         env: { PROMETHEUS_API_URL: site.url, PROMETHEUS_API_KEY: site.key, PROMETHEUS_MCP_STATE_DIR: 'off' } });
     const client = new Client({ name: 'share-avatar-test', version: '0' });
@@ -25,6 +27,29 @@ async function withServer(body) {
         return await body({ client, site });
     } finally { await client.close(); await site.close(); }
 }
+/** The fake website (share_avatar with an avatar_id makes no request at all). */
+const withServer = async body => withSite(await startFakeSite({}), body);
+
+/** A stand-in for the two avatar calls the fake workspace site does not answer: GET /api/agent/avatar (the account's current avatar) and POST /api/agent/speak. Records every request. */
+async function startAvatarStub({ avatarId }) {
+    const requests = [];
+    const server = http.createServer((req, res) => {
+        requests.push(`${req.method} ${req.url}`);
+        res.setHeader('connection', 'close');
+        res.setHeader('content-type', 'application/json');
+        if (req.method === 'GET' && req.url === '/api/agent/avatar') { res.end(JSON.stringify({ avatarId })); return; }
+        if (req.method === 'POST' && req.url === '/api/agent/speak') {
+            req.resume();
+            req.on('end', () => res.end(JSON.stringify({ audio: Buffer.from('RIFF0000WAVE').toString('base64'), mimeType: 'audio/wav', voice: 'Kore' })));
+            return;
+        }
+        res.statusCode = 404; res.end('{}');
+    });
+    await listenOnFreePort(server);
+    return { url: `http://127.0.0.1:${server.address().port}`, key: 'stub-agent-key', requests,
+        close: async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } };
+}
+const withStub = async (avatarId, body) => withSite(await startAvatarStub({ avatarId }), body);
 const share = async (client, args) => {
     const result = await client.callTool({ name: 'share_avatar', arguments: args });
     assert.ok(!result.isError, `share_avatar must not fail: ${result.content?.[0]?.text}`);
@@ -54,6 +79,11 @@ function assertNoSpeak(label, text) {
     for (const reading of readings(text)) assert.doesNotMatch(reading, SPEAK, `${label} must not carry "speak" in any encoding: ${reading.slice(0, 120)}`);
 }
 const queryNames = url => [...new URL(url).searchParams.keys()];
+// The query that asks an embed page to speak, built from pieces: this file must not spell it out (the repository keeps no
+// text that spells it, and the pattern below is how the tests tell a document that does).
+const SPEAK_NAME = ['spe', 'ak'].join('');
+const SPEAK_QUERY = new RegExp(`[?&]${SPEAK_NAME}=`, 'i');
+const speakQuery = value => ['?', SPEAK_NAME, '=', value].join('');
 
 test('share links carry no speak parameter, even when an older caller still passes a message', async () => {
     await withServer(async ({ client, site }) => {
@@ -90,7 +120,7 @@ test('the result no longer says opening the link makes the avatar talk, and does
         const withMessage = await share(client, { avatar_id: AVATAR, message: 'Hi there' });
         const without = await share(client, { avatar_id: AVATAR });
         for (const json of [withMessage, without]) {
-            assert.doesNotMatch(json.instructions, /auto-?speak|speaks? (your|the|a) message|reads? (it|your message) (out|aloud)|talks? when/i, json.instructions);
+            assert.doesNotMatch(json.instructions, /auto-speak|autospeak|speaks? (your|the|a) message|reads? (it|your message) (out|aloud)|talks? when/i, json.instructions);
             assert.doesNotMatch(json.instructions, /Hi there/);
             assert.match(json.instructions, /share_url/, 'still tells the model what to hand over');
         }
@@ -109,8 +139,122 @@ test('what the package and the companion skill publish do not describe a link th
     for (const [name, path] of Object.entries(files)) {
         const text = readFileSync(path, 'utf8');
         // assert.ok, not doesNotMatch: a failure of doesNotMatch prints the whole file
-        assert.ok(!/[?&]speak=/i.test(text), `${name}: no ?speak= link`);
-        assert.ok(!/greet on load|auto-?speaks? (your|the) message|speaks? (your|the) message on open/i.test(text), `${name}: no greeting on load`);
+        assert.ok(!SPEAK_QUERY.test(text), `${name}: no link that asks the page to speak`);
+        assert.ok(!/greet on load|auto-speaks? (your|the) message|autospeaks? (your|the) message|speaks? (your|the) message on open/i.test(text), `${name}: no greeting on load`);
         assert.ok(!/qp\.set\(\s*["']speak["']/.test(text), `${name}: the share link is not built with a speak parameter`);
+    }
+});
+
+// ── When a page may make the avatar speak ──────────────────────────────────────────────────────────────────────────
+// The embed holds an emotion or a state until it is listening, but it does not keep a speak message: one posted before the
+// embed has posted prometheus:loaded is lost or shows an error. So every sentence that tells a page to post
+// prometheus:speak must also say "after ... prometheus:loaded".
+const AFTER_LOADED = /\bafter\b[^.]*prometheus:loaded/;
+function assertSpeakWaitsForLoaded(label, block) {
+    const sentences = String(block).replace(/\s+/g, ' ').split(/(?<=\.)\s+(?=[A-Z`{(*])/).filter(sentence => sentence.includes('prometheus:speak'));
+    assert.ok(sentences.length > 0, `${label}: says how a page makes the avatar speak`);
+    for (const sentence of sentences) assert.match(sentence, AFTER_LOADED, `${label}: speak is only safe after prometheus:loaded: ${sentence.slice(0, 180)}`);
+}
+
+test('share_avatar tells the embedding page to post speak only after the iframe has posted prometheus:loaded', async () => {
+    await withServer(async ({ client }) => {
+        const json = await share(client, { avatar_id: AVATAR });
+        assertSpeakWaitsForLoaded('share_avatar instructions', json.instructions);
+        assert.match(json.instructions, /Opening the link only shows the avatar; it does not speak by itself\./);
+    });
+});
+
+test('the speak tool tells the embedding page the same: post speak only after prometheus:loaded', async () => {
+    await withStub(AVATAR, async ({ client, site }) => {
+        const result = await client.callTool({ name: 'speak', arguments: { text: 'Tests passed!' } });
+        assert.ok(!result.isError, result.content?.[0]?.text);
+        const json = JSON.parse(result.content[0].text);
+        assert.equal(json.success, true);
+        assertSpeakWaitsForLoaded('speak instructions', json.instructions);
+        assert.ok(site.requests.includes('POST /api/agent/speak'), 'the audio was asked for');
+    });
+});
+
+test('the companion skill: speak is posted after prometheus:loaded, and the speak call answers audio to the caller only', () => {
+    const lines = readFileSync(SKILL_PATH, 'utf8').split('\n');
+    const speakLines = lines.filter(line => line.includes('prometheus:speak'));
+    assert.ok(speakLines.length >= 2, 'the Show it row and the Speak row both name the message');
+    for (const line of speakLines) assertSpeakWaitsForLoaded('SKILL.md', line);
+    const row = lines.find(line => line.startsWith('| Speak |'));
+    assert.ok(row, 'the Speak row exists');
+    assert.doesNotMatch(row, /lip-?sync/i, 'the call does not make an embed lip-sync');
+    assert.match(row, /Returns audio to the caller; it does not make an open embed speak/);
+    assert.ok(lines.find(line => line.startsWith('| Show it |')).includes('does not speak by itself'), 'opening the link does not speak');
+});
+
+// ── The avatar id goes into the link as a path segment and into an HTML attribute ───────────────────────────────────
+const BAD_IDS = [
+    ['a speak query', 'abc' + speakQuery('Hello')],
+    ['a fragment', 'abc#x'],
+    ['an attribute escape', 'abc" onload="x'],
+    ['a slash', 'a/b'],
+    ['a parent path', '../x'],
+    ['an empty string', ''],
+    ['65 characters', 'a'.repeat(65)],
+    ['a space', 'a b'],
+    ['a second parameter', 'abc&ref=evil'],
+    ['a percent escape', 'abc%2Fx'],
+    ['a trailing newline', 'abc\n'],
+    ['a non-ASCII look-alike', 'abcа'],
+    ['a backslash', 'a\\b'],
+    ['an angle bracket', 'abc<x>'],
+];
+const GOOD_IDS = [AVATAR, 'abc_DEF-123', 'a', '0', 'a'.repeat(64)];
+const shareRaw = (client, args) => client.callTool({ name: 'share_avatar', arguments: args });
+function assertRefused(label, result, bad) {
+    assert.equal(result.isError, true, `${label}: refused`);
+    const text = result.content[0].text;
+    assert.match(text, /avatar_id/, `${label}: the message names the argument`);
+    assert.match(text, /64/, `${label}: the message says the length limit`);
+    assert.doesNotMatch(text, /\/embed\/|<iframe|share_url|embed_html|success/, `${label}: no link in the answer`);
+    if (bad.length > 3) assert.ok(!text.includes(bad), `${label}: the value is not echoed back`);
+}
+
+test('share_avatar refuses an avatar_id that is not a plain id (1-64 letters, digits, "_" or "-"), gives no link, and makes no request', async () => {
+    await withStub(AVATAR, async ({ client, site }) => {
+        for (const [what, bad] of BAD_IDS) assertRefused(what, await shareRaw(client, { avatar_id: bad, referral_code: 'friend' }), bad);
+        assert.deepEqual(site.requests, [], 'a refused id never reaches the website');
+        const { tools } = await client.listTools();
+        assert.match(tools.find(t => t.name === 'share_avatar').inputSchema.properties.avatar_id.description, /letters, digits/);
+    });
+});
+
+test('share_avatar accepts a UUID and the other plain ids, and builds the link from exactly that id', async () => {
+    await withServer(async ({ client, site }) => {
+        for (const id of GOOD_IDS) {
+            const json = await share(client, { avatar_id: id });
+            assert.equal(json.avatar_id, id);
+            assert.equal(json.share_url, `${site.url}/embed/${id}`);
+            assert.ok(json.embed_html.includes(`src="${json.share_url}"`));
+        }
+    });
+});
+
+test('an avatar id the website returns for the account is held to the same rule, and nothing is looked up for an empty avatar_id', async () => {
+    await withStub(AVATAR, async ({ client, site }) => {
+        const json = await share(client, {});
+        assert.equal(json.avatar_id, AVATAR);
+        assert.equal(json.share_url, `${site.url}/embed/${AVATAR}`);
+        assert.deepEqual(site.requests, ['GET /api/agent/avatar']);
+    });
+    for (const [what, bad] of [BAD_IDS[0], BAD_IDS[2], BAD_IDS[3]]) {
+        await withStub(bad, async ({ client, site }) => {
+            assertRefused(`${what} from the website`, await shareRaw(client, {}), bad);
+            assert.deepEqual(site.requests, ['GET /api/agent/avatar']);
+        });
+    }
+    // an account with no avatar yet: the website answers without an id (or with a null one) and no link is made
+    for (const none of [undefined, null]) {
+        await withStub(none, async ({ client }) => {
+            const result = await shareRaw(client, {});
+            assert.equal(result.isError, true);
+            assert.match(result.content[0].text, /no avatar found/);
+            assert.doesNotMatch(result.content[0].text, /\/embed\/|<iframe/);
+        });
     }
 });
