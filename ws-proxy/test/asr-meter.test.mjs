@@ -136,9 +136,14 @@ test('a recognition ticket opens /asr only, and /asr takes no other v1 ticket', 
     assert.equal(ticketFitsPath('asr:0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', 'asr'), true);
     assert.equal(ticketFitsPath('asr:anon:' + 'a'.repeat(32), 'asr'), true);
     assert.equal(ticketFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', 'asr'), false, 'an unprefixed v1 ticket');
-    for (const path of ['fish-rest', 'test', 'doubao', 'minimax', 'fish']) {
+    for (const path of ['test', 'doubao', 'minimax']) {
         assert.equal(ticketFitsPath('asr:0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), false, path);
         assert.equal(ticketFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), true, path);
+    }
+    // /fish and /fish-rest take only a "fish:" ticket, so a bare v1 ticket no longer opens them: see fish-ticket-prefix.test.mjs.
+    for (const path of ['fish-rest', 'fish']) {
+        assert.equal(ticketFitsPath('asr:0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), false, path);
+        assert.equal(ticketFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), false, path);
     }
 });
 
