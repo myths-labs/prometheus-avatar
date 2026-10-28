@@ -111,11 +111,18 @@ export function createAsrMeter<T>(o: {
 /** The ticket purpose for recognition: a v1 ticket whose subject starts with this may open /asr and nothing else. */
 export const ASR_TICKET_PREFIX = "asr:";
 
+/** The ticket purpose for Fish TTS: a v1 ticket whose subject starts with this may open /fish and /fish-rest. */
+export const FISH_TICKET_PREFIX = "fish:";
+
 /**
  * A v1 ticket minted for recognition ("asr:" subject) opens /asr only, and /asr accepts no other v1 ticket. Without
  * this any v1 ticket would open every platform path (fish-rest, test, ...) with the same subject.
+ *
+ * /fish and /fish-rest spend our Fish key, so they take only an explicit "fish:" ticket: otherwise any v1 ticket
+ * minted for some new purpose would open that key as a side effect.
  */
 export function ticketFitsPath(sub: string, engineName: string): boolean {
+    if (engineName === "fish" || engineName === "fish-rest") return sub.startsWith(FISH_TICKET_PREFIX);
     return (engineName === "asr") === sub.startsWith(ASR_TICKET_PREFIX);
 }
 
