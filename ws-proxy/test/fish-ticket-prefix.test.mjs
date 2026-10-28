@@ -53,6 +53,13 @@ async function ticket(sub, expMs = Date.now() + 60_000) {
     return `${payload}.${b64url(new Uint8Array(sig))}`;
 }
 
+// Change the FIRST character of the signature. The last base64 character carries two padding bits that decode to the
+// same bytes, so changing only that one leaves the signature valid (about 1 run in 7 failed that way before).
+const forge = (t) => {
+    const [v, exp, sub, sig] = t.split('.');
+    return [v, exp, sub, (sig[0] === 'A' ? 'B' : 'A') + sig.slice(1)].join('.');
+};
+
 const UUID = '0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c';
 const call = (path, query, method = 'GET') => worker.fetch(new Request(`https://relay.test${path}?${query}`, {method, body: method === 'POST' ? '{"text":"hi"}' : undefined}), ENV);
 
@@ -101,7 +108,7 @@ test('/fish: a "fish:" ticket passes the gate; every other v1 ticket gets 403 wr
 
 test('/fish: no ticket, a forged ticket and an expired "fish:" ticket stay rejected', async () => {
     assert.equal((await call('/fish', '')).status, 403);
-    const forged = (await ticket(`fish:${UUID}`)).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'));
+    const forged = forge(await ticket(`fish:${UUID}`));
     const bad = await call('/fish', `ticket=${forged}`);
     assert.equal(bad.status, 403);
     assert.match((await bad.json()).error, /\(bad-signature\)/);
@@ -146,6 +153,56 @@ test('/fish-rest: a caller\'s own key (?token=) needs no ticket and is the key s
     outbound.length = 0;
     assert.equal((await call('/fish-rest', 'token=%20', 'POST')).status, 403);
     assert.equal(outbound.length, 0);
+});
+
+// --- /test/fish: the health probe dials the same Fish upstream with the same platform key ------------------------------
+
+test('/test/fish: a "fish:" ticket runs the probe with the platform key; every other v1 ticket gets 403 wrong-purpose', async () => {
+    outbound.length = 0;
+    const ok = await call('/test/fish', `ticket=${await ticket(`fish:${UUID}`)}`);
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).engine, 'fish');
+    assert.equal(outbound.length, 1);
+    assert.equal(outbound[0].url, 'https://api.fish.audio/v1/tts/live');
+    assert.equal(outbound[0].init.headers.Authorization, `Bearer ${ENV.FISH_AUDIO_API_KEY}`);
+
+    outbound.length = 0;
+    for (const sub of [UUID, `asr:${UUID}`, `doubao:${UUID}`, `test:${UUID}`, `x:${UUID}`, `Fish:${UUID}`]) {
+        const res = await call('/test/fish', `ticket=${await ticket(sub)}`);
+        assert.equal(res.status, 403, sub);
+        assert.equal(res.headers.get('content-type'), 'application/json', sub);
+        assert.deepEqual(await res.json(), {error: 'test: requires a valid ticket (wrong-purpose)'}, sub);
+    }
+    assert.equal(outbound.length, 0, 'a rejected probe must never reach Fish');
+});
+
+test('/test/fish: no ticket, a forged or expired ticket, and a caller\'s ?token= all stay rejected', async () => {
+    outbound.length = 0;
+    assert.equal((await call('/test/fish', '')).status, 403);
+    assert.equal((await call('/test/fish', 'token=caller-own-key')).status, 403, '/test has no BYOK pass');
+    const forged = forge(await ticket(`fish:${UUID}`));
+    const bad = await call('/test/fish', `ticket=${forged}`);
+    assert.equal(bad.status, 403);
+    assert.match((await bad.json()).error, /\(bad-signature\)/);
+    const old = await call('/test/fish', `ticket=${await ticket(`fish:${UUID}`, Date.now() - 1000)}`);
+    assert.equal(old.status, 403);
+    assert.match((await old.json()).error, /\(expired\)/);
+    assert.equal(outbound.length, 0);
+});
+
+test('/test/<other engine> is unchanged: a bare v1 ticket still runs the probe, an asr: ticket still gets 403', async () => {
+    for (const engine of ['doubao', 'volcengine']) {
+        outbound.length = 0;
+        const ok = await call(`/test/${engine}`, `ticket=${await ticket(UUID)}`);
+        assert.equal(ok.status, 200, engine);
+        assert.equal(outbound.length, 1, engine);
+        outbound.length = 0;
+        const res = await call(`/test/${engine}`, `ticket=${await ticket(`asr:${UUID}`)}`);
+        assert.equal(res.status, 403, engine);
+        assert.deepEqual(await res.json(), {error: 'test: requires a valid ticket (wrong-purpose)'}, engine);
+        assert.equal(outbound.length, 0, engine);
+    }
+    assert.equal((await call('/test/nope', `ticket=${await ticket(UUID)}`)).status, 404, 'an unknown engine is still 404');
 });
 
 // --- everything else is unchanged -----------------------------------------------------------------------------
