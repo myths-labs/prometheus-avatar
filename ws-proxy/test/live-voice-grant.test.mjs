@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {
     mintLiveVoiceGrant, verifyLiveVoiceGrant, DEFAULT_LIVE_SPEAKER, OFFICIAL_IRIS_LIVE_SPEAKER, OFFICIAL_IRIS_APP_SHA256,
 } from '../src/live-voice-grant.ts';
@@ -51,4 +53,12 @@ test('the public default speaker still verifies with no asset and no application
 test('a ticket signed with another secret is refused', async () => {
     const { ticket } = await mintLiveVoiceGrant(secret, { ...base, assetId: null, speakerId: OFFICIAL_IRIS_LIVE_SPEAKER, providerAppSha256: OFFICIAL_IRIS_APP_SHA256 }, now);
     assert.equal(await verifyLiveVoiceGrant('another-secret', ticket, now), null);
+});
+
+// live-voice-grant.ts must stay byte-identical with the marketplace's src/lib/liveVoiceGrant.ts
+// (myths-labs/prometheus-marketplace): the marketplace mints what this relay verifies. Changing it
+// means changing both files in the same release and updating this hash in both repositories.
+test('live-voice-grant.ts is the reviewed byte-for-byte copy', () => {
+    const source = readFileSync(new URL('../src/live-voice-grant.ts', import.meta.url));
+    assert.equal(createHash('sha256').update(source).digest('hex'), 'dbf3fd50956b5426480b5927f6052b66aeda4c728e1a911f5d5734fd39c81628');
 });
