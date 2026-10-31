@@ -16,9 +16,10 @@ const between = (start, end) => {
 
 test('every v1 ticket check applies the purpose rule', () => {
     const checks = src.match(/await verifyVoiceTicket\(env\.WS_TICKET_SECRET, [^)]*\)/g) ?? [];
-    // fish-rest, test, the main gate, and the doubao frame guard's public-speaker re-check (which only ever sees doubao).
-    assert.equal(checks.length, 4, `unexpected number of v1 checks: ${checks.length}`);
-    assert.match(src, /ticketFitsPath\(checked\.sub, "fish-rest"\)/);
+    // test, the main gate, and the doubao frame guard's public-speaker re-check (which only ever sees doubao).
+    // The Fish routes are retired (/fish and /fish-rest answer 404), so no check may admit them.
+    assert.equal(checks.length, 3, `unexpected number of v1 checks: ${checks.length}`);
+    assert.doesNotMatch(src, /ticketFitsPath\(checked\.sub, "fish-rest"\)/);
     assert.match(src, /ticketFitsPath\(checked\.sub, "test"\)/);
     assert.match(src, /ticketFitsPath\(checked\.sub, engineName\)/);
 });
