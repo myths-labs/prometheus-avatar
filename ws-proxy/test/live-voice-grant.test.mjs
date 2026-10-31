@@ -55,8 +55,8 @@ test('a ticket signed with another secret is refused', async () => {
     assert.equal(await verifyLiveVoiceGrant('another-secret', ticket, now), null);
 });
 
-// live-voice-grant.ts must stay byte-identical with the marketplace's src/lib/liveVoiceGrant.ts
-// (myths-labs/prometheus-marketplace): the marketplace mints what this relay verifies. Changing it
+// live-voice-grant.ts must stay byte-identical with the marketplace app's src/lib/liveVoiceGrant.ts:
+// the marketplace mints what this relay verifies. Changing it
 // means changing both files in the same release and updating this hash in both repositories.
 test('live-voice-grant.ts is the reviewed byte-for-byte copy', () => {
     const source = readFileSync(new URL('../src/live-voice-grant.ts', import.meta.url));
