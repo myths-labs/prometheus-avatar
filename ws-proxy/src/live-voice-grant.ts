@@ -3,6 +3,14 @@ export const LIVE_VOICE_LEASE_MS = 90_000;
 export const DEFAULT_LIVE_SPEAKER = 'saturn_zh_female_tiexinnvyou_tob';
 const publicSpeakers = new Set([DEFAULT_LIVE_SPEAKER, 'saturn_zh_female_keainvsheng_tob', 'saturn_zh_male_cixingnansang_tob']);
 export function isPublicDoubaoSpeaker(value: string): boolean { return publicSpeakers.has(value); }
+/**
+ * The platform's own Volcengine slot holding the default character Iris's realtime voice (retrained from the brand-film
+ * dry voice). It belongs to no saved voice and no user: a grant may name it only with no asset and only with the
+ * application that holds it, and /api/volcengine-realtime-token mints that grant only for the default character
+ * (src/lib/irisRealtimeVoice.ts). OFFICIAL_IRIS_APP_SHA256 is volcengineApplicationSha256() of that application's id.
+ */
+export const OFFICIAL_IRIS_LIVE_SPEAKER = 'S_TTld52RW1';
+export const OFFICIAL_IRIS_APP_SHA256 = '3d6b540855c2c3586cfdb9c705c96d7724f39270439b0330eb6d71ab8dd4be6f';
 export function isLiveDoubaoSpeaker(value: string): boolean { return isPublicDoubaoSpeaker(value) || /^S_[A-Za-z0-9_]{1,126}$/.test(value); }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export interface LiveVoiceGrant {
@@ -30,7 +38,9 @@ function validGrant(value: unknown, now: number): value is LiveVoiceGrant {
         && g.aud === 'doubao-live' && typeof g.sub === 'string' && uuid.test(g.sub)
         && (g.assetId === null || typeof g.assetId === 'string' && uuid.test(g.assetId))
         && typeof g.speakerId === 'string' && isLiveDoubaoSpeaker(g.speakerId)
-        && (g.assetId !== null || isPublicDoubaoSpeaker(g.speakerId))
+        && (g.speakerId === OFFICIAL_IRIS_LIVE_SPEAKER
+            ? g.assetId === null && g.providerAppSha256 === OFFICIAL_IRIS_APP_SHA256
+            : g.assetId !== null || isPublicDoubaoSpeaker(g.speakerId))
         && typeof g.model === 'string' && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(g.model)
         && (!g.speakerId.startsWith('S_') || g.model === '2.2.0.0')
         && (g.speakerId.startsWith('S_') ? typeof g.providerAppSha256==='string'&&/^[a-f0-9]{64}$/.test(g.providerAppSha256) : g.providerAppSha256===null)
