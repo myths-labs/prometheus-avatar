@@ -1,6 +1,6 @@
 {
     "name": "@prometheusavatar/mcp-server",
-    "version": "0.3.6",
+    "version": "0.3.7",
     "description": "MCP Server for Prometheus Avatar — Give any AI agent an embodied avatar + AAA image generation via Model Context Protocol, plus workspace tools so an agent's output lands in the user's Prometheus panes. 17 tools.",
     "type": "module",
     "main": "./dist/index.js",
