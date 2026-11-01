@@ -56,6 +56,21 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
   no longer suggest `?speak=` (the embed page is dropping it). To greet on load, call
   `embed.speak(...)`; it is held until the avatar has loaded.
 - The API reference in `packages/sdk/docs` is regenerated from the current sources.
+- **mcp-server** (0.3.7): share links no longer carry a message for the page to speak. `share_avatar` has no `message`
+  parameter any more and builds the link from the avatar id and the referral code (`ref`) only. A caller that still
+  passes `message` is not refused, the value is ignored. The result now says that opening the link only shows the
+  avatar, and that a page embedding it can make it speak by posting `{ type: 'prometheus:speak', text }` to the iframe
+  from its own code, after the iframe has posted `{ type: 'prometheus:loaded' }`; a speak message sent earlier is not
+  kept. The `speak` tool's result says the same.
+  Why: text that rides in a link should not be spoken because someone opened the link, so links should not ask the
+  page to speak.
+- **mcp-server** (0.3.7): `share_avatar` refuses an `avatar_id` that is not a plain id (1-64 letters, digits, `_` or
+  `-`), whether the caller passed it or the account lookup returned it: the answer is an error and no link or embed
+  code is made. An empty `avatar_id` is refused instead of being treated as left out.
+- **mcp-server** (0.3.7): the `speak` tool's description and README row no longer say the avatar plays the audio
+  with lip-sync animation. The tool returns the audio to your client; it does not make an open embed speak.
+- **demo**, **core**, **mcp-server**, **openclaw-plugin**: the contact on the demo legal pages and the package `author`
+  field now use the company role address / name (`support@mythslabs.ai`, `Myths Labs`).
 
 ### Agent API contract (marketplace)
 - `POST /api/marketplace/deploy`, category `personas`: the prompt comes from `persona_config` or
@@ -67,6 +82,11 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
 - **core**, **openclaw-plugin**: the published packages now include the MIT `LICENSE` file (core 0.11.4 and
   openclaw-plugin 0.10.2 went out without it), and a test in each package pins what it publishes. Takes effect with
   the next release of each package.
+
+### Notes for the release
+- mcp-server 0.3.7: links made by 0.3.6 and earlier may still carry the speak query parameter; this release does not
+  change links that already exist.
+- No ordering dependency on `core` or `openclaw-plugin`.
 
 ---
 
