@@ -22,6 +22,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   code is made. An empty `avatar_id` is refused instead of being treated as left out.
 - **mcp-server** (0.3.7): the `speak` tool's description and README row no longer say the avatar plays the audio
   with lip-sync animation. The tool returns the audio to your client; it does not make an open embed speak.
+- **demo**, **core**, **mcp-server**, **openclaw-plugin**: the contact on the demo legal pages and the package `author`
+  field now use the company role address / name (`support@mythslabs.ai`, `Myths Labs`).
 
 ### Fixed
 - **core**, **openclaw-plugin**: the published packages now include the MIT `LICENSE` file (core 0.11.4 and
