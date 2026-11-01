@@ -7,11 +7,19 @@
  * Installation: openclaw plugins install prometheus-avatar
  */
 
-import { createAvatar, PrometheusAvatar, AssetCreator } from '@prometheusavatar/core';
-import type { PrometheusConfig, AssetDeployConfig } from '@prometheusavatar/core';
+import { createAvatar, PrometheusAvatar, AssetCreator, EmotionAnalyzer, connectEmbed } from '@prometheusavatar/core';
+import type { PrometheusConfig, AssetDeployConfig, EmbedBridge, EmbedFallbackReason, EmbedHostWindowLike } from '@prometheusavatar/core';
+
+/** Where Prometheus is hosted: the creator API and the hosted avatar pages. */
+const PROMETHEUS_ORIGIN = 'https://prometheus.mythslabs.ai';
+
+/** What a hosted avatar id looks like. Anything else is refused, so no path or query can be added to the page address. */
+const HOSTED_AVATAR_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 interface OpenClawPluginConfig {
+    /** Id of a hosted avatar made with a Prometheus agent key. Shown when `apiKey` is set too and `modelUrl` is not. */
     avatarId?: string;
+    /** URL of a 2D model file (.model3.json) to draw in the page. Wins over `avatarId`. */
     modelUrl?: string;
     /** Prometheus agent API key (pak_...). Required for marketplace deploys — the live
      *  gate rejects unauthenticated writes. Falls back to PROMETHEUS_API_KEY env var. */
@@ -44,17 +52,19 @@ export async function activate(context: {
 }) {
     const { config, container, on, emit } = context;
 
+    // Resolve the agent API key: plugin config first, then env var (Node only).
+    // AssetCreator attaches it as `Authorization: Bearer <key>` — without it the
+    // live marketplace deploy gate returns 401. It also tells the plugin whether this
+    // is a Prometheus agent setup (see the hosted avatar below).
+    const configuredApiKey = config.apiKey
+        ?? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PROMETHEUS_API_KEY;
+
     // ═══ Register Creator Tools (headless-safe) ═══
     // Registered BEFORE any rendering concern: a Node/headless OpenClaw agent
     // has no DOM container, and the old order (container guard first) silently
     // dropped all creator tools in exactly the environment agents run in.
     if (context.registerTool) {
-        // Resolve the agent API key: plugin config first, then env var (Node only).
-        // AssetCreator attaches it as `Authorization: Bearer <key>` — without it the
-        // live marketplace deploy gate returns 401.
-        const configuredApiKey = config.apiKey
-            ?? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PROMETHEUS_API_KEY;
-        const creator = new AssetCreator("https://prometheus.mythslabs.ai", configuredApiKey);
+        const creator = new AssetCreator(PROMETHEUS_ORIGIN, configuredApiKey);
         // Capability probe: cores older than 0.11.3 have a one-arg constructor, so
         // plain JS silently drops the key argument and every deploy 401s with a
         // misleading "missing key" message even though the user configured one.
@@ -63,7 +73,7 @@ export async function activate(context: {
 
         context.registerTool(
             "prometheus_generate_thumbnail",
-            "Generate an eye-catching thumbnail image for a marketplace asset (Live2D, Voice, Backdrop).",
+            "Generate an eye-catching thumbnail image for a marketplace asset (character, voice, motion, persona, backdrop).",
             {
                 type: "object",
                 properties: {
@@ -81,14 +91,17 @@ export async function activate(context: {
 
         context.registerTool(
             "prometheus_deploy_asset",
-            "Instantly deploy a new asset to the Prometheus Marketplace. Use this when you have created a new skin, voice, scene, motion, expression, accessory, effect, or persona.",
+            "Instantly deploy a new asset to the Prometheus Marketplace. Use this when you have created a new skin, voice, scene, motion, expression, accessory, effect, or persona. A persona needs its prompt in persona_config (or a persona JSON file as fileData); the public description is never the prompt. A motion needs source (original or licensed_resale) and body_type; library clips without resale rights cannot be listed.",
             {
                 type: "object",
                 properties: {
                     name: { type: "string" },
                     category: { type: "string", enum: ['skins', 'voices', 'effects', 'motions', 'accessories', 'scenes', 'personas', 'expressions'] },
-                    description: { type: "string" },
+                    description: { type: "string", description: "Public listing text. For a persona it is shown to buyers and is not the prompt." },
                     price: { type: "number" },
+                    persona_config: { type: "object", description: "Personas only: the private persona config, e.g. { systemPrompt, greeting, traits }. Required unless fileData is a persona JSON file that carries it." },
+                    source: { type: "string", enum: ["original", "licensed_resale"], description: "Motions only (required): original = you made it; licensed_resale = your licence allows reselling it on its own. Library clips without resale rights cannot be listed." },
+                    body_type: { type: "string", description: "Motions only: the body type the motion is made for, e.g. humanoid." },
                     fileData: { type: "string", description: "URL or Base64 string of the actual asset file" },
                     thumbnailData: { type: "string", description: "URL or Base64 string of the thumbnail (use generate_thumbnail first)" },
                     tags: { type: "array", items: { type: "string" } }
@@ -116,8 +129,11 @@ export async function activate(context: {
                     category: args.category as any,
                     description: args.description,
                     price: args.price,
-                    tags: args.tags
-                };
+                    tags: args.tags,
+                    ...(args.persona_config && typeof args.persona_config === 'object' ? { persona_config: args.persona_config } : {}),
+                    ...(typeof args.source === 'string' ? { source: args.source } : {}),
+                    ...(typeof args.body_type === 'string' ? { body_type: args.body_type } : {}),
+                } as AssetDeployConfig;
                 return await creator.deployAsset(config, args.fileData, args.thumbnailData);
             }
         );
@@ -191,19 +207,43 @@ export async function activate(context: {
         );
     }
 
-
-    // Resolve model URL. avatarId → model-URL resolution has no live endpoint
-    // (the old marketplace.prometheus-avatar.dev resolver never shipped, and no
-    // /api/models route exists in production), so don't fabricate a URL that can
-    // only 404 — warn and fall back to the default model instead.
-    if (!config.modelUrl && config.avatarId) {
-        console.warn('[Prometheus Plugin] avatarId-based model resolution is not available yet — pass modelUrl (a .model3.json URL) instead. Using the default model.');
-    }
-    const modelUrl = config.modelUrl || '/models/haru/haru_greeter_t03.model3.json'; // default
-
     if (!container) {
         console.warn('[Prometheus Plugin] No container provided. Avatar will not render; creator tools remain available.');
         return;
+    }
+
+    // The plugin draws the 2D model file that `modelUrl` points at. It ships no model of its own: the sample it used to
+    // fall back to was never part of the package, so that path could only 404. Without `modelUrl`, an agent setup (a
+    // Prometheus agent key plus the id of a hosted avatar) shows that hosted avatar in a frame instead. Anything else:
+    // say what to set and leave the creator tools running.
+    const modelUrl = typeof config.modelUrl === 'string' ? config.modelUrl.trim() : '';
+    const avatarId = typeof config.avatarId === 'string' ? config.avatarId.trim() : '';
+    const hasAgentKey = typeof configuredApiKey === 'string' && configuredApiKey.trim().length > 0;
+
+    if (!modelUrl) {
+        if (avatarId && hasAgentKey) {
+            return showHostedAvatar({ container, avatarId, config, on, emit });
+        }
+        if (avatarId) {
+            console.error(
+                '[Prometheus Plugin] No avatar is shown: "avatarId" needs a Prometheus agent key to show the hosted avatar. '
+                + 'Set "apiKey" (pak_...) in the plugin config (openclaw.config.json) or the PROMETHEUS_API_KEY environment variable, '
+                + 'or set "modelUrl" to the URL of a 2D model file (.model3.json). '
+                + 'The creator tools keep working without it.'
+            );
+            return;
+        }
+        console.error(
+            '[Prometheus Plugin] No avatar is shown because "modelUrl" is not set. '
+            + 'Set "modelUrl" in the plugin config (openclaw.config.json) to the URL of a 2D model file (.model3.json), '
+            + 'for example "modelUrl": "https://your-cdn.example/models/your-model.model3.json". '
+            + 'To show a hosted avatar instead, set "avatarId" (the id of an avatar made with your Prometheus agent key) together with "apiKey". '
+            + 'The creator tools keep working without it.'
+        );
+        return;
+    }
+    if (avatarId && hasAgentKey) {
+        console.log('[Prometheus Plugin] "modelUrl" is set, so the 2D model file is drawn and "avatarId" is not used.');
     }
 
     // Create avatar instance
@@ -258,5 +298,90 @@ export async function activate(context: {
     // Return cleanup function
     return () => {
         avatar.destroy();
+    };
+}
+
+/**
+ * Show a hosted avatar: frame its page and drive its expression through core's embed bridge.
+ *
+ * What is sent to the page is expression only (`prometheus:emotion`). The plugin never makes the hosted avatar speak:
+ * the page address carries no query string, so no greeting is requested at load, and no speak message is ever sent.
+ * The agent key is never put into the page address or any message.
+ */
+function showHostedAvatar(args: {
+    container: HTMLElement;
+    avatarId: string;
+    config: OpenClawPluginConfig;
+    on: (event: string, handler: (e: OpenClawEvent) => void) => void;
+    emit: (event: string, data: unknown) => void;
+}): (() => void) | undefined {
+    const { container, avatarId, config, on, emit } = args;
+
+    if (!HOSTED_AVATAR_ID.test(avatarId)) {
+        console.error(
+            '[Prometheus Plugin] No avatar is shown: "avatarId" must be the id of a hosted avatar '
+            + '(letters, digits, "-" and "_" only, up to 64 characters). '
+            + 'The creator tools keep working without it.'
+        );
+        return undefined;
+    }
+
+    const doc = container.ownerDocument as Document | undefined;
+    if (!doc || typeof doc.createElement !== 'function' || typeof container.appendChild !== 'function') {
+        console.error('[Prometheus Plugin] No avatar is shown: the container cannot hold a frame for the hosted avatar. The creator tools keep working.');
+        return undefined;
+    }
+
+    const frame = doc.createElement('iframe');
+    frame.title = 'Prometheus avatar';
+    frame.style.width = '100%';
+    frame.style.height = '100%';
+    frame.style.border = '0';
+    frame.style.background = 'transparent';
+    frame.src = `${PROMETHEUS_ORIGIN}/embed/${avatarId}`;
+    container.appendChild(frame);
+
+    let embed: EmbedBridge;
+    try {
+        embed = connectEmbed(frame, {
+            origin: PROMETHEUS_ORIGIN,
+            avatarId,
+            hostWindow: (doc.defaultView ?? undefined) as unknown as EmbedHostWindowLike | undefined,
+            onLoaded: () => emit('avatar:ready', { avatarId }),
+            onFallback: (reason: EmbedFallbackReason) => {
+                console.warn(
+                    reason === 'ready-timeout'
+                        ? '[Prometheus Plugin] The hosted avatar page did not report that it is listening; sending the queued expression anyway. Check the network connection and that "avatarId" is correct.'
+                        : '[Prometheus Plugin] The hosted avatar page did not report that the avatar loaded. Check that "avatarId" is the id of an avatar made with your Prometheus agent key.'
+                );
+            },
+        });
+    } catch (error) {
+        frame.remove();
+        console.error('[Prometheus Plugin] Failed to connect to the hosted avatar:', error);
+        return undefined;
+    }
+
+    const analyzer = new EmotionAnalyzer();
+
+    on('agent:message', (event: OpenClawEvent) => {
+        const text = event.data?.text;
+        if (!text) return;
+        if (config.enableEmotion !== false) {
+            embed.setEmotion(analyzer.analyze(text).emotion);
+        }
+    });
+
+    on('agent:thinking', () => {
+        embed.setEmotion('thinking');
+    });
+
+    on('agent:error', () => {
+        embed.setEmotion('surprised');
+    });
+
+    return () => {
+        embed.destroy();
+        frame.remove();
     };
 }

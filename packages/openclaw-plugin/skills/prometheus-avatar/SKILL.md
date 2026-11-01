@@ -1,6 +1,6 @@
 ---
 name: prometheus-avatar
-description: Render a complete Prometheus digital character (2.5D / 3D · Forge-generated with rig + skin + voice + expressions + motion + personality) inside the agent's UI · plus generate AAA marketplace skin previews via the Prometheus image engine.
+description: Show an avatar inside the agent's UI — a 2D model file (.model3.json, set as modelUrl) with TTS, lip-sync and emotion, or a hosted avatar (apiKey + avatarId) with emotion — plus generate AAA marketplace skin previews via the Prometheus image engine and deploy assets to the marketplace.
 ---
 
 # Prometheus Avatar
@@ -12,24 +12,24 @@ This skill ships with `@prometheusavatar/openclaw-plugin`. It bridges OpenClaw a
 Each Marketplace bundle is a complete digital body assembled by **Forge** — the Prometheus generation pipeline — combining 6 alive-feel layers:
 
 1. **Skeleton (rig)** — bone hierarchy for animation
-2. **Skin (texture)** — vibrant 2.5D / 3D surface
-3. **Voice** — cloned or preset TTS with audio-driven lipsync
+2. **Skin (texture)** — vibrant surface
+3. **Voice** — cloned or preset TTS
 4. **Expressions** — emotion reactions (happy / sad / thinking / surprised etc.)
 5. **Motion** — animation library (idle sway, gestures, full-body motions)
 6. **Personality** — chat tone and response style
 
 Browse bundles at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-The plugin renders the character inside the agent's UI and connects it to the agent's event stream. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus 3 marketplace creator tools.
+The plugin draws one 2D model file (`.model3.json`, set as `modelUrl` in the plugin config) inside the agent's UI and connects it to the agent's event stream. It ships no model of its own and cannot load a Marketplace bundle by ID. Without `modelUrl` it shows nothing and logs how to set it, and the 3 creator tools keep working. The exception: with a Prometheus agent key and the id of one of your hosted avatars (`apiKey` + `avatarId`, no `modelUrl`) it shows that hosted avatar and drives its expression; it never makes the hosted avatar speak. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus 3 marketplace creator tools.
 
 ## When to use
 
 Use this skill when the user asks for any of:
 
-- **A visible digital character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character")
-- **Real-time TTS with audio-driven lipsync** (not just plain audio)
+- **A visible 2D character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character") — needs a 2D model file configured as `modelUrl`, or a hosted avatar configured with `apiKey` + `avatarId`
+- **Text-to-speech with mouth movement** (not just plain audio): the viewer's browser voice speaks, and lip sync is estimated from the text
 - **Emotion / mood reflection** on the character (happy / sad / thinking / surprised)
-- **A cloned or preset voice** for the agent — reference a Prometheus Marketplace voice ID
+- **A different voice** for the agent — set `ttsVoice` to the name of a voice installed in the viewer's browser. This plugin cannot play cloned or Marketplace voices yet
 - **Generating an AAA-quality skin preview card** (Genshin Impact / Overwatch / WoW shop tier) for a marketplace listing or pitch deck
 - **Deploying a generated asset** (voice / skin / motion / personality bundle) to the Prometheus Marketplace catalog
 
@@ -95,8 +95,7 @@ Set via `openclaw.config.json`:
 {
   "plugins": {
     "prometheus-avatar": {
-      "avatarId": "<marketplace-bundle-id>",
-      "ttsVoice": "<marketplace-voice-id>",
+      "modelUrl": "https://your-cdn.example/models/your-model.model3.json",
       "enableLipSync": true,
       "enableEmotion": true
     }
@@ -104,9 +103,9 @@ Set via `openclaw.config.json`:
 }
 ```
 
-Browse character bundles + voice IDs at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
+`modelUrl` draws your own 2D model file and wins over `avatarId`. To show a hosted avatar instead, leave `modelUrl` out and set `apiKey` (a `pak_...` agent key) and `avatarId` (the id of an avatar made with that key; a Marketplace listing ID is not one). Setting only `avatarId` shows nothing. Browse the Marketplace at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`) which routes to the Prometheus voice backend. No TTS API key needed — voices live on the Prometheus Marketplace and are referenced via `ttsVoice` (Marketplace voice ID).
+**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`), which uses the browser's built-in speech synthesis by default: no TTS API key and no request. The optional `ttsVoice` picks a voice installed in the viewer's browser by name; an unknown name is ignored. Marketplace and cloned voices are not played by this plugin yet.
 
 **BYOK for image generation** (zero-marginal-cost path):
 - `OPENAI_API_KEY` env var or `apiKey` argument → unlocks BYOK image generation for `prometheus_generate_image_pro` (bypasses platform billing).
