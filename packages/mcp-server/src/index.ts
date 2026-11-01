@@ -52,6 +52,8 @@ import { registerWorkspaceTools } from "./workspace-tools.js";
 const PKG_VERSION: string = createRequire(import.meta.url)("../package.json").version;
 
 const API_BASE = process.env.PROMETHEUS_API_URL || "https://prometheus.mythslabs.ai";
+// What an avatar id may look like when it is put into a link or an HTML attribute.
+const AVATAR_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const API_KEY = process.env.PROMETHEUS_API_KEY || "";
 
 // ═══════════════════════════════════════════════════════════════
@@ -558,16 +560,15 @@ registerTool(
     "share_avatar",
     "Generate a shareable link and iframe embed code for an avatar. The link opens the interactive avatar page.",
     {
-        avatar_id: z.string().optional().describe("Avatar ID from create_avatar. If omitted, uses the account's current avatar (requires PROMETHEUS_API_KEY)."),
-        message: z.string().optional().describe("Optional welcome message to deliver to iframe embedders via window.postMessage."),
+        avatar_id: z.string().optional().describe("Avatar ID from create_avatar: 1-64 letters, digits, \"_\" or \"-\". If omitted, uses the account's current avatar (requires PROMETHEUS_API_KEY)."),
         referral_code: z.string().optional().describe("Referral code appended to the share link for tracking."),
     },
-    async ({ avatar_id, message, referral_code }) => {
+    async ({ avatar_id, referral_code }) => {
         try {
             let avatarId = avatar_id;
 
-            // Resolve the account's current avatar if no id was supplied.
-            if (!avatarId) {
+            // Resolve the account's current avatar if no id was supplied. An empty string is not "no id": it is refused below.
+            if (avatarId === undefined) {
                 if (!API_KEY) {
                     return {
                         content: [{
@@ -585,15 +586,25 @@ registerTool(
                 avatarId = current.avatarId;
             }
 
-            if (!avatarId) {
+            if (typeof avatarId !== "string") {
                 return {
                     content: [{ type: "text" as const, text: "Error: no avatar found. Create one first with create_avatar." }],
                     isError: true,
                 };
             }
 
+            // The id becomes a path segment of the link and the src of an HTML attribute, so it must be a plain id, whether the
+            // caller passed it or the website returned it. The refused value is not echoed back.
+            if (!AVATAR_ID_PATTERN.test(avatarId)) {
+                return {
+                    content: [{ type: "text" as const, text: "Error: avatar_id must be 1-64 characters, only letters, digits, \"_\" or \"-\" (use the id create_avatar returned, or leave avatar_id out to use the account's current avatar). No link was made." }],
+                    isError: true,
+                };
+            }
+
+            // The link carries the referral code and nothing else. Text in a link must not be something the embed
+            // page speaks when someone opens it, so share_avatar takes no message and sets no speak parameter.
             const qp = new URLSearchParams();
-            if (message) qp.set("speak", message);
             if (referral_code) qp.set("ref", referral_code);
             const query = qp.toString() ? `?${qp.toString()}` : "";
             const shareUrl = `${API_BASE}/embed/${avatarId}${query}`;
@@ -608,9 +619,7 @@ registerTool(
                         share_url: shareUrl,
                         embed_url: shareUrl,
                         embed_html: embedHtml,
-                        instructions: message
-                            ? "Share share_url — opening it renders the avatar and it auto-speaks your message. Or embed embed_html in any webpage."
-                            : "Share share_url (renders the interactive avatar), or embed embed_html in any webpage.",
+                        instructions: "Share share_url (renders the interactive avatar), or embed embed_html in any webpage. Opening the link only shows the avatar; it does not speak by itself. A page that embeds it can make the avatar speak by posting { type: 'prometheus:speak', text } to the iframe from its own code, after the iframe has posted { type: 'prometheus:loaded' }; a speak message sent earlier is not kept.",
                     }, null, 2),
                 }],
             };
@@ -630,7 +639,7 @@ registerTool(
 
 registerTool(
     "speak",
-    "Make the avatar speak text aloud. The text is synthesized to speech and played with lip-sync animation. Supports emotion detection.",
+    "Synthesize text to speech in the avatar's voice and return the audio (base64 WAV) for your client to play. It does not make an open embed speak; for that, post prometheus:speak to the embed iframe after it has posted prometheus:loaded. Supports emotion detection.",
     {
         text: z.string().describe("Text for the avatar to speak aloud"),
         voice: z.string().optional().describe("Voice override: Kore (warm female), Puck (energetic male), Charon (deep male), Zephyr (neutral)"),
@@ -672,7 +681,7 @@ registerTool(
                         audio_generated: !!result.audio,
                         audio_format: result.mimeType || "audio/wav",
                         audio_bytes: audioBytes,
-                        instructions: "Speech audio (base64 WAV) was generated. Play it in your client, or — to see an avatar lip-sync it in a browser — open the avatar's embed URL and post a { type: 'prometheus:speak', text } message to the iframe from the parent window.",
+                        instructions: "Speech audio (base64 WAV) was generated. Play it in your client, or — to see an avatar lip-sync it in a browser — open the avatar's embed URL and, from the parent window, post a { type: 'prometheus:speak', text } message to the iframe after the iframe has posted { type: 'prometheus:loaded' }.",
                     }, null, 2),
                 }],
             };

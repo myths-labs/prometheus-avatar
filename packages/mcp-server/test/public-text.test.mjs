@@ -25,12 +25,23 @@ test('the README does not say the visited-pages (browse) category is missing fro
     assert.match(readme, /2026-10-19[^\n]*上线|上线[^\n]*2026-10-19/, 'Chinese: says since when it is live');
 });
 
-test('the mcp-server 0.3.6 changelog entry names no private pull request, internal ticket or website migration file', () => {
+/** The text of the changelog section whose heading starts with `heading`, up to the next rule line. */
+function changelogSection(changelog, heading) {
+    const start = changelog.indexOf(`\n${heading}`);
+    assert.ok(start >= 0, `the changelog has a section "${heading}"`);
+    const end = changelog.indexOf('\n---', start + 1);
+    return changelog.slice(start, end < 0 ? undefined : end);
+}
+const PRIVATE_REFERENCE = /PR #\d+|#5\d\d\b|K\d+[a-z]?\b|\d{14}_[a-z_]+\.sql/;
+
+test('the changelog text of mcp-server 0.3.6 and of the release that is not published yet (0.3.7) names no private pull request, internal ticket or website migration file', () => {
     const changelog = readFileSync(join(PACKAGE, '..', '..', 'CHANGELOG.md'), 'utf8');
-    const start = changelog.indexOf('mcp-server 0.3.6');
-    assert.ok(start > 0, 'the entry exists');
-    const entry = changelog.slice(start, changelog.indexOf('\n---', start));
-    assert.doesNotMatch(entry, /PR #\d+|#5\d\d\b|K\d+[a-z]?\b|\d{14}_[a-z_]+\.sql/);
+    const sections = { 'mcp-server 0.3.6': changelogSection(changelog, '## [mcp-server 0.3.6]'), 'Unreleased': changelogSection(changelog, '## [Unreleased]') };
+    assert.match(sections.Unreleased, /\*\*mcp-server\*\* \(0\.3\.7\)/, 'the 0.3.7 entry is inside the section that is scanned');
+    for (const [name, text] of Object.entries(sections)) {
+        const found = PRIVATE_REFERENCE.exec(text);
+        assert.equal(found, null, `${name}: "${found?.[0]}" near "${found ? text.slice(Math.max(0, found.index - 40), found.index + 40).replace(/\s+/g, ' ') : ''}"`);
+    }
 });
 
 test('wherever the key page\'s button is named, both of its labels are: "Generate key" (no key yet) and "Rotate key" (once the account has one)', () => {
@@ -46,4 +57,19 @@ test('the README says the https-only rule for PROMETHEUS_API_URL belongs to the 
     assert.equal(rows.length, 2, 'one row in English, one in Chinese');
     assert.match(rows[0], /workspace tools/);
     assert.match(rows[1], /工作区工具/);
+});
+
+// POST /api/agent/speak answers audio to the caller and does not make an open embed speak (the website's llms.txt says
+// the same). The tool's description and its README row must not promise that the avatar plays it with lip-sync.
+test('the speak tool says it returns audio to the caller and does not promise lip-sync playback', () => {
+    const source = read('src/index.ts');
+    const description = source.match(/registerTool\(\s*"speak",\s*"([^"]+)"/)?.[1];
+    assert.ok(description, 'the speak tool description was not found');
+    assert.doesNotMatch(description, /played with lip-sync|lip-sync animation/i, 'tool description');
+    assert.match(description, /returns? the audio/i, 'tool description says the audio comes back to the caller');
+    assert.match(description, /does not make an open embed speak/i, 'tool description says the embed is not driven');
+    const row = read('README.md').split('\n').find(line => line.startsWith('| `speak` |'));
+    assert.ok(row, 'README has a speak row');
+    assert.doesNotMatch(row, /lip-sync animation/i, 'README speak row');
+    assert.match(row, /audio/i, 'README speak row says it returns audio');
 });
