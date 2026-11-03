@@ -455,7 +455,8 @@ export default {
             {
                 const checked = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
                 // A recognition ticket never opens this platform health probe, whichever engine it names.
-                const verdict = checked.valid && !ticketFitsPath(checked.sub, "test") ? { valid: false as const, reason: "wrong-purpose" } : checked;
+                // /test/fish dials the platform Fish key, so it takes the same "fish:" ticket as /fish.
+                const verdict = checked.valid && !ticketFitsPath(checked.sub, testEngine === "fish" ? "fish" : "test") ? { valid: false as const, reason: "wrong-purpose" } : checked;
                 if (!verdict.valid) {
                     return new Response(JSON.stringify({
                         error: `test: requires a valid ticket (${verdict.reason})`,

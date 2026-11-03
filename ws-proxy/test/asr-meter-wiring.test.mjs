@@ -19,7 +19,8 @@ test('every v1 ticket check applies the purpose rule', () => {
     // fish-rest, test, the main gate, and the doubao frame guard's public-speaker re-check (which only ever sees doubao).
     assert.equal(checks.length, 4, `unexpected number of v1 checks: ${checks.length}`);
     assert.match(src, /ticketFitsPath\(checked\.sub, "fish-rest"\)/);
-    assert.match(src, /ticketFitsPath\(checked\.sub, "test"\)/);
+    // /test/fish dials the platform Fish key, so it is held to the /fish ticket; every other /test engine keeps the "test" rule.
+    assert.match(src, /ticketFitsPath\(checked\.sub, testEngine === "fish" \? "fish" : "test"\)/);
     assert.match(src, /ticketFitsPath\(checked\.sub, engineName\)/);
 });
 
