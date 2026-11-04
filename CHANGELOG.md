@@ -71,8 +71,17 @@ mcp-server is not part of this release: 0.3.6 is already out and keeps its own n
   with lip-sync animation. The tool returns the audio to your client; it does not make an open embed speak.
 - **demo**, **core**, **mcp-server**, **openclaw-plugin**: the contact on the demo legal pages and the package `author`
   field now use the company role address / name (`support@mythslabs.ai`, `Myths Labs`).
+- **core**, **mcp-server** (0.3.7), **openclaw-plugin**: the image tools no longer offer reference pictures, because the
+  service no longer accepts one with an image request. In `AssetCreator.createImage`, `referenceImages` is typed `never`
+  and its README row is gone (a JavaScript caller that still sends one gets the service's HTTP 400, not a silent drop);
+  the `generate_image_pro` tool has no `reference_images` parameter; `prometheus_generate_image_pro` has no
+  `referenceImages` parameter. Describe the character in the prompt. Takes effect with the next release of each package.
 
 ### Agent API contract (marketplace)
+- `POST /api/creator/generate-image-pro` and `POST /api/creator/generate-image` take no reference picture: a value under
+  `referenceImages`, `referenceImage`, `reference_images`, `image`, `images` or `init_image` answers HTTP 400
+  `REFERENCE_IMAGE_NOT_ACCEPTED` before anything is reserved or charged. An empty value (`null`, `""`, `[]`) is accepted;
+  other unknown fields are ignored.
 - `POST /api/marketplace/deploy`, category `personas`: the prompt comes from `persona_config` or
   a persona file; the public description is never the prompt.
 - Motions need `source` (`original` | `licensed_resale`); library clips without resale rights

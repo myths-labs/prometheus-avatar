@@ -428,12 +428,11 @@ registerTool(
         size: z.enum(["1024x1024", "1024x1536", "1536x1024", "auto"]).optional().describe("Output dimensions. Default: 1024x1024. Use 1024x1536 for vertical XHS / 9:16 social, 1536x1024 for X / LinkedIn / 16:9."),
         quality: z.enum(["low", "medium", "high", "auto"]).optional().describe("Quality tier — affects cost ($0.02 low → $0.07-0.19 high). Default: 'high'."),
         numVariants: z.number().min(1).max(4).optional().describe("Variants 1-4. Default: 1."),
-        reference_images: z.array(z.string()).optional().describe("Reference image URLs (data URL or https://) for character consistency chain. e.g. pass slide 1 as ref when generating slide 2."),
         provider: z.enum(["openai", "gemini", "gemini-flash"]).optional().describe("Override provider. Default: server picks per task."),
         api_key: z.string().optional().describe("BYOK — your own image-provider API key. Bypasses platform billing."),
         upload: z.boolean().optional().describe("Upload to Supabase Storage and return publicUrl. Default: false (return data URL only)."),
     },
-    async ({ prompt, style, task, size, quality, numVariants, reference_images, provider, api_key, upload }) => {
+    async ({ prompt, style, task, size, quality, numVariants, provider, api_key, upload }) => {
         try {
             const result = await apiCall("/api/creator/generate-image-pro", "POST", {
                 prompt,
@@ -442,7 +441,6 @@ registerTool(
                 size: size || "1024x1024",
                 quality: quality || "high",
                 numVariants: numVariants || 1,
-                referenceImages: reference_images,
                 provider,
                 apiKey: api_key,
                 upload: upload ?? false,

@@ -173,11 +173,6 @@ export async function activate(context: {
                         type: "number",
                         description: "1-4 variants. Default 1."
                     },
-                    referenceImages: {
-                        type: "array",
-                        items: { type: "string" },
-                        description: "Data URLs or HTTPS URLs · character consistency chain across multiple calls."
-                    },
                     apiKey: {
                         type: "string",
                         description: "BYOK — your own image-provider API key. Bypasses platform billing (zero-marginal-cost flow)."
@@ -198,7 +193,6 @@ export async function activate(context: {
                     size: args.size,
                     quality: args.quality,
                     numVariants: args.numVariants,
-                    referenceImages: args.referenceImages,
                     apiKey: args.apiKey,
                     upload: args.upload,
                 });

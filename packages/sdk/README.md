@@ -187,10 +187,11 @@ console.log(skin.publicUrl, skin.platformCostUsd);
 | `size` | `'1024x1024'\|'1024x1536'\|'1536x1024'\|'auto'` | `'1024x1024'` | `1024x1536` for vertical (XHS / 9:16). `1536x1024` for landscape (X / LinkedIn / 16:9). |
 | `quality` | `'low'\|'medium'\|'high'\|'auto'` | `'high'` | $0.02 low → $0.07-0.19 high (per image). |
 | `numVariants` | `number` | `1` | 1-4 variants. |
-| `referenceImages` | `string[]` | none | Data URLs or HTTPS URLs · character consistency chain across multiple calls. |
 | `provider` | `'openai'\|'gemini'\|'gemini-flash'` | auto | Override · default routes per `taskType`. |
 | `apiKey` | `string` | env | BYOK — your own image-provider key · platform billing skipped. |
 | `upload` | `boolean` | `false` | Upload to Supabase Storage and return `publicUrl`. |
+
+Reference pictures are not accepted: a picture sent with an image request (`referenceImages` or any other image field) is refused with HTTP 400 `REFERENCE_IMAGE_NOT_ACCEPTED` and nothing is charged. Describe the character in `prompt`.
 
 Returns `CreateImageResult`:
 ```ts
