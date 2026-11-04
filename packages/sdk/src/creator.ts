@@ -62,8 +62,8 @@ export interface CreateImageOptions {
     quality?: 'low' | 'medium' | 'high' | 'auto';
     /** Variants 1-4. */
     numVariants?: number;
-    /** Reference images (data URL or https URL) for character consistency chain. */
-    referenceImages?: string[];
+    /** Not supported: the service refuses reference pictures (HTTP 400, nothing charged). Typed `never` so TypeScript says so; describe the character in `prompt`. */
+    referenceImages?: never;
     /** Explicit provider override. Default: server picks per task. */
     provider?: 'openai' | 'gemini' | 'gemini-flash';
     /** BYOK — overrides server-side env credentials. Recommended for zero-marginal-cost flow. */
@@ -251,7 +251,7 @@ export class AssetCreator {
                 size: options.size ?? '1024x1024',
                 quality: options.quality ?? 'high',
                 numVariants: options.numVariants ?? 1,
-                referenceImages: options.referenceImages,
+                referenceImages: options.referenceImages, // never set by a typed caller; a JS caller that sends one gets the service's 400 instead of a silent drop
                 provider: options.provider,
                 apiKey: options.apiKey,
                 upload: options.upload ?? false,

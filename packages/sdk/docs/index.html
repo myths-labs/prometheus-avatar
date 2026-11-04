@@ -207,12 +207,6 @@ lip-sync and emotion. The package ships no model: bring your own model file.</p>
 <td>1-4 variants.</td>
 </tr>
 <tr>
-<td><code>referenceImages</code></td>
-<td><code>string[]</code></td>
-<td>none</td>
-<td>Data URLs or HTTPS URLs · character consistency chain across multiple calls.</td>
-</tr>
-<tr>
 <td><code>provider</code></td>
 <td><code>'openai'|'gemini'|'gemini-flash'</code></td>
 <td>auto</td>
@@ -232,6 +226,7 @@ lip-sync and emotion. The package ships no model: bring your own model file.</p>
 </tr>
 </tbody>
 </table>
+<p>Reference pictures are not accepted: a picture sent with an image request (<code>referenceImages</code> or any other image field) is refused with HTTP 400 <code>REFERENCE_IMAGE_NOT_ACCEPTED</code> and nothing is charged. Describe the character in <code>prompt</code>.</p>
 <p>Returns <code>CreateImageResult</code>:</p>
 <pre><code class="ts"><span class="hl-1">{</span><br/><span class="hl-1">  </span><span class="hl-9">provider</span><span class="hl-1">: </span><span class="hl-2">&#39;openai&#39;</span><span class="hl-1"> | </span><span class="hl-2">&#39;gemini&#39;</span><span class="hl-1"> | </span><span class="hl-2">&#39;gemini-flash&#39;</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">taskId</span><span class="hl-1">: </span><span class="hl-4">string</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">imageUrl</span><span class="hl-1">: </span><span class="hl-4">string</span><span class="hl-1">;       </span><span class="hl-7">// data URL OR https URL</span><br/><span class="hl-1">  </span><span class="hl-4">publicUrl</span><span class="hl-1">?: </span><span class="hl-4">string</span><span class="hl-1">;     </span><span class="hl-7">// when upload: true</span><br/><span class="hl-1">  </span><span class="hl-4">variants</span><span class="hl-1">?: </span><span class="hl-4">string</span><span class="hl-1">[];</span><br/><span class="hl-1">  </span><span class="hl-9">width</span><span class="hl-1">: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">height</span><span class="hl-1">: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">durationSec</span><span class="hl-1">: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-4">platformCostUsd</span><span class="hl-1">?: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">}</span>
 </code><button type="button">Copy</button></pre>
