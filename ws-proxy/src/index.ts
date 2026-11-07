@@ -8,7 +8,7 @@
  * Routes:
  *   /volcengine  → wss://ai-gateway.vei.volces.com/v1/realtime
  *   /minimax     → wss://api.minimax.chat/v1/realtime
- *   /fish        → wss://api.fish.audio/v1/tts/live
+ *   (/fish and /fish-rest were retired on 2026-10-10: Fish Audio is called from the marketplace server, never through this relay)
  *
  * The Worker adds the proper Authorization: Bearer header when
  * connecting to the upstream, then relays messages bidirectionally.
@@ -32,7 +32,6 @@ interface Env {
     ZHIPU_API_KEY: string;
     OPENAI_API_KEY: string;
     XAI_API_KEY: string;
-    FISH_AUDIO_API_KEY: string;
     /** Shared HMAC secret for short-lived relay tickets (see verifyVoiceTicket). */
     WS_TICKET_SECRET: string;
     /** Marketplace endpoint for realtime usage reports (/api/internal/realtime-usage). Unset = no metering. */
@@ -122,9 +121,6 @@ function spendsPlatformCredentials(engineName: string, params: URLSearchParams):
         // platform App ID upstream. Caller-supplied has to mean caller-supplied
         // on both, or it is not the caller's request being paid for.
         //
-        // fish resolves one: `token?.trim() || env.FISH_AUDIO_API_KEY`. It must
-        // trim identically or `?token=%20` reads as BYOK here and as platform
-        // there, and walks straight through spending our key.
         // BYOK for these two is declared with `?byok=1` and the credentials
         // arrive IN-BAND as the first WebSocket frame (parseByokFrame). They
         // used to ride in the query string, which every edge log, browser
@@ -135,8 +131,6 @@ function spendsPlatformCredentials(engineName: string, params: URLSearchParams):
         case "doubao":
         case "asr":
             return params.get("byok") !== "1";
-        case "fish":
-            return !params.get("token")?.trim();
 
         // Everything else pays with platform credentials and needs a ticket --
         // including engines added after this was written. The previous default
@@ -316,24 +310,6 @@ const ENGINES: Record<string, EngineConfig> = {
             ];
         },
     },
-    // ═══ Fish Audio TTS Live — WebSocket streaming for <1s voice latency ═══
-    fish: {
-        upstreamUrl: (_params: URLSearchParams, _env: Env) => {
-            return `wss://api.fish.audio/v1/tts/live`;
-        },
-        headers: (_env: Env, params?: URLSearchParams) => {
-            // BYOK: user can pass their own key via ?token= query param
-            // Otherwise fall back to platform key from env
-            const apiKey = params?.get("token")?.trim() || _env.FISH_AUDIO_API_KEY;
-            return {
-                "Authorization": `Bearer ${apiKey}`,
-            };
-        },
-        validate: (_env: Env) => {
-            // Token can come from query param (BYOK), so env key is optional
-            return null;
-        },
-    },
 };
 
 // ═══ CORS ═══
@@ -371,70 +347,22 @@ export default {
             return new Response(JSON.stringify({
                 status: "ok",
                 engines: Object.keys(ENGINES),
-                rest_proxy: ["/fish-rest"],
                 timestamp: new Date().toISOString(),
             }), {
                 headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
             });
         }
 
-        // ═══ LB-10: REST Proxy for Fish Audio TTS (China GFW bypass) ═══
-        // POST /fish-rest — proxies to https://api.fish.audio/v1/tts
-        // China users hit this CF Worker instead of Vercel serverless
-        // which may have latency issues from mainland China.
-        if (url.pathname === "/fish-rest" && request.method === "POST") {
-            // Platform-key usage requires a ticket (BYOK ?token= passes free).
-            if (!url.searchParams.get("token")?.trim()) {
-                const checked = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
-                const verdict = checked.valid && !ticketFitsPath(checked.sub, "fish-rest") ? { valid: false as const, reason: "wrong-purpose" } : checked;
-                if (!verdict.valid) {
-                    return new Response(JSON.stringify({
-                        error: `fish-rest: platform relay access requires a valid ticket (${verdict.reason})`,
-                    }), {
-                        status: 403, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
-                    });
-                }
-            }
-            const apiKey = url.searchParams.get("token")?.trim() || env.FISH_AUDIO_API_KEY;
-            if (!apiKey) {
-                return new Response(JSON.stringify({ error: "No Fish Audio API key" }), {
-                    status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
-                });
-            }
-
-            try {
-                const body = await request.arrayBuffer();
-                const contentType = request.headers.get("Content-Type") || "application/json";
-
-                const fishRes = await fetch("https://api.fish.audio/v1/tts", {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${apiKey}`,
-                        "Content-Type": contentType,
-                    },
-                    body,
-                });
-
-                // Stream the audio response back
-                const responseHeaders: Record<string, string> = {
-                    ...corsHeaders(origin, env),
-                };
-                fishRes.headers.forEach((value, key) => {
-                    if (key.toLowerCase() === "content-type" || key.toLowerCase() === "content-length") {
-                        responseHeaders[key] = value;
-                    }
-                });
-
-                return new Response(fishRes.body, {
-                    status: fishRes.status,
-                    headers: responseHeaders,
-                });
-            } catch (e: any) {
-                console.error(`[REST-Proxy] fish-rest error:`, e.message);
-                return new Response(JSON.stringify({ error: e.message }), {
-                    status: 502, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
-                });
-            }
+        // Retired 2026-10-10 (D-585): the Fish Audio relay (/fish WebSocket and the /fish-rest
+        // REST proxy) is gone. Fish is called from the marketplace server with its own key; the
+        // relay never forwards a caller-supplied Fish token any more. Explicit 404 so an old client
+        // sees "not here" rather than the ticket gate's 403.
+        if (url.pathname === "/fish" || url.pathname === "/fish-rest") {
+            return new Response(JSON.stringify({
+                error: "fish relay retired (2026-10-10): Fish Audio is served from the marketplace server, not this relay",
+            }), {
+                status: 404, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+            });
         }
 
         // Debug test endpoint: /test/{engine} — test upstream connection
