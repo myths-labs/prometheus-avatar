@@ -43,6 +43,7 @@ What your agent produces is saved to your Prometheus account and shows up in you
 
 - **Node.js 18.17 or newer** (Node 20 LTS or 22 recommended). Check with `node -v`. `npx` ships with Node; there is nothing else to install.
 - A Prometheus **Agent key** (starts with `pak_`). Sign in at [prometheus.mythslabs.ai/settings/agent-keys](https://prometheus.mythslabs.ai/settings/agent-keys) and click **Generate key** (once the account has a key, the button reads **Rotate key**). The key is shown **once**, and a new key **revokes the previous one** — so if you use several clients, give them all the same key and rotate only when you mean to replace it.
+- If you also use this key to buy on the Marketplace through the agent purchase API: after the November update, the key's owner must tick the delivery consent once at [Settings → Agent keys](https://prometheus.mythslabs.ai/settings/agent-keys) before the agent can buy again. Until then a purchase answers `409 AGENT_DELIVERY_CONSENT_REQUIRED` with a `consent_url`. None of this server's tools buys anything.
 - In the snippets below, `PASTE_YOUR_AGENT_KEY_HERE` is a placeholder. Paste your own key there, keep it out of git, and never share it.
 
 ## Setup

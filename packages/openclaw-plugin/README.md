@@ -68,6 +68,7 @@ To show a hosted Prometheus avatar instead of a model file, leave `modelUrl` out
 
 - The plugin puts the hosted avatar page in a frame inside the container OpenClaw gives it and connects the SDK's `connectEmbed` bridge to it. The frame's address is `https://prometheus.mythslabs.ai/embed/<avatarId>`, with nothing added to it.
 - `avatarId` is the id of an avatar made with your Prometheus agent key. A Marketplace listing ID is not one, and the page answers "Avatar not found".
+- If the same agent key is also used to buy on the Marketplace (agent purchase API): after the November update, the key's owner must tick the delivery consent once at [Settings → Agent keys](https://prometheus.mythslabs.ai/settings/agent-keys) before the agent can buy again. This plugin itself does not buy.
 - Agent events move the expression only: `agent:thinking` shows the thinking expression, `agent:error` the surprised one, and `agent:message` the expression its text suggests (unless `enableEmotion` is `false`). The plugin does not make the hosted avatar speak, so `ttsVoice` and `enableLipSync` have no effect on it.
 - `avatar:ready` is emitted when the page reports that the avatar loaded. If it never does, the plugin logs a warning that names `avatarId`.
 - If `modelUrl` is also set, the 2D model file is drawn and `avatarId` is not used.
