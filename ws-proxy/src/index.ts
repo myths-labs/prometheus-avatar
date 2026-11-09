@@ -17,6 +17,8 @@
 import { createDoubaoFrameGuard, isPublicDoubaoSpeaker } from './doubao-frame-guard';
 import { verifyLiveVoiceGrant, type LiveVoiceGrant } from './live-voice-grant';
 import { createLiveVoiceLease } from './live-voice-lease';
+import { CALL_ASR_TICKET_PREFIX, sameCallAsr, verifyCallAsrTicket, type CallAsrGrant } from './call-asr-ticket';
+import { createCallAsrLease } from './call-asr-lease';
 import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
@@ -381,7 +383,9 @@ export default {
             // (403) and learns which platform keys are provisioned — a pre-auth
             // config oracle. Fail on missing ticket first, uniformly.
             {
-                const checked = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
+                const checked = (url.searchParams.get("ticket") || "").startsWith(CALL_ASR_TICKET_PREFIX + ".")
+                    ? { valid: false as const, reason: "wrong-purpose" } // an ac1 recognition-lease ticket opens /asr only
+                    : await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
                 // A recognition ticket never opens this platform health probe, whichever engine it names.
                 const verdict = checked.valid && !ticketFitsPath(checked.sub, "test") ? { valid: false as const, reason: "wrong-purpose" } : checked;
                 if (!verdict.valid) {
@@ -469,11 +473,19 @@ export default {
         const platformCredentials = spendsPlatformCredentials(engineName, url.searchParams)
             || engineName === 'doubao' && url.searchParams.has('ticket');
         let liveGrant: LiveVoiceGrant | null = null;
+        let callAsrGrant: CallAsrGrant | null = null;
         let ticketSubject: string | null = null;
         if (platformCredentials) {
             const ticket = url.searchParams.get('ticket') || '';
             liveGrant = engineName === 'doubao' && /^lv[23]\./.test(ticket) ? await verifyLiveVoiceGrant(env.WS_TICKET_SECRET, ticket) : null;
-            const checked = liveGrant ? { valid: true as const, sub: liveGrant.sub } : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
+            // An ac1 ticket (the Call recognition lease) opens /asr only: on any other path it is the wrong purpose.
+            const callAsrTicket = ticket.startsWith(CALL_ASR_TICKET_PREFIX + '.');
+            if (callAsrTicket && engineName === 'asr') callAsrGrant = await verifyCallAsrTicket(env.WS_TICKET_SECRET, ticket);
+            // Metering is unchanged: the subject is "asr:" + the grant's subject, as with the v1 ticket an ac1 replaces.
+            const checked = liveGrant ? { valid: true as const, sub: liveGrant.sub }
+                : callAsrTicket ? (callAsrGrant ? { valid: true as const, sub: ASR_TICKET_PREFIX + callAsrGrant.sub }
+                    : { valid: false as const, reason: engineName === 'asr' ? 'bad-ticket' : 'wrong-purpose' })
+                : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
             const verdict = checked.valid && !ticketFitsPath(checked.sub, engineName) ? { valid: false as const, reason: "wrong-purpose" } : checked;
             if (verdict.valid) ticketSubject = verdict.sub;
             if (!verdict.valid) {
@@ -638,6 +650,7 @@ export default {
             let clientClosed = false;
             let upstreamClosed = false;
             let lease: ReturnType<typeof createLiveVoiceLease> | null = null;
+            let asrLease: ReturnType<typeof createCallAsrLease> | null = null;
             let voiceProof: ReturnType<typeof createPrivateVoiceProofObserver> | null = null;
             let meter: ReturnType<typeof createSessionMeter<ReturnType<typeof setTimeout>>> | null = null;
             let asrMeter: ReturnType<typeof createAsrMeter<ReturnType<typeof setTimeout>>> | null = null;
@@ -651,6 +664,7 @@ export default {
                 clientClosed = true; upstreamClosed = true;
                 frameGuard?.close();
                 lease?.close();
+                asrLease?.close();
                 voiceProof?.close();
                 meter?.close();
                 asrMeter?.close();
@@ -710,6 +724,27 @@ export default {
                     try { upstreamWs.close(1000, "Voice session ended"); } catch { }
                 },
             }) : null;
+            // A Call's recognition socket (ac1 ticket) lives only as long as its lease: when the window ends the client is
+            // closed with 4408 and the upstream with 1000, and the meter reports what was sent. v1 tickets have no lease.
+            if (asrGuard && callAsrGrant) asrLease = createCallAsrLease(callAsrGrant, () => {
+                clientClosed = true; upstreamClosed = true;
+                asrMeter?.close();
+                try { serverWs.close(4408, 'Call window ended'); } catch { }
+                try { upstreamWs.close(1000, 'Call window ended'); } catch { }
+            }, (t) => verifyCallAsrTicket(env.WS_TICKET_SECRET, t), sameCallAsr);
+            // The only text frame a leased recognition socket accepts: {"type":"asr-lease","ticket":"ac1..."} (exactly
+            // those two keys). A good one extends the lease and is answered with the new deadline; anything else closes.
+            const renewAsrLease = async (data: string) => {
+                try {
+                    const message: any = data.length <= 2048 ? JSON.parse(data) : null;
+                    if (!message || typeof message !== 'object' || Array.isArray(message)
+                        || Object.keys(message).sort().join(',') !== 'ticket,type' || message.type !== 'asr-lease'
+                        || typeof message.ticket !== 'string') { rejectFrame(); return; }
+                    const expiresAt = await asrLease!.renew(message.ticket);
+                    if (expiresAt === null || clientClosed || upstreamClosed) { rejectFrame(); return; }
+                    serverWs.send(JSON.stringify({ type: 'asr-lease', expiresAt }));
+                } catch { rejectFrame(); }
+            };
             if (liveGrant?.assetId && liveGrant.providerAppSha256) voiceProof = createPrivateVoiceProofObserver({
                 grant: liveGrant, secret: env.WS_TICKET_SECRET!, providerLogId: upstreamResponse.headers.get('x-tt-logid'),
                 onProof: receipt => {
@@ -720,6 +755,12 @@ export default {
 
             // Client → Upstream
             serverWs.addEventListener("message", (event) => {
+                // Leased recognition: a text frame is a renewal, taken before the audio guard (which refuses text).
+                if (asrLease && typeof event.data === 'string') {
+                    if (clientClosed || upstreamClosed) return;
+                    void renewAsrLease(event.data);
+                    return;
+                }
                 if (asrGuard) {
                     if (clientClosed || upstreamClosed) return;
                     const verdict = asrGuard.inspect(event.data);
@@ -766,6 +807,7 @@ export default {
             serverWs.addEventListener("close", (event) => {
                 frameGuard?.close();
                 lease?.close();
+                asrLease?.close();
                 voiceProof?.close();
                 meter?.close();
                 asrMeter?.close();
@@ -796,6 +838,7 @@ export default {
             upstreamWs.addEventListener("close", (event) => {
                 frameGuard?.close();
                 lease?.close();
+                asrLease?.close();
                 voiceProof?.close();
                 meter?.close();
                 asrMeter?.close();
@@ -812,6 +855,7 @@ export default {
                 if (upstreamClosed || clientClosed) return;
                 frameGuard?.close();
                 lease?.close();
+                asrLease?.close();
                 voiceProof?.close();
                 meter?.close();
                 asrMeter?.close();
