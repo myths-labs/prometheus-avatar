@@ -47,8 +47,11 @@ interface Env {
      */
     MARKETPLACE_USAGE_BYPASS?: string;
     /**
-     * P-07 cut-off (wrangler.toml [vars]): "1" closes a live-voice session whose ticket binds no prompt (lv2/lv3) at its StartSession,
-     * 1008 'Voice prompt binding required'. Anything else admits it with a log line while the marketplace moves to lv4 tickets.
+     * P-07 cut-off (wrangler.toml [vars]), for both kinds of live voice. Platform tickets: "1" closes a session whose ticket binds no prompt
+     * (lv2/lv3) at its StartSession, 1008 'Voice prompt binding required'. Own-key grants (?byok=1, option B): "1" refuses (403, nothing
+     * dialled) an own-key connection that carries no grant. Anything else admits either with a log line while the marketplace moves to lv4
+     * tickets and own-key grants. Whatever the switch says, an lv4 ticket or an own-key grant holds every StartSession to its prompt, and a
+     * grant that is present but does not verify is refused.
      */
     LIVE_VOICE_REQUIRE_PROMPT?: string;
     ALLOWED_ORIGINS: string;
@@ -471,8 +474,11 @@ export default {
             });
         }
 
+        // The own-key doubao path (doubao-byok-relay.ts). P-07 option B: it opens with an own-key grant that holds the socket to a gated
+        // prompt; without one, the cut-off switch decides.
         if (engineName === 'doubao' && url.searchParams.has('byok')) {
-            return createDoubaoByokRelay(request, corsHeaders(origin, env));
+            return createDoubaoByokRelay(request, corsHeaders(origin, env),
+                { secret: env.WS_TICKET_SECRET, requireGrant: env.LIVE_VOICE_REQUIRE_PROMPT === '1' });
         }
 
         // Validate config

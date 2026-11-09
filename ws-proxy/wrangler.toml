@@ -28,5 +28,6 @@ compatibility_date = "2024-12-01"
 ENVIRONMENT = "production"
 # Realtime usage reports (marketplace conversation usage ledger). RELAY_USAGE_SECRET is a wrangler secret.
 MARKETPLACE_USAGE_URL = "https://prometheus.mythslabs.ai/api/internal/realtime-usage"
-# P-07 cut-off: "1" closes (1008) a live-voice session whose ticket binds no prompt (lv2/lv3) at its StartSession; "0" admits it with a log line.
+# P-07 cut-off: "1" closes (1008) a live-voice session whose ticket binds no prompt (lv2/lv3) at its StartSession, and refuses (403) an
+# own-key session (?byok=1) that carries no own-key grant; "0" admits either with a log line. An lv4 ticket or a grant is always enforced.
 LIVE_VOICE_REQUIRE_PROMPT = "0"

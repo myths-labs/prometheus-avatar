@@ -10,8 +10,9 @@ export const VOICE_PROMPT_BINDING_REQUIRED = 'Voice prompt binding required';
 /**
  * P-07: how the platform path holds every StartSession to its live-voice grant. `promptSha256` is read at each StartSession (the lease's
  * CURRENT grant): an lv4 grant names the voicePromptSha256 of the four dialog fields it admits, and any other dialog is refused; an lv2 or
- * lv3 grant names none (null) and is admitted with a log line, or refused when `required` (LIVE_VOICE_REQUIRE_PROMPT is "1"). The BYOK
- * path (the user's own key) passes no binding.
+ * lv3 grant names none (null) and is admitted with a log line, or refused when `required` (LIVE_VOICE_REQUIRE_PROMPT is "1"). The own-key
+ * path (?byok=1, doubao-byok-relay.ts; option B) passes its own-key grant's promptSha256 (required) when the socket opened with a grant,
+ * and no binding when it opened without one (admitted only while LIVE_VOICE_REQUIRE_PROMPT is not "1").
  */
 export interface DoubaoPromptBinding { promptSha256: () => string | null; required: boolean }
 export function readDoubaoClientFrame(data: unknown): ClientFrame | null {
