@@ -14,7 +14,7 @@
  * connecting to the upstream, then relays messages bidirectionally.
  */
 
-import { createDoubaoFrameGuard, isPublicDoubaoSpeaker } from './doubao-frame-guard';
+import { createDoubaoFrameGuard } from './doubao-frame-guard';
 import { verifyLiveVoiceGrant, type LiveVoiceGrant } from './live-voice-grant';
 import { createLiveVoiceLease } from './live-voice-lease';
 import { CALL_ASR_TICKET_PREFIX, sameCallAsr, verifyCallAsrTicket, type CallAsrGrant } from './call-asr-ticket';
@@ -46,6 +46,11 @@ interface Env {
      * string reaches access logs; ⑨ 11/09). Unset everywhere else, the production relay included: no header is sent.
      */
     MARKETPLACE_USAGE_BYPASS?: string;
+    /**
+     * P-07 cut-off (wrangler.toml [vars]): "1" closes a live-voice session whose ticket binds no prompt (lv2/lv3) at its StartSession,
+     * 1008 'Voice prompt binding required'. Anything else admits it with a log line while the marketplace moves to lv4 tickets.
+     */
+    LIVE_VOICE_REQUIRE_PROMPT?: string;
     ALLOWED_ORIGINS: string;
     ENVIRONMENT: string;
 }
@@ -489,12 +494,16 @@ export default {
         let ticketSubject: string | null = null;
         if (platformCredentials) {
             const ticket = url.searchParams.get('ticket') || '';
-            liveGrant = engineName === 'doubao' && /^lv[23]\./.test(ticket) ? await verifyLiveVoiceGrant(env.WS_TICKET_SECRET, ticket) : null;
+            // P-07: the doubao platform path opens on a live-voice grant only: lv2, lv3, or lv4 (which binds the StartSession prompt).
+            // The legacy v1 ticket no longer opens it (the marketplace mints only live-voice grants for doubao); every other path still takes v1.
+            const liveTicket = engineName === 'doubao' && /^lv[234]\./.test(ticket);
+            liveGrant = liveTicket ? await verifyLiveVoiceGrant(env.WS_TICKET_SECRET, ticket) : null;
             // An ac1 ticket (the Call recognition lease) opens /asr only: on any other path it is the wrong purpose.
             const callAsrTicket = ticket.startsWith(CALL_ASR_TICKET_PREFIX + '.');
             if (callAsrTicket && engineName === 'asr') callAsrGrant = await verifyCallAsrTicket(env.WS_TICKET_SECRET, ticket);
             // Metering is unchanged: the subject is "asr:" + the grant's subject, as with the v1 ticket an ac1 replaces.
             const checked = liveGrant ? { valid: true as const, sub: liveGrant.sub }
+                : engineName === 'doubao' ? { valid: false as const, reason: !env.WS_TICKET_SECRET ? 'unconfigured' : liveTicket ? 'bad-ticket' : 'wrong-purpose' }
                 : callAsrTicket ? (callAsrGrant ? { valid: true as const, sub: ASR_TICKET_PREFIX + callAsrGrant.sub }
                     : { valid: false as const, reason: engineName === 'asr' ? 'bad-ticket' : 'wrong-purpose' })
                 : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
@@ -676,14 +685,18 @@ export default {
             let asrMeter: ReturnType<typeof createAsrMeter<ReturnType<typeof setTimeout>>> | null = null;
             // Recognition on platform credentials: only the marketplace client's PCM shape passes (asr-meter.ts).
             const asrGuard = engineName === 'asr' && platformCredentials ? createAsrFrameGuard() : null;
+            // Only a live-voice grant opens this path, so there is always a lease (no lease admits nothing). P-07: every StartSession is held
+            // to the prompt of the lease's CURRENT grant (lv4); an lv2/lv3 grant binds none, admitted with a log line until the cut-off is "1".
             const frameGuard = engineName === 'doubao' && platformCredentials
-                ? createDoubaoFrameGuard(async (speaker, model) => lease ? lease.authorize(speaker, model) : isPublicDoubaoSpeaker(speaker)
-                    && (await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get('ticket') || '')).valid) : null;
+                ? createDoubaoFrameGuard(async (speaker, model) => lease ? lease.authorize(speaker, model) : false,
+                    { promptSha256: () => lease ? lease.promptSha256() : null, required: env.LIVE_VOICE_REQUIRE_PROMPT === '1' }) : null;
             let pendingBytes = 0, pendingMessages = 0, clientQueue = Promise.resolve();
             // A Call's audio held for the start's answer: at most 5 s of audio (the report's timeout) plus slack, 32 KB a second.
             const ASR_PENDING_MAX_BYTES = 256 * 1024;
             let asrAudioSeen = false, asrPendingBytes = 0, asrSendQueue = Promise.resolve();
             const rejectFrame = () => {
+                // P-07: a StartSession refused by its prompt binding closes with the guard's reason; every other refusal with the old one.
+                const reason = frameGuard?.refusal() ?? 'Voice session authorization failed';
                 clientClosed = true; upstreamClosed = true;
                 frameGuard?.close();
                 lease?.close();
@@ -691,8 +704,8 @@ export default {
                 voiceProof?.close();
                 meter?.close();
                 asrMeter?.close();
-                try { serverWs.close(1008, 'Voice session authorization failed'); } catch { }
-                try { upstreamWs.close(1008, 'Voice session authorization failed'); } catch { }
+                try { serverWs.close(1008, reason); } catch { }
+                try { upstreamWs.close(1008, reason); } catch { }
             };
             if (liveGrant) lease = createLiveVoiceLease(env.WS_TICKET_SECRET!, liveGrant, rejectFrame);
             // Realtime usage metering (marketplace conversation usage ledger). The clock starts at

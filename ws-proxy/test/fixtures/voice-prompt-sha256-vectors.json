@@ -1,0 +1,96 @@
+{
+  "description": "Input dialog fields and the expected lower-case hex SHA-256 of the UTF-8 bytes of JSON.stringify([bot_name, character_manifest, system_role, speaking_style]), a missing field being \"\". Shared by the app and the relay; expected values were computed with Python hashlib, independently of the TypeScript.",
+  "fields": [
+    "bot_name",
+    "character_manifest",
+    "system_role",
+    "speaking_style"
+  ],
+  "vectors": [
+    {
+      "name": "all four missing",
+      "dialog": {},
+      "sha256": "695e6e3a76cac61b0f75de2833be51173e4a6aec9dff8d19d10612772bd16b32"
+    },
+    {
+      "name": "all four empty strings (same hash as missing, on purpose: both are \"\" in the JSON array)",
+      "dialog": {
+        "bot_name": "",
+        "character_manifest": "",
+        "system_role": "",
+        "speaking_style": ""
+      },
+      "sha256": "695e6e3a76cac61b0f75de2833be51173e4a6aec9dff8d19d10612772bd16b32"
+    },
+    {
+      "name": "only system_role",
+      "dialog": {
+        "system_role": "You are Mira, a calm study companion."
+      },
+      "sha256": "e5d24f2a9d400a60f10cb3ea4f7ccff09da5d1b281b421c6b9c141b7705e2cad"
+    },
+    {
+      "name": "only system_role, the same with the other three given as empty strings",
+      "dialog": {
+        "bot_name": "",
+        "character_manifest": "",
+        "system_role": "You are Mira, a calm study companion.",
+        "speaking_style": ""
+      },
+      "sha256": "e5d24f2a9d400a60f10cb3ea4f7ccff09da5d1b281b421c6b9c141b7705e2cad"
+    },
+    {
+      "name": "all four fields",
+      "dialog": {
+        "bot_name": "Iris",
+        "character_manifest": "A warm, witty companion.",
+        "system_role": "You are Iris. Keep answers short.",
+        "speaking_style": "calm and kind"
+      },
+      "sha256": "d054422bb456037cd89816af032d7e899551198aa8217e6feb2307d464629823"
+    },
+    {
+      "name": "Chinese",
+      "dialog": {
+        "bot_name": "小梦",
+        "character_manifest": "你是小梦，一个温柔的学习伙伴。",
+        "system_role": "说话简短，常用「呀」「呢」。",
+        "speaking_style": "温柔"
+      },
+      "sha256": "ef732690c5cf1e8c22c801abbca1eede57d3936d7b6d89c7853c5b91e11d7f5b"
+    },
+    {
+      "name": "emoji (surrogate pair) and a symbol",
+      "dialog": {
+        "bot_name": "Mia 😀",
+        "character_manifest": "loves ☕ and 🧑‍💻",
+        "system_role": "ok"
+      },
+      "sha256": "0f4f76c4ad411abf719e0d3515d592a096773e21dfe869bcc573a3a431cea25a"
+    },
+    {
+      "name": "LF and CRLF inside fields",
+      "dialog": {
+        "character_manifest": "line one\nline two\r\nline three\r",
+        "system_role": "a\n\nb"
+      },
+      "sha256": "e99d30528c8a5f67de07b59ac5bdd639267ffcb9360971267107f94f2648b04d"
+    },
+    {
+      "name": "leading and trailing spaces and tabs are kept",
+      "dialog": {
+        "bot_name": "  Iris  ",
+        "system_role": "\tpersona \n",
+        "speaking_style": " "
+      },
+      "sha256": "5203a326e209b2a339b53fb48d77d6b51e622bc8257eee73cf91a5890b4c7c01"
+    },
+    {
+      "name": "quotes, backslash and a control character",
+      "dialog": {
+        "system_role": "say \"hi\" \\ path\u0001end"
+      },
+      "sha256": "814bbe34f1d16f7018e6fec0db904fa77a5c705ddedac05f28b506d2b21967e2"
+    }
+  ]
+}

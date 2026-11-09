@@ -15,9 +15,17 @@ export function isLiveDoubaoSpeaker(value: string): boolean { return isPublicDou
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export interface LiveVoiceGrant {
     aud: 'doubao-live'; sub: string; assetId: string | null; speakerId: string; model: string;
-    providerAppSha256:string|null; iat: number; exp: number;
+    providerAppSha256:string|null;
+    /**
+     * P-07 (lv4): voicePromptSha256 of the four StartSession dialog fields the ticket admits (the relay compares it with every
+     * StartSession it carries); null for an lv2 or lv3 ticket, which binds no prompt.
+     */
+    promptSha256: string | null;
+    iat: number; exp: number;
 }
-export type LiveVoiceSelection = Pick<LiveVoiceGrant, 'sub' | 'assetId' | 'speakerId' | 'model' | 'providerAppSha256'>;
+export type LiveVoiceSelection = Pick<LiveVoiceGrant, 'sub' | 'assetId' | 'speakerId' | 'model' | 'providerAppSha256'> & { promptSha256?: string | null };
+const LV3_KEYS = 'assetId,aud,exp,iat,model,providerAppSha256,speakerId,sub';
+const LV4_KEYS = 'assetId,aud,exp,iat,model,promptSha256,providerAppSha256,speakerId,sub';
 function encode(bytes: Uint8Array): string {
     let binary = '';
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -33,8 +41,9 @@ function decode(value: string): Uint8Array | null {
 }
 function validGrant(value: unknown, now: number): value is LiveVoiceGrant {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-    const g = value as LiveVoiceGrant;
-    return Object.keys(g).sort().join(',') === 'assetId,aud,exp,iat,model,providerAppSha256,speakerId,sub'
+    const g = value as LiveVoiceGrant, keys = Object.keys(g).sort().join(',');
+    // lv4 names the prompt's hash (64 lower-case hex); lv3 has no such key (the grant read from it gets promptSha256 null after this check).
+    return (keys === LV4_KEYS ? typeof g.promptSha256 === 'string' && /^[a-f0-9]{64}$/.test(g.promptSha256) : keys === LV3_KEYS)
         && g.aud === 'doubao-live' && typeof g.sub === 'string' && uuid.test(g.sub)
         && (g.assetId === null || typeof g.assetId === 'string' && uuid.test(g.assetId))
         && typeof g.speakerId === 'string' && isLiveDoubaoSpeaker(g.speakerId)
@@ -50,17 +59,19 @@ function validGrant(value: unknown, now: number): value is LiveVoiceGrant {
 function key(secret: string, usage: 'sign' | 'verify'): Promise<CryptoKey> {
     return crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [usage]);
 }
+/** A selection with a promptSha256 is minted as lv4 and binds that prompt; one without is lv3, byte for byte as before P-07. */
 export async function mintLiveVoiceGrant(secret: string, selection: LiveVoiceSelection, now = Date.now(), ttl = LIVE_VOICE_LEASE_MS): Promise<{ ticket: string; grant: LiveVoiceGrant }> {
-    const grant: LiveVoiceGrant = { aud: 'doubao-live', ...selection, iat: now, exp: now + ttl };
-    if (!secret || !validGrant(grant, now)) throw new Error('Invalid live voice grant');
-    const payload = 'lv3.' + encode(new TextEncoder().encode(JSON.stringify(grant)));
+    const { promptSha256 = null, ...chosen } = selection;
+    const signed = promptSha256 === null ? { aud: 'doubao-live' as const, ...chosen, iat: now, exp: now + ttl } : { aud: 'doubao-live' as const, ...chosen, promptSha256, iat: now, exp: now + ttl };
+    if (!secret || !validGrant(signed, now)) throw new Error('Invalid live voice grant');
+    const payload = (promptSha256 === null ? 'lv3.' : 'lv4.') + encode(new TextEncoder().encode(JSON.stringify(signed)));
     const signature = await crypto.subtle.sign('HMAC', await key(secret, 'sign'), new TextEncoder().encode('prometheus-live-voice\n' + payload));
-    return { ticket: payload + '.' + encode(new Uint8Array(signature)), grant };
+    return { ticket: payload + '.' + encode(new Uint8Array(signature)), grant: { ...signed, promptSha256 } as LiveVoiceGrant };
 }
 export async function verifyLiveVoiceGrant(secret: string | undefined, ticket: string, now = Date.now()): Promise<LiveVoiceGrant | null> {
     if (!secret || typeof ticket !== 'string' || ticket.length > 2048) return null;
     const parts = ticket.split('.');
-    if (parts.length !== 3 || !['lv2','lv3'].includes(parts[0])) return null;
+    if (parts.length !== 3 || !['lv2','lv3','lv4'].includes(parts[0])) return null;
     const bytes = decode(parts[1]), signature = decode(parts[2]);
     if (!bytes || !signature || signature.length !== 32) return null;
     try {
@@ -74,12 +85,14 @@ export async function verifyLiveVoiceGrant(secret: string | undefined, ticket: s
         if(parts[0]==='lv2'){
             if(!value||Object.keys(value).sort().join(',')!=='assetId,aud,exp,iat,model,speakerId,sub'
                 ||!isPublicDoubaoSpeaker(value.speakerId))return null;
-            const grant={...value,providerAppSha256:null};return validGrant(grant,now)?grant:null;
+            const grant={...value,providerAppSha256:null};return validGrant(grant,now)?{...grant,promptSha256:null}:null;
         }
-        return validGrant(value,now)?value:null;
+        // The version is signed with the payload: an lv4 grant cannot pass as lv3 (dropping its prompt), nor the other way round.
+        if(parts[0]==='lv3')return value&&!('promptSha256' in value)&&validGrant(value,now)?{...value,promptSha256:null}:null;
+        return value&&'promptSha256' in value&&validGrant(value,now)?value:null;
     } catch { return null; }
 }
 export function sameLiveVoiceSelection(a: LiveVoiceGrant, b: LiveVoiceGrant): boolean {
     return a.sub === b.sub && a.assetId === b.assetId && a.speakerId === b.speakerId && a.model === b.model
-        && a.providerAppSha256===b.providerAppSha256;
+        && a.providerAppSha256===b.providerAppSha256 && a.promptSha256===b.promptSha256;
 }

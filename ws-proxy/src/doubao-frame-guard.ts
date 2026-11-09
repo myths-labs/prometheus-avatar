@@ -1,7 +1,19 @@
+import { voicePromptSha256 } from './voice-prompt-sha256';
+
 /** Admission for the exact uncompressed client protocol emitted by the App. */
 type ClientFrame = { event: number; sessionId: string | null; json: Record<string, unknown> | null };
 const sessionEvents = new Set([100, 102, 200, 400, 515]);
 export { isPublicDoubaoSpeaker } from './live-voice-grant';
+/** P-07: why a StartSession was refused by its prompt binding. The relay closes the client (and the provider) with 1008 and this reason. */
+export const VOICE_PROMPT_NOT_APPROVED = 'Voice prompt not approved';
+export const VOICE_PROMPT_BINDING_REQUIRED = 'Voice prompt binding required';
+/**
+ * P-07: how the platform path holds every StartSession to its live-voice grant. `promptSha256` is read at each StartSession (the lease's
+ * CURRENT grant): an lv4 grant names the voicePromptSha256 of the four dialog fields it admits, and any other dialog is refused; an lv2 or
+ * lv3 grant names none (null) and is admitted with a log line, or refused when `required` (LIVE_VOICE_REQUIRE_PROMPT is "1"). The BYOK
+ * path (the user's own key) passes no binding.
+ */
+export interface DoubaoPromptBinding { promptSha256: () => string | null; required: boolean }
 export function readDoubaoClientFrame(data: unknown): ClientFrame | null {
     if (!(data instanceof ArrayBuffer) || data.byteLength < 12 || data.byteLength > 1024 * 1024) return null;
     const view = new DataView(data);
@@ -34,10 +46,12 @@ export function readDoubaoClientFrame(data: unknown): ClientFrame | null {
     } catch { return null; }
 }
 
-export function createDoubaoFrameGuard(authorize: (speaker: string, model: string) => boolean | Promise<boolean>) {
-    let connected = false, closed = false, sessionId: string | null = null;
+export function createDoubaoFrameGuard(authorize: (speaker: string, model: string) => boolean | Promise<boolean>, binding?: DoubaoPromptBinding) {
+    let connected = false, closed = false, sessionId: string | null = null, promptRefusal: string | null = null;
     return {
         close() { closed = true; connected = false; sessionId = null; },
+        /** The close reason when a StartSession was refused by its prompt binding (the guard is closed from then on); null otherwise. */
+        refusal(): string | null { return promptRefusal; },
         async admit(data: unknown): Promise<boolean> {
             if (closed) return false;
             const frame = readDoubaoClientFrame(data);
@@ -64,6 +78,26 @@ export function createDoubaoFrameGuard(authorize: (speaker: string, model: strin
                     || Object.keys(dialogConfig).some(k => !['character_manifest', 'bot_name', 'system_role', 'speaking_style', 'extra'].includes(k))
                     || Object.entries(dialogConfig).some(([k, v]) => k !== 'extra' && (typeof v !== 'string' || v.length > 65536))) return false;
                 if (typeof model !== 'string' || !await authorize(config.speaker, model) || closed) return false;
+                if (binding) {
+                    // Every StartSession, the first or one after a FinishSession. No log line carries the prompt.
+                    const bound = binding.promptSha256();
+                    if (bound === null && binding.required) {
+                        promptRefusal = VOICE_PROMPT_BINDING_REQUIRED; closed = true;
+                        console.warn('[P-07] live voice refused: its ticket binds no prompt and LIVE_VOICE_REQUIRE_PROMPT is "1"');
+                        return false;
+                    }
+                    if (bound === null) {
+                        console.warn('[P-07] live voice without prompt binding');
+                    } else {
+                        const sent = await voicePromptSha256(dialogConfig);
+                        if (closed) return false; // the socket ended while the prompt was hashed
+                        if (sent !== bound) {
+                            promptRefusal = VOICE_PROMPT_NOT_APPROVED; closed = true;
+                            console.warn('[P-07] live voice refused: the StartSession prompt is not the one its ticket approved');
+                            return false;
+                        }
+                    }
+                }
                 sessionId = frame.sessionId; return true;
             }
             if (!sessionId || sessionId !== frame.sessionId) return false;

@@ -16,6 +16,8 @@ export function createLiveVoiceLease(secret: string, initial: LiveVoiceGrant, ex
     return {
         active,
         authorize(speaker: string, model: string) { return active() && current.speakerId === speaker && current.model === model; },
+        /** P-07: the prompt the CURRENT grant binds (lv4), or null (lv2/lv3). A renewal keeps it: sameLiveVoiceSelection compares it. */
+        promptSha256(): string | null { return current.promptSha256; },
         close() { closed = true; clearTimeout(timer); },
         async renew(ticket: string): Promise<number | null> {
             if (!active()) return null;

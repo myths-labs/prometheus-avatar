@@ -59,7 +59,7 @@ test('the renewal frame is exactly {type:"asr-lease", ticket}; a good one is ans
 
 test('every way the socket ends also ends the lease timer', () => {
     assert.equal((src.match(/asrLease\?\.close\(\);/g) ?? []).length, 4, 'rejectFrame, client close, upstream close, upstream error');
-    const reject = between('const rejectFrame = () => {', "try { serverWs.close(1008, 'Voice session authorization failed')");
+    const reject = between('const rejectFrame = () => {', 'try { serverWs.close(1008, reason); } catch { }');
     assert.ok(reject.includes('asrLease?.close();'));
 });
 

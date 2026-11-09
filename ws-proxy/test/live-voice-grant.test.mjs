@@ -3,7 +3,7 @@ import test from 'node:test';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {
-    mintLiveVoiceGrant, verifyLiveVoiceGrant, DEFAULT_LIVE_SPEAKER, OFFICIAL_IRIS_LIVE_SPEAKER, OFFICIAL_IRIS_APP_SHA256,
+    mintLiveVoiceGrant, verifyLiveVoiceGrant, sameLiveVoiceSelection, DEFAULT_LIVE_SPEAKER, OFFICIAL_IRIS_LIVE_SPEAKER, OFFICIAL_IRIS_APP_SHA256,
 } from '../src/live-voice-grant.ts';
 
 // The grant is the only thing the relay trusts about which voice a session may use. These cases pin
@@ -55,10 +55,31 @@ test('a ticket signed with another secret is refused', async () => {
     assert.equal(await verifyLiveVoiceGrant('another-secret', ticket, now), null);
 });
 
+// P-07: an lv4 ticket names the prompt it admits (voicePromptSha256 of the four StartSession dialog fields; here the shared vector
+// "all four fields"); lv2 and lv3 name none.
+const prompt = 'd054422bb456037cd89816af032d7e899551198aa8217e6feb2307d464629823';
+const publicVoice = { ...base, assetId: null, speakerId: DEFAULT_LIVE_SPEAKER, providerAppSha256: null };
+
+test('an lv4 ticket verifies with its promptSha256; an lv3 ticket verifies with none', async () => {
+    const { ticket } = await mintLiveVoiceGrant(secret, { ...publicVoice, promptSha256: prompt }, now);
+    assert.match(ticket, /^lv4\./);
+    assert.equal((await verifyLiveVoiceGrant(secret, ticket, now))?.promptSha256, prompt);
+    const lv3 = await mintLiveVoiceGrant(secret, publicVoice, now);
+    assert.match(lv3.ticket, /^lv3\./);
+    assert.equal((await verifyLiveVoiceGrant(secret, lv3.ticket, now))?.promptSha256, null);
+});
+
+test('the same selection with another prompt, or none, is not the same selection (a renewal cannot change the prompt)', async () => {
+    const bound = await roundTrip({ ...publicVoice, promptSha256: prompt });
+    assert.equal(sameLiveVoiceSelection(bound, await roundTrip({ ...publicVoice, promptSha256: prompt })), true);
+    assert.equal(sameLiveVoiceSelection(bound, await roundTrip({ ...publicVoice, promptSha256: 'e'.repeat(64) })), false);
+    assert.equal(sameLiveVoiceSelection(bound, await roundTrip(publicVoice)), false);
+});
+
 // live-voice-grant.ts must stay byte-identical with the marketplace app's src/lib/liveVoiceGrant.ts:
 // the marketplace mints what this relay verifies. Changing it
 // means changing both files in the same release and updating this hash in both repositories.
 test('live-voice-grant.ts is the reviewed byte-for-byte copy', () => {
     const source = readFileSync(new URL('../src/live-voice-grant.ts', import.meta.url));
-    assert.equal(createHash('sha256').update(source).digest('hex'), 'dbf3fd50956b5426480b5927f6052b66aeda4c728e1a911f5d5734fd39c81628');
+    assert.equal(createHash('sha256').update(source).digest('hex'), '0c5ccca715c130d4392d0ee28a5d27c77b287dbcfe92eac004dbc287dd68ec24');
 });
