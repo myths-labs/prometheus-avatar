@@ -40,6 +40,12 @@ interface Env {
     MARKETPLACE_USAGE_URL?: string;
     /** HMAC secret for those reports; must equal the marketplace's RELAY_USAGE_SECRET. */
     RELAY_USAGE_SECRET?: string;
+    /**
+     * Only where the marketplace sits behind Vercel's deployment protection (the dev relay reporting to a preview): the project's
+     * "Protection Bypass for Automation" secret, sent as the x-vercel-protection-bypass header so it never sits in the URL (a query
+     * string reaches access logs; ⑨ 11/09). Unset everywhere else, the production relay included: no header is sent.
+     */
+    MARKETPLACE_USAGE_BYPASS?: string;
     ALLOWED_ORIGINS: string;
     ENVIRONMENT: string;
 }
@@ -333,6 +339,12 @@ function corsHeaders(origin: string | null, env: Env): Record<string, string> {
 }
 
 // ═══ Main Handler ═══
+
+/** The deployment-protection bypass for a usage report, as a header (MARKETPLACE_USAGE_BYPASS above); nothing when it is not set. */
+export function usageBypassHeader(env: Pick<Env, "MARKETPLACE_USAGE_BYPASS">): Record<string, string> {
+    const secret = env.MARKETPLACE_USAGE_BYPASS?.trim();
+    return secret ? { "x-vercel-protection-bypass": secret } : {};
+}
 
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
@@ -699,7 +711,7 @@ export default {
                     try {
                         // A marketplace that never answers must not hold the session: give up after 5 s, fail open.
                         const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
-                            "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
+                            "x-internal-call": await signUsageReport(usageSecret, body), ...usageBypassHeader(env) }, body, signal: AbortSignal.timeout(5000) });
                         return res.ok ? await res.json() as { continue: boolean; reservation?: string | null } : { continue: true, reservation: null };
                     } catch { return { continue: true, reservation: null }; }
                 },
@@ -730,7 +742,7 @@ export default {
                     try {
                         // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
                         const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
-                            "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
+                            "x-internal-call": await signUsageReport(usageSecret, body), ...usageBypassHeader(env) }, body, signal: AbortSignal.timeout(5000) });
                         return res.ok ? await res.json() as { continue: boolean; reservation?: string | null; code?: string } : unanswered;
                     } catch { return unanswered; }
                 },

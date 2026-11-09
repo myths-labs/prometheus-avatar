@@ -60,3 +60,15 @@ test('a report that hangs gives up after 5 s and fails open', () => {
     assert.match(report, /signal: AbortSignal\.timeout\(5000\)/);
     assert.match(report, /catch \{ return \{ continue: true, reservation: null \}; \}/);
 });
+
+// ⑨ 11/09: the dev relay reports to a preview behind Vercel's deployment protection. The bypass goes as a header, never in the URL
+// (a query string reaches access logs), and only where MARKETPLACE_USAGE_BYPASS is set: the production relay sends nothing new.
+test('a usage report carries the deployment-protection bypass as a header only when MARKETPLACE_USAGE_BYPASS is set', () => {
+    assert.match(src, /MARKETPLACE_USAGE_BYPASS\?: string;/);
+    const helper = between('export function usageBypassHeader(', '\n}\n');
+    assert.match(helper, /env\.MARKETPLACE_USAGE_BYPASS\?\.trim\(\)/);
+    assert.match(helper, /\{ "x-vercel-protection-bypass": secret \} : \{\}/);
+    const reports = src.match(/"x-internal-call": await signUsageReport\(usageSecret, body\), \.\.\.usageBypassHeader\(env\) \}/g) ?? [];
+    assert.equal(reports.length, 2, 'both report calls (the session meter and the recognition meter) send it');
+    assert.doesNotMatch(src, /x-vercel-protection-bypass=/, 'never as a query parameter');
+});
