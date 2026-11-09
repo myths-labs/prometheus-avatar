@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createAsrFrameGuard, createAsrMeter, ASR_INPUT_BYTES_PER_SECOND, ASR_TICKET_PREFIX} from '../src/asr-meter.ts';
+import {createAsrFrameGuard, createAsrMeter, ASR_INPUT_BYTES_PER_SECOND, ASR_TICKET_PREFIX, ASR_CALL_BUSY_CODE, ASR_UNAVAILABLE_CODE} from '../src/asr-meter.ts';
 
 // SAUC v3 frame: [0x11][type<<4|flags][serialization<<4|compression][0][payload size u32][payload]
 function frame(type, flags, serialization, compression, payload) {
@@ -124,6 +124,59 @@ test('a failed start report fails open and still ends', async () => {
     h.meter.close();
     await h.settle();
     assert.deepEqual(h.reports.at(-1), {kind: 'end', reservation: null, inputAudioSeconds: 0.1});
+});
+
+test('a start answered CALL_ASR_BUSY stops with busy (4409), not quota, and ready() says false', async () => {
+    const h = harness({start: {continue: false, reservation: null, code: ASR_CALL_BUSY_CODE}});
+    h.meter.onAudio(3200);
+    assert.equal(await h.meter.ready(), false);
+    await h.settle(); await h.settle();
+    assert.deepEqual(h.stops, ['busy']);
+    assert.deepEqual(h.reports.map((r) => r.kind), ['start', 'end']);
+    assert.equal(h.timers.filter((t) => t.live).length, 0, 'no tick is armed for a refused connection');
+});
+
+test('a start the relay could not get answered (its own unavailable code) stops with unavailable', async () => {
+    const h = harness({start: {continue: false, reservation: null, code: ASR_UNAVAILABLE_CODE}});
+    h.meter.onAudio(3200);
+    assert.equal(await h.meter.ready(), false);
+    await h.settle(); await h.settle();
+    assert.deepEqual(h.stops, ['unavailable']);
+});
+
+test('any other refusal code, and none, stays quota', async () => {
+    for (const code of ['USAGE_POOL_EXHAUSTED', undefined, 'CALL_ASR_BUSY_ISH']) {
+        const h = harness({start: {continue: false, reservation: null, code}});
+        h.meter.onAudio(3200);
+        await h.settle(); await h.settle();
+        assert.deepEqual(h.stops, ['quota'], String(code));
+    }
+});
+
+test('ready() is true once the start is answered continue, and waits for that answer', async () => {
+    const h = harness({holdStart: true});
+    h.meter.onAudio(3200);
+    let settled = false;
+    const ready = h.meter.ready().then((ok) => { settled = true; return ok; });
+    await h.settle();
+    assert.equal(settled, false, 'still waiting on the start');
+    h.releaseStart({continue: true, reservation: 'res-ok'});
+    assert.equal(await ready, true);
+    assert.deepEqual(h.stops, []);
+});
+
+test('ready() is true when the report throws (fail open, as before)', async () => {
+    const h = harness({failStart: true});
+    h.meter.onAudio(3200);
+    assert.equal(await h.meter.ready(), true);
+});
+
+test('a busy tick (a reservation lost to another connection) also stops busy', async () => {
+    const h = harness({tick: {continue: false, code: ASR_CALL_BUSY_CODE}});
+    h.meter.onAudio(3200);
+    await h.settle();
+    await h.fire(); await h.settle();
+    assert.deepEqual(h.stops, ['busy']);
 });
 
 test('the recognition ticket purpose is the asr: subject prefix', () => {

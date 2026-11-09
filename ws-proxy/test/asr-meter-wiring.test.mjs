@@ -34,7 +34,7 @@ test('every client frame passes the guard before it is sent upstream, and the me
     const handler = between('// Client → Upstream', 'if (frameGuard) {');
     const inspect = handler.indexOf('asrGuard.inspect(event.data)');
     const send = handler.indexOf('upstreamWs.send(event.data)');
-    const feed = handler.indexOf('asrMeter?.onAudio(verdict.audioBytes)');
+    const feed = handler.lastIndexOf('asrMeter?.onAudio(verdict.audioBytes)'); // the plain (v1) path; a Call's gated path is pinned in call-asr-lease-wiring
     assert.ok(inspect > 0 && send > inspect && feed > send, 'guard, then send, then meter');
     assert.ok(handler.slice(inspect, send).includes('rejectFrame()'), 'a refused frame closes the socket');
     assert.match(src, /const asrGuard = engineName === 'asr' && platformCredentials \? createAsrFrameGuard\(\) : null;/);
@@ -42,9 +42,9 @@ test('every client frame passes the guard before it is sent upstream, and the me
 
 test('the meter reports the ticket subject without its prefix, as asr_seconds, and every end closes it', () => {
     assert.match(src, /ticketSubject\.slice\(ASR_TICKET_PREFIX\.length\)/);
-    assert.match(src, /\{ event: "start", session: crypto\.randomUUID\(\), subject: asrSubject, meter: "asr_seconds" \}/);
+    assert.match(src, /\{ event: "start", session: crypto\.randomUUID\(\), subject: asrSubject, meter: "asr_seconds", \.\.\.\(callAsrGrant \? \{ call: callAsrGrant\.call \} : \{\}\) \}/);
     assert.match(src, /\{ event: "end", reservation: r\.reservation, audio_seconds: r\.inputAudioSeconds \}/);
-    const asrReport = between('subject: asrSubject, meter: "asr_seconds"', 'stop: () => {');
+    const asrReport = between('subject: asrSubject, meter: "asr_seconds"', 'stop: (reason) => {');
     assert.ok(asrReport.includes('signal: AbortSignal.timeout(5000)'), 'a stuck usage report must not hold the socket open');
     for (const [start, end] of [
         ['const rejectFrame = () => {', '};'],

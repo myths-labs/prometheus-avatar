@@ -62,3 +62,50 @@ test('every way the socket ends also ends the lease timer', () => {
     const reject = between('const rejectFrame = () => {', "try { serverWs.close(1008, 'Voice session authorization failed')");
     assert.ok(reject.includes('asrLease?.close();'));
 });
+
+// One connection per call (包 2b, 钱安全线 ⑨): the start names the call, a second connection is refused 4409 before the provider hears
+// its audio, and a Call's start the marketplace cannot answer is refused rather than waved through.
+test('an ac1 start names its call; a v1 start does not', () => {
+    const report = between('subject: asrSubject, meter: "asr_seconds"', '// 4409: another connection of this call');
+    assert.match(report, /\.\.\.\(callAsrGrant \? \{ call: callAsrGrant\.call \} : \{\}\)/);
+    // tick and end carry the reservation only
+    assert.match(report, /\{ event: "tick", reservation: r\.reservation \}/);
+    assert.doesNotMatch(report.slice(report.indexOf('"tick"')), /call:/);
+});
+
+test('a Call start that gets no answer is refused; every other report still fails open', () => {
+    const report = between('subject: asrSubject, meter: "asr_seconds"', '// 4409: another connection of this call');
+    assert.match(report, /const unanswered = r\.kind === "start" && callAsrGrant\s*\? \{ continue: false, reservation: null, code: ASR_UNAVAILABLE_CODE \} : \{ continue: true, reservation: null \};/);
+    assert.match(report, /: unanswered;/);
+    assert.match(report, /catch \{ return unanswered; \}/);
+    assert.doesNotMatch(report, /continue: true, reservation: null \}\s*;?\s*\}\s*catch/, 'no inline fail-open left in the catch');
+});
+
+test('the busy stop closes the client 4409, an unreachable marketplace 1013, the pool 4402, and the upstream 1000', () => {
+    const stop = between('// 4409: another connection of this call', "// A Call's recognition socket (ac1 ticket) lives only");
+    assert.match(stop, /reason === "busy" \? \[4409, "Call already connected"\]/);
+    assert.match(stop, /reason === "unavailable" \? \[1013, "Usage unavailable, try again"\] : \[4402, "Voice is text-only for now"\]/);
+    assert.match(stop, /upstreamWs\.close\(1000, "Voice session ended"\)/);
+});
+
+test('a leased socket sends no audio upstream until the start is answered, and keeps order', () => {
+    const handler = between('// Client → Upstream', 'if (frameGuard) {');
+    const gated = handler.indexOf('if (asrLease && (asrAudioSeen || verdict.audioBytes > 0)) {');
+    const plain = handler.indexOf('try { upstreamWs.send(event.data); }');
+    assert.ok(gated > 0 && plain > gated, 'the gated branch is taken before the plain send');
+    const branch = handler.slice(gated, plain);
+    // the clock starts, then the send waits for the answer, behind the packets before it
+    assert.ok(branch.indexOf('asrMeter?.onAudio(verdict.audioBytes)') < branch.indexOf('await asrMeter!.ready()'));
+    assert.match(branch, /asrSendQueue = asrSendQueue\.then\(/);
+    assert.match(branch, /if \(!\(await asrMeter!\.ready\(\)\) \|\| clientClosed \|\| upstreamClosed\) return;/);
+    // waiting audio is bounded
+    assert.match(branch, /asrPendingBytes \+ frame\.byteLength > ASR_PENDING_MAX_BYTES\) \{ rejectFrame\(\); return; \}/);
+    // after the first audio every frame (even an empty last packet) stays behind the queue
+    assert.match(branch, /asrAudioSeen = true;/);
+});
+
+test('an ac1 socket is refused (503) when the relay cannot meter it', () => {
+    const gate = between('A Call\'s recognition is metered per call', 'if (!verdict.valid) {');
+    assert.match(gate, /if \(verdict\.valid && callAsrGrant && !\(env\.MARKETPLACE_USAGE_URL && env\.RELAY_USAGE_SECRET\)\) \{/);
+    assert.match(gate, /status: 503/);
+});

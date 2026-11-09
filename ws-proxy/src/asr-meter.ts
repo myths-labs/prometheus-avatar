@@ -12,6 +12,11 @@
  * each minute, and the end with the audio seconds sent (16 kHz, 16-bit mono: 32,000 bytes a second), through the
  * same signed report path as realtime (realtime-meter.ts signUsageReport). A "stop" answer closes the session.
  *
+ * A Call's socket (ac1 ticket) is held to one connection per call: its start names the call, the marketplace answers
+ * CALL_ASR_BUSY when another connection of that call already holds a reservation, and the relay closes this one with
+ * 4409. Its audio also waits for the start's answer (ready()), so a refused connection never sends the provider audio,
+ * and a start the marketplace cannot be reached for is refused (the relay reports ASR_UNAVAILABLE_CODE), not waved through.
+ *
  * Frame layout (SAUC v3, marketplace-app src/lib/voiceAsrProtocol.ts): [4B header][4B big-endian payload size][payload]
  *   header byte 0 = 0x11, byte 1 = type << 4 | flags, byte 2 = serialization << 4 | compression, byte 3 = 0.
  *
@@ -60,17 +65,28 @@ export function createAsrFrameGuard() {
 type Report = { kind: "start" } | { kind: "tick"; reservation: string | null }
     | { kind: "end"; reservation: string | null; inputAudioSeconds: number };
 
+/** The marketplace's answer to a Call's start when another connection of the same call already holds a reservation. */
+export const ASR_CALL_BUSY_CODE = "CALL_ASR_BUSY";
+/** A Call's start nobody could answer: the relay's own answer when the marketplace is unreachable, and the marketplace's when its ledger is. */
+export const ASR_UNAVAILABLE_CODE = "CALL_ASR_UNAVAILABLE";
+export type AsrStopReason = "quota" | "busy" | "unavailable";
+const stopReason = (code: string | undefined): AsrStopReason =>
+    code === ASR_CALL_BUSY_CODE ? "busy" : code === ASR_UNAVAILABLE_CODE ? "unavailable" : "quota";
+
 export function createAsrMeter<T>(o: {
     schedule: (fn: () => Promise<void> | void, ms: number) => T;
     cancel: (timer: T) => void;
-    report: (r: Report) => Promise<{ continue: boolean; reservation?: string | null }>;
-    stop: (reason: "quota") => void;
+    report: (r: Report) => Promise<{ continue: boolean; reservation?: string | null; code?: string }>;
+    stop: (reason: AsrStopReason) => void;
 }) {
     let active = false, ended = false, audioBytes = 0, reservation: string | null = null, tick: T | null = null;
     // Settles once the start answer is in (or failed), before any halt it triggers, so an end can wait for it without
     // waiting on itself.
     let markReservationKnown: () => void = () => {};
     const reservationKnown = new Promise<void>((resolve) => { markReservationKnown = resolve; });
+    // Settles true when the start was answered "continue" (or the report threw and failed open), false when it was refused.
+    let markStartAnswer: (ok: boolean) => void = () => {};
+    const startAnswer = new Promise<boolean>((resolve) => { markStartAnswer = resolve; });
     const end = async (): Promise<boolean> => {
         if (!active || ended) return false;
         ended = true;
@@ -80,12 +96,12 @@ export function createAsrMeter<T>(o: {
         await o.report({ kind: "end", reservation, inputAudioSeconds: Math.round((audioBytes / ASR_INPUT_BYTES_PER_SECOND) * 1000) / 1000 });
         return true;
     };
-    const halt = async () => { if (await end()) o.stop("quota"); };
+    const halt = async (reason: AsrStopReason) => { if (await end()) o.stop(reason); };
     const armTick = () => {
         tick = o.schedule(async () => {
             if (ended) return;
             const answer = await o.report({ kind: "tick", reservation });
-            if (!answer.continue) return halt();
+            if (!answer.continue) return halt(stopReason(answer.code));
             armTick();
         }, TICK_MS);
     };
@@ -99,10 +115,13 @@ export function createAsrMeter<T>(o: {
             void o.report({ kind: "start" }).then(async (answer) => {
                 reservation = answer.reservation ?? null;
                 markReservationKnown();
-                if (!answer.continue) { await halt(); return; }
+                markStartAnswer(answer.continue);
+                if (!answer.continue) { await halt(stopReason(answer.code)); return; }
                 if (!ended) armTick();
-            }, () => { markReservationKnown(); if (!ended) armTick(); }); // a failed report fails open, like realtime
+            }, () => { markReservationKnown(); markStartAnswer(true); if (!ended) armTick(); }); // a report that throws fails open, like realtime
         },
+        /** Resolves with whether the start was answered "continue"; false once it was refused. Never rejects; stays pending until a first audio packet starts the clock. */
+        ready: () => startAnswer,
         audioSeconds: () => audioBytes / ASR_INPUT_BYTES_PER_SECOND,
         close() { void end(); },
     };

@@ -23,7 +23,7 @@ import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
 import { createSessionMeter, signUsageReport } from './realtime-meter';
-import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, createAsrFrameGuard, createAsrMeter, ticketFitsPath } from './asr-meter';
+import { ASR_RESOURCES, ASR_TICKET_PREFIX, ASR_UNAVAILABLE_CODE, asrResource, createAsrFrameGuard, createAsrMeter, ticketFitsPath } from './asr-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -488,6 +488,14 @@ export default {
                 : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
             const verdict = checked.valid && !ticketFitsPath(checked.sub, engineName) ? { valid: false as const, reason: "wrong-purpose" } : checked;
             if (verdict.valid) ticketSubject = verdict.sub;
+            // A Call's recognition is metered per call (one connection, a reservation at the start): with no way to report there is no
+            // Call socket, where a v1 /asr socket still runs unmetered when the relay has no usage URL (its fail-open rule is unchanged).
+            if (verdict.valid && callAsrGrant && !(env.MARKETPLACE_USAGE_URL && env.RELAY_USAGE_SECRET)) {
+                console.error('[WS-Relay] asr: a Call recognition ticket needs MARKETPLACE_USAGE_URL and RELAY_USAGE_SECRET');
+                return new Response(JSON.stringify({ error: 'asr: usage metering is not configured' }), {
+                    status: 503, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+                });
+            }
             if (!verdict.valid) {
                 console.warn(`[WS-Relay] 🎫 ${engineName}: rejected platform-credential request (${verdict.reason})`);
                 return new Response(JSON.stringify({
@@ -660,6 +668,9 @@ export default {
                 ? createDoubaoFrameGuard(async (speaker, model) => lease ? lease.authorize(speaker, model) : isPublicDoubaoSpeaker(speaker)
                     && (await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get('ticket') || '')).valid) : null;
             let pendingBytes = 0, pendingMessages = 0, clientQueue = Promise.resolve();
+            // A Call's audio held for the start's answer: at most 5 s of audio (the report's timeout) plus slack, 32 KB a second.
+            const ASR_PENDING_MAX_BYTES = 256 * 1024;
+            let asrAudioSeen = false, asrPendingBytes = 0, asrSendQueue = Promise.resolve();
             const rejectFrame = () => {
                 clientClosed = true; upstreamClosed = true;
                 frameGuard?.close();
@@ -707,20 +718,28 @@ export default {
                 schedule: (fn, ms) => setTimeout(() => { void fn(); }, ms),
                 cancel: (t) => clearTimeout(t),
                 report: async (r) => {
+                    // A Call's start names its call: the marketplace lets one connection per call hold a reservation.
                     const body = JSON.stringify(r.kind === "start"
-                        ? { event: "start", session: crypto.randomUUID(), subject: asrSubject, meter: "asr_seconds" }
+                        ? { event: "start", session: crypto.randomUUID(), subject: asrSubject, meter: "asr_seconds", ...(callAsrGrant ? { call: callAsrGrant.call } : {}) }
                         : r.kind === "tick" ? { event: "tick", reservation: r.reservation }
                         : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds });
+                    // Fail open (a v1 socket, and every tick and end), except a Call's start: with no answer there is no reservation and no
+                    // way to tell a second connection from the first, so it is refused.
+                    const unanswered = r.kind === "start" && callAsrGrant
+                        ? { continue: false, reservation: null, code: ASR_UNAVAILABLE_CODE } : { continue: true, reservation: null };
                     try {
                         // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
                         const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
                             "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
-                        return res.ok ? await res.json() as { continue: boolean; reservation?: string | null } : { continue: true, reservation: null };
-                    } catch { return { continue: true, reservation: null }; }
+                        return res.ok ? await res.json() as { continue: boolean; reservation?: string | null; code?: string } : unanswered;
+                    } catch { return unanswered; }
                 },
-                stop: () => {
+                stop: (reason) => {
                     clientClosed = true; upstreamClosed = true;
-                    try { serverWs.close(4402, "Voice is text-only for now"); } catch { }
+                    // 4409: another connection of this call holds the recognition. 1013: the marketplace could not be asked. 4402: the pool.
+                    const [code, text] = reason === "busy" ? [4409, "Call already connected"]
+                        : reason === "unavailable" ? [1013, "Usage unavailable, try again"] : [4402, "Voice is text-only for now"];
+                    try { serverWs.close(code, text); } catch { }
                     try { upstreamWs.close(1000, "Voice session ended"); } catch { }
                 },
             }) : null;
@@ -765,6 +784,21 @@ export default {
                     if (clientClosed || upstreamClosed) return;
                     const verdict = asrGuard.inspect(event.data);
                     if (!verdict.ok) { console.warn(`[WS-Relay] asr: refused a client frame (${verdict.reason})`); rejectFrame(); return; }
+                    if (asrLease && (asrAudioSeen || verdict.audioBytes > 0)) {
+                        // A Call's audio waits for the start's answer (a second connection of the call is refused before the provider hears
+                        // it) and keeps its order behind the first packet. The request frame, which carries no audio, goes straight through.
+                        asrAudioSeen = true;
+                        const frame = event.data as ArrayBuffer;
+                        if (asrPendingBytes + frame.byteLength > ASR_PENDING_MAX_BYTES) { rejectFrame(); return; }
+                        asrPendingBytes += frame.byteLength;
+                        asrMeter?.onAudio(verdict.audioBytes);
+                        asrSendQueue = asrSendQueue.then(async () => {
+                            if (!(await asrMeter!.ready()) || clientClosed || upstreamClosed) return;
+                            upstreamWs.send(frame);
+                        }).catch((e) => { console.error(`[WS-Relay] asr: error sending to upstream:`, e); })
+                            .finally(() => { asrPendingBytes -= frame.byteLength; });
+                        return;
+                    }
                     try { upstreamWs.send(event.data); } catch (e) { console.error(`[WS-Relay] asr: error sending to upstream:`, e); return; }
                     asrMeter?.onAudio(verdict.audioBytes);
                     return;
