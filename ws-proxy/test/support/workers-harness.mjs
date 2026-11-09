@@ -94,9 +94,13 @@ export function installWorkersRuntime() {
 
 const encoder = new TextEncoder();
 
-/** A Doubao client frame as the app sends it: header 0x11, full client request with an event (0x14), JSON (0x10), no compression. */
+/**
+ * A Doubao client frame as the app sends it: header 0x11, full client request with an event (0x14), JSON (0x10), no compression. The
+ * payload is an object (sent as its JSON) or raw JSON text, sent byte for byte.
+ */
 export function clientFrame(event, session, payload) {
-    const id = session === null ? null : encoder.encode(session), body = encoder.encode(JSON.stringify(payload));
+    const id = session === null ? null : encoder.encode(session);
+    const body = encoder.encode(typeof payload === 'string' ? payload : JSON.stringify(payload));
     const bytes = new Uint8Array(8 + (id ? 4 + id.length : 0) + 4 + body.length), view = new DataView(bytes.buffer);
     bytes.set([0x11, 0x14, 0x10, 0x00]);
     view.setUint32(4, event);
@@ -108,12 +112,14 @@ export function clientFrame(event, session, payload) {
 }
 export const startConnection = () => clientFrame(1, null, {});
 export const finishSession = (session) => clientFrame(102, session, {});
-/** StartSession (event 100): the dialog's text fields as given, plus the extra, tts and asr the app sends. */
-export const startSession = (session, dialog, { speaker, model }) => clientFrame(100, session, {
+/** The StartSession payload the app sends: the dialog's text fields as given, plus extra, tts and asr. A fresh object each call. */
+export const startSessionPayload = (dialog, { speaker, model }) => ({
     dialog: { ...dialog, extra: { input_mod: 'keep_alive', model } },
     tts: { speaker, audio_config: { channel: 1, format: 'pcm_s16le', sample_rate: 24000 } },
     asr: { extra: {} },
 });
+/** StartSession (event 100) with that payload. */
+export const startSession = (session, dialog, voice) => clientFrame(100, session, startSessionPayload(dialog, voice));
 
 /** Waits (macrotask by macrotask, so Web Crypto and the relay's queues can finish) until `predicate` holds. */
 export async function until(label, predicate, ms = 15_000) {

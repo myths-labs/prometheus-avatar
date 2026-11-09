@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { finishSession, installWorkersRuntime, loadSrc, startConnection, startSession, until } from './support/workers-harness.mjs';
+import {
+    clientFrame, finishSession, installWorkersRuntime, loadSrc, startConnection, startSession, startSessionPayload, until,
+} from './support/workers-harness.mjs';
 import { mintLiveVoiceGrant, DEFAULT_LIVE_SPEAKER } from '../src/live-voice-grant.ts';
 
 const runtime = installWorkersRuntime();
@@ -113,6 +115,50 @@ test('lv4: any other dialog closes 1008 "Voice prompt not approved", none of it 
     const blind = await mutant({ 'doubao-frame-guard.ts': [['if (sent !== bound) {', 'if (sent !== bound && false) {']] });
     const run = await session(blind, doubao(ticket), [SC(), SS(1, { ...IRIS.dialog, system_role: marker })]);
     assert.deepEqual(run.forwarded, ['StartConnection', 'StartSession#1']);
+});
+
+// ⑦ EVAL 965: the hash covers the four dialog text fields only, so no other part of a StartSession may carry text past it. Each case is an
+// otherwise valid lv4-bound StartSession (its four fields are the approved ones, so the hash matches) with one piece of text elsewhere.
+test('lv4: text anywhere in a StartSession outside the four hashed fields closes 1008, and none of it reaches the provider', async () => {
+    const ticket = await lv4(IRIS);
+    const text = 'UNHASHED-PERSONA-TEXT-4C1D';
+    const edited = (edit) => {
+        const payload = startSessionPayload(IRIS.dialog, { speaker: voice.speakerId, model: voice.model });
+        edit(payload);
+        return payload;
+    };
+    const canonical = JSON.stringify(edited(() => {}));
+    assert.equal(canonical.split('"system_role":').length, 2);
+    // The reverse proofs: the guard check reads as passed, or the lease stops pinning that value to the ticket.
+    const guardCheck = (check) => ({ 'doubao-frame-guard.ts': [[check, 'false']] });
+    const leasePin = (match) => ({ 'live-voice-lease.ts': [[match, '']] });
+    const cases = [
+        ['a new top-level key', edited((p) => { p.note = text; }), guardCheck("Object.keys(frame.json).some(k => !['dialog', 'tts', 'asr'].includes(k))")],
+        ['a new dialog key', edited((p) => { p.dialog.note = text; }),
+            guardCheck("Object.keys(dialogConfig).some(k => !['character_manifest', 'bot_name', 'system_role', 'speaking_style', 'extra'].includes(k))")],
+        ['dialog.extra.note', edited((p) => { p.dialog.extra.note = text; }), guardCheck("Object.keys(extraConfig).sort().join(',') !== 'input_mod,model'")],
+        ['dialog.extra.input_mod', edited((p) => { p.dialog.extra.input_mod = `keep_alive ${text}`; }),
+            guardCheck("!['keep_alive', 'push_to_talk'].includes(String(extraConfig.input_mod))")],
+        ['dialog.extra.model', edited((p) => { p.dialog.extra.model = text; }), leasePin(' && current.model === model')],
+        ['tts.text', edited((p) => { p.tts.text = text; }), guardCheck("Object.keys(config).some(k => !['speaker', 'audio_config'].includes(k))")],
+        ['tts.speaker', edited((p) => { p.tts.speaker = `${voice.speakerId} ${text}`; }), leasePin(' && current.speakerId === speaker')],
+        ['tts.audio_config.text', edited((p) => { p.tts.audio_config.text = text; }),
+            guardCheck("Object.keys(audio).sort().join(',') !== 'channel,format,sample_rate'")],
+        ['asr.text', edited((p) => { p.asr.text = text; }), guardCheck("Object.keys(asr).join(',') !== 'extra'")],
+        ['asr.extra.text', edited((p) => { p.asr.extra.text = text; }), guardCheck('Object.keys(asr.extra).length !== 0')],
+        // A repeated key: JSON.parse keeps the last one (the approved text, so the hash matches); the provider's parser may keep the first.
+        ['dialog.system_role given twice', canonical.replace('"system_role":', `"system_role":${JSON.stringify(text)},"system_role":`),
+            guardCheck('JSON.stringify(json) !== raw')],
+    ];
+    for (const [where, payload, removed] of cases) {
+        const run = await session(relay, doubao(ticket), [SC(), ['StartSession#1', clientFrame(100, 'session-1', payload)]]);
+        assert.deepEqual(run.forwarded, ['StartConnection'], where);
+        assert.deepEqual(run.close, { code: 1008, reason: 'Voice session authorization failed' }, where);
+        assert.equal(run.providerClose?.code, 1008, where);
+        // Reverse proof: without that one check, the hash alone admits the StartSession and the text reaches the provider.
+        const leaked = await session(await mutant(removed), doubao(ticket), [SC(), ['StartSession#1', clientFrame(100, 'session-1', payload)]]);
+        assert.deepEqual(leaked.forwarded, ['StartConnection', 'StartSession#1'], `reverse proof: ${where}`);
+    }
 });
 
 test('lv4: a StartSession after a FinishSession on the same socket is checked too', async () => {
