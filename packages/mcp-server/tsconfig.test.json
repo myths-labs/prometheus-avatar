@@ -9,6 +9,7 @@
         "noEmit": false
     },
     "include": [
-        "src/workspace-*.ts"
+        "src/workspace-*.ts",
+        "src/studio-*.ts"
     ]
 }

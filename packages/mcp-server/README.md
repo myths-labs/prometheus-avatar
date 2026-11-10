@@ -6,9 +6,9 @@ Give any AI agent an embodied 3D / 2.5D avatar via [Model Context Protocol](http
 npx @prometheusavatar/mcp-server
 ```
 
-[English](#17-tools) · [中文](#中文文档)
+[English](#23-tools) · [中文](#中文文档)
 
-## 17 Tools
+## 23 Tools
 
 ### Avatar and marketplace (10)
 
@@ -38,6 +38,19 @@ What your agent produces is saved to your Prometheus account and shows up in you
 | `prometheus_read_workspace` | Low level: read entries (≤ 5 per page) and the category list | `category` · `cursor` · `limit` · `account_id` |
 | `prometheus_save_workspace_entry` | Low level: write one entry with every field under your control | `account_id` · `operation_id` · `entry` |
 | `prometheus_get_workspace_operation` | Low level: look up the receipt of an earlier write | `account_id` · `operation_id` |
+
+### Forge Studio (6)
+
+Your agent walks one new Avatar through the guided Forge Studio (1/5 avatar, 2/5 voice, 3/5 expressions) while you watch the same session live at `watch_url` and make every choice there. The agent never spends your points on its own: anything that costs points, picking the voice and every other question waits for you to click on the studio page. You can pause the agent there at any time.
+
+| Tool | What it does | Arguments |
+|------|--------------|-----------|
+| `forge_studio_start` | Open a studio session and get the page to watch it on | `asset_id` (continue with one of your Avatars) |
+| `forge_studio_get` | Read each step's status, the question waiting for you, progress and new events | `session_id` (required) · `since` |
+| `forge_studio_wait` | Wait (up to 25 s) until something new happens, e.g. you answered | `session_id` · `since` (required) · `timeout_s` |
+| `forge_studio_make_avatar` | Step 1: ask for a 2D Avatar from a description (you approve the points on the page) | `session_id` · `prompt` (required) |
+| `forge_studio_make_voices` | Step 2: ask for voice candidates (you choose on the page) | `session_id` (required) |
+| `forge_studio_suggest` | Mark the agent's pick and reason on the open question; you still decide | `session_id` · `checkpoint_id` · `option_id` · `reason` (required) |
 
 ## Requirements
 
@@ -255,7 +268,7 @@ MIT — [Myths Labs](https://mythslabs.ai)
 npx @prometheusavatar/mcp-server
 ```
 
-## 17 个工具
+## 23 个工具
 
 ### 形象与市场（10 个）
 
@@ -285,6 +298,19 @@ Agent 的产出会存到你的 Prometheus 账号，显示在工作区的窗格�
 | `prometheus_read_workspace` | 底层：读取条目（每页最多 5 条）和类别列表 | `category` · `cursor` · `limit` · `account_id` |
 | `prometheus_save_workspace_entry` | 底层：逐字段精确写入一条 | `account_id` · `operation_id` · `entry` |
 | `prometheus_get_workspace_operation` | 底层：按操作号查回执 | `account_id` · `operation_id` |
+
+### Forge 工作室（6 个）
+
+Agent 带一个新角色走完 Forge 工作室的引导步骤（1/5 形象、2/5 声音、3/5 表情），你在 `watch_url` 实时看到同一个进度，每个选择都由你在页面上做。Agent 不会自己花你的点数：要花点的事、选声音和其他所有提问，都停下来等你在工作室页面上点。你随时可以在页面上暂停 Agent。
+
+| 工具 | 作用 | 参数 |
+|------|------|------|
+| `forge_studio_start` | 开一个工作室进度，拿到观看用的页面地址 | `asset_id`（接着做你已有的一个角色） |
+| `forge_studio_get` | 读各步状态、等你回答的问题、进度和新动态 | `session_id`（必填）· `since` |
+| `forge_studio_wait` | 等到有新变化（例如你回答了），最多 25 秒 | `session_id` · `since`（必填）· `timeout_s` |
+| `forge_studio_make_avatar` | 第 1 步：按描述生成 2D 角色（点数由你在页面上批准） | `session_id` · `prompt`（必填） |
+| `forge_studio_make_voices` | 第 2 步：生成候选声音（由你在页面上选） | `session_id`（必填） |
+| `forge_studio_suggest` | 在当前问题上标出 Agent 的推荐和理由，最后仍由你决定 | `session_id` · `checkpoint_id` · `option_id` · `reason`（必填） |
 
 ## 前置条件
 

@@ -44,6 +44,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { createRequire } from "node:module";
 import { registerWorkspaceTools } from "./workspace-tools.js";
+import { registerStudioTools } from "./studio-tools.js";
 
 // Read the version from package.json at runtime. It used to be typed in by
 // hand in two places and both had drifted: serverInfo said 0.3.2 while the
@@ -750,6 +751,8 @@ MIT — Myths Labs
 async function main() {
     // Workspace tools are built lazily inside, so a bad PROMETHEUS_API_URL cannot stop the other tools from starting.
     toolCount += registerWorkspaceTools(server, API_BASE, API_KEY, PKG_VERSION);
+    // Forge Studio: the AI walks one Avatar through the guided studio; the person answers every question on the studio page.
+    toolCount += registerStudioTools(server, API_BASE, API_KEY, PKG_VERSION);
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error(`[Prometheus MCP] Server started — ${toolCount} tools available`);

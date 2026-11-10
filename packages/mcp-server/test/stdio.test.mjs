@@ -11,9 +11,10 @@ import { startFakeSite } from './fake-site.mjs';
 
 const entry = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'index.js');
 const ORIGINAL = ['create_avatar', 'set_avatar_state', 'equip_asset', 'generate_asset', 'update_asset', 'generate_image_pro', 'list_marketplace', 'get_avatar_status', 'share_avatar', 'speak'];
+const STUDIO = ['forge_studio_start', 'forge_studio_get', 'forge_studio_wait', 'forge_studio_make_avatar', 'forge_studio_make_voices', 'forge_studio_suggest'];
 const WORKSPACE = ['save_work', 'upsert_task', 'complete_task', 'log_visited_page', 'prometheus_read_workspace', 'prometheus_save_workspace_entry', 'prometheus_get_workspace_operation'];
 
-test('the built server lists all 17 tools (the original 10 untouched) and a workspace tool round-trips over stdio', async () => {
+test('the built server lists all 23 tools (the original 10 untouched, 7 workspace, 6 Forge Studio) and a workspace tool round-trips over stdio', async () => {
     const site = await startFakeSite({ browse: true });
     const stateDirectory = mkdtempSync(join(tmpdir(), 'k10-stdio-'));
     const transport = new StdioClientTransport({ command: process.execPath, args: [entry], stderr: 'pipe',
@@ -25,9 +26,9 @@ test('the built server lists all 17 tools (the original 10 untouched) and a work
         await client.connect(transport);
         const { tools } = await client.listTools();
         const names = tools.map(t => t.name);
-        assert.equal(names.length, 17);
-        for (const name of [...ORIGINAL, ...WORKSPACE]) assert.ok(names.includes(name), `${name} is registered`);
-        assert.equal(new Set(names).size, 17, 'no duplicate names');
+        assert.equal(names.length, 23);
+        for (const name of [...ORIGINAL, ...WORKSPACE, ...STUDIO]) assert.ok(names.includes(name), `${name} is registered`);
+        assert.equal(new Set(names).size, 23, 'no duplicate names');
         const result = await client.callTool({ name: 'save_work', arguments: { content: 'Over stdio', external_key: 'stdio-check' } });
         const json = JSON.parse(result.content[0].text);
         assert.deepEqual([json.saved, json.action], [true, 'created']);
@@ -36,6 +37,6 @@ test('the built server lists all 17 tools (the original 10 untouched) and a work
         assert.equal(info.name, 'prometheus-avatar');
         assert.equal(info.version, JSON.parse((await import('node:fs')).readFileSync(join(dirname(entry), '..', 'package.json'), 'utf8')).version);
         await new Promise(resolve => setTimeout(resolve, 100));
-        assert.match(banner, /17 tools available/, 'the start-up banner counts the real number of tools');
+        assert.match(banner, /23 tools available/, 'the start-up banner counts the real number of tools');
     } finally { await client.close(); await site.close(); rmSync(stateDirectory, { recursive: true, force: true }); }
 });
