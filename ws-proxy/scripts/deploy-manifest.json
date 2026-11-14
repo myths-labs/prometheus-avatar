@@ -1,0 +1,10 @@
+{
+    "liveCommit": "99b88a63",
+    "liveVersion": "177bbb8a-c1c6-495d-b27c-158e9c9371c4",
+    "declared": ["package.json", "src/asr-meter.ts", "src/index.ts"],
+    "wrangler": {
+        "version": "3.114.17",
+        "binSha256": "073e01884860e63c0fb2aaf5ae538042ff081c97c3b6ebaec42df5372220bd15",
+        "cliSha256": "3ddc7ba0e400b3ad75e49a4bb18dc9b6b6727873920efe4797940b67bdbb790a"
+    }
+}

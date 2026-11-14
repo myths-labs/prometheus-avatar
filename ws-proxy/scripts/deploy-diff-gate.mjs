@@ -6,15 +6,16 @@
 // candidate tree with the live tree (the source commit recorded for the live version) and fails when
 //   - a deployable file differs and is not declared, or
 //   - a declared file did not change.
-// It then asks wrangler (read-only `deployments list`) whether the latest version is the recorded one, and stops if
-// not (someone deployed in between). It reads no credentials: wrangler uses its own login.
+// It then asks the PINNED wrangler (trusted-wrangler.mjs: version and file hashes; never a wrangler the candidate tree
+// brings, never CI credentials in its environment) for the read-only `deployments list`, and stops if the latest version is
+// not the recorded one (someone deployed in between). It reads no credentials: wrangler uses its own login.
 //
 // Usage: node scripts/deploy-diff-gate.mjs --live <dir> --candidate <dir> --declared "a b c"
 //          --expect-version <full version id> [--skip-version-check]   (the flag is for tests only)
 // <dir> is the ws-proxy directory of each tree (e.g. `git archive <sha> ws-proxy` extracted, then /ws-proxy).
 import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { resolveTrustedWrangler, runTrustedWrangler } from './trusted-wrangler.mjs';
 import { fileURLToPath } from 'node:url';
 
 const DEPLOYABLE_FILES = ['wrangler.toml', 'package.json', 'package-lock.json', 'tsconfig.json'];
@@ -84,40 +85,57 @@ export function treeProblems(label, root) {
 
 function parseArgs(argv) {
     const a = { skipVersionCheck: false };
+    const valued = ['--live', '--candidate', '--declared', '--expect-version', '--wrangler-root', '--wrangler-version', '--wrangler-bin-sha256', '--wrangler-cli-sha256'];
     for (let i = 0; i < argv.length; i++) {
         const k = argv[i];
         if (k === '--skip-version-check') a.skipVersionCheck = true;
-        else if (['--live', '--candidate', '--declared', '--expect-version', '--wrangler-cwd'].includes(k)) a[k.slice(2).replace(/-(\w)/g, (_, c) => c.toUpperCase())] = argv[++i];
+        else if (valued.includes(k)) a[k.slice(2).replace(/-(\w)/g, (_, c) => c.toUpperCase())] = argv[++i];
         else throw new Error(`unknown argument ${k}`);
     }
     return a;
 }
 
-function main() {
-    const a = parseArgs(process.argv.slice(2));
-    if (!a.live || !a.candidate || a.declared === undefined) { console.error('usage: --live <dir> --candidate <dir> --declared "<files>" --expect-version <id> [--skip-version-check]'); return 2; }
+/**
+ * Runs the gate. Returns { code, lines }. The version check runs the PINNED wrangler (trusted-wrangler.mjs) with a whitelist
+ * environment; --skip-version-check exists for tests and previews and is refused unless DEPLOY_GATE_ALLOW_SKIP=1 is set.
+ */
+export function runGate(a, env = process.env) {
+    const lines = [];
+    const say = (l) => lines.push(l);
+    if (!a.live || !a.candidate || a.declared === undefined) { say('usage: --live <dir> --candidate <dir> --declared "<files>" --expect-version <full id> --wrangler-version V --wrangler-bin-sha256 H --wrangler-cli-sha256 H [--wrangler-root <dir>]'); return { code: 2, lines }; }
     const declared = a.declared.split(/\s+/).filter(Boolean);
     const shape = [...treeProblems('live', a.live), ...treeProblems('candidate', a.candidate)];
     const problems = shape.length ? shape : checkDiff({ liveRoot: a.live, candidateRoot: a.candidate, declared });
     const changed = changedFiles(a.live, a.candidate);
-    console.log(`deployable files changed vs live: ${changed.join(' ') || '(none)'}`);
-    console.log(`declared: ${declared.join(' ') || '(none)'}`);
-    for (const p of problems) console.log(p);
+    say(`deployable files changed vs live: ${changed.join(' ') || '(none)'}`);
+    say(`declared: ${declared.join(' ') || '(none)'}`);
+    for (const p of problems) say(p);
     let failed = problems.length > 0;
-    if (!a.skipVersionCheck) {
-        if (!UUID.test(a.expectVersion ?? '')) { console.log('VERSION CHECK: --expect-version must be the full version id (uuid)'); failed = true; }
-        else {
-            // The candidate's own wrangler when installed (it is not on PATH in a worktree), else the one on PATH.
-            const local = join(a.candidate, 'node_modules', '.bin', 'wrangler');
-            const r = spawnSync(existsSync(local) ? local : 'wrangler', ['deployments', 'list', '--name', 'ws-relay-proxy'], { cwd: a.wranglerCwd ?? a.candidate, encoding: 'utf8' });
+    if (a.skipVersionCheck) {
+        if (env.DEPLOY_GATE_ALLOW_SKIP === '1') say('version check skipped (tests / preview only)');
+        else { say('VERSION CHECK: --skip-version-check is refused here (set DEPLOY_GATE_ALLOW_SKIP=1 only in tests or a preview)'); failed = true; }
+    } else if (!UUID.test(a.expectVersion ?? '')) {
+        say('VERSION CHECK: --expect-version must be the full version id (uuid)'); failed = true;
+    } else {
+        try {
+            const trusted = resolveTrustedWrangler({ root: a.wranglerRoot ?? a.candidate, version: a.wranglerVersion, binSha256: a.wranglerBinSha256, cliSha256: a.wranglerCliSha256 });
+            const r = runTrustedWrangler(trusted, ['deployments', 'list', '--name', 'ws-relay-proxy'], a.candidate);
             const latest = r.status === 0 ? latestDeployedVersion(r.stdout) : null;
-            if (!latest) { console.log(`VERSION CHECK: could not read the latest version (wrangler exit ${r.status})`); failed = true; }
-            else if (latest !== a.expectVersion) { console.log(`VERSION CHECK: latest deployed version is ${latest}, not the recorded ${a.expectVersion}; someone deployed since`); failed = true; }
-            else console.log(`version check ok: latest is ${latest}`);
-        }
-    } else console.log('version check skipped (tests only)');
-    console.log(failed ? 'GATE: FAIL' : 'GATE: PASS');
-    return failed ? 1 : 0;
+            if (!latest) { say(`VERSION CHECK: could not read the latest version (wrangler exit ${r.status})`); failed = true; }
+            else if (latest !== a.expectVersion) { say(`VERSION CHECK: latest deployed version is ${latest}, not the recorded ${a.expectVersion}; someone deployed since`); failed = true; }
+            else say(`version check ok: latest is ${latest}`);
+        } catch (e) { say(String(e.message ?? e)); failed = true; }
+    }
+    say(failed ? 'GATE: FAIL' : 'GATE: PASS');
+    return { code: failed ? 1 : 0, lines };
+}
+
+function main() {
+    let a;
+    try { a = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); return 2; }
+    const { code, lines } = runGate(a);
+    for (const l of lines) console.log(l);
+    return code;
 }
 
 // Compare real paths: the ESM loader resolves symlinks in import.meta.url but argv[1] keeps the path as typed, so a
