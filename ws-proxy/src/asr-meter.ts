@@ -9,8 +9,31 @@
  * A compressed codec or a gzip payload would carry minutes of speech in a few bytes; anything else closes the socket.
  *
  * The clock starts with the first audio packet; a socket that sends none reports nothing. The meter reports start,
- * each minute, and the end with the audio seconds sent (16 kHz, 16-bit mono: 32,000 bytes a second), through the
- * same signed report path as realtime (realtime-meter.ts signUsageReport). A "stop" answer closes the session.
+ * then asks for more seconds as the audio uses them up, and reports the end with the audio seconds sent (16 kHz,
+ * 16-bit mono: 32,000 bytes a second), through the same signed report path as realtime (realtime-meter.ts
+ * signUsageReport). A "stop" answer closes the session.
+ *
+ * Budget (B-167). Recognition draws on the personal voice budget, and the ledger now grants each ask what the budget
+ * still pays for (marketplace usage_extend, 20261010142000). So the meter counts audio seconds, not wall-clock
+ * minutes, and it forwards only audio the ledger already holds:
+ *   - Nothing is forwarded before the start is answered: the client's audio waits, in order, and goes out when the
+ *     start holds ASR_STEP_SECONDS. A start the ledger refuses (budget or pool used up) forwards none of it.
+ *   - Each time the audio (sent and waiting) comes within ASR_LEAD_SECONDS of what is held, the meter asks for another
+ *     ASR_STEP_SECONDS ({event: "tick", seconds}) and adds what was granted. A short grant is the budget's last
+ *     stretch; the next ask is answered USAGE_BUDGET_EXHAUSTED and the session stops at once, inside what is held.
+ *   - Audio past what is held waits for the answer instead of going upstream, so a client that sends faster than
+ *     real time cannot outrun the ledger, and an honest one whose packets arrive in a burst (after a network stall)
+ *     loses nothing. More than ASR_BACKLOG_SECONDS waiting is not a microphone: that client is refused (1008).
+ *   - The ledger lets a hold lapse 120 s after its last extension. A hands-free client may send nothing for longer
+ *     (voice activity gating, or muted while the avatar speaks), so ASR_KEEPALIVE_MS (50 s) after the last answer the
+ *     meter asks for 0 seconds, which only renews the hold; two renewals fit in the 120 s, so one lost report is not a
+ *     lapsed hold. The renewal is never refused for the budget (what is held is already paid for), only by the pool
+ *     switches, which stop the session as an ask would.
+ * A report that fails or times out (5 s, under the 10 s lead) fails open with what it asked for, as before: a
+ * database outage must not hang up a conversation. Each such answer lets one step through unchecked, and a start that
+ * fails open leaves the whole session unmetered (it has no reservation to extend). An answer that says continue but
+ * grants nothing for a non-zero ask cannot come from the ledger; it is taken as the end of the budget rather than asked
+ * again at once.
  *
  * Frame layout (SAUC v3, marketplace-app src/lib/voiceAsrProtocol.ts): [4B header][4B big-endian payload size][payload]
  *   header byte 0 = 0x11, byte 1 = type << 4 | flags, byte 2 = serialization << 4 | compression, byte 3 = 0.
@@ -18,7 +41,14 @@
  * No imports, so node --test can load it directly.
  */
 export const ASR_INPUT_BYTES_PER_SECOND = 32_000;
-const TICK_MS = 60_000;
+/** Audio seconds the start reserves (marketplace realtime-usage route) and each ask asks for. */
+export const ASR_STEP_SECONDS = 60;
+/** Ask for the next stretch when this many held audio seconds are left: well over the 5 s report timeout. */
+export const ASR_LEAD_SECONDS = 10;
+/** Audio that may wait for the ledger's answer: a client's connect buffer plus a 5 s report timeout, with room. */
+export const ASR_BACKLOG_SECONDS = 20;
+/** Renew the hold this long after the last answer: twice inside the route's 120 s TTL, each with 5 s to answer. */
+export const ASR_KEEPALIVE_MS = 50_000;
 const MAX_FRAME_BYTES = 64 * 1024; // 100 ms of audio is 3,200 bytes; a request is well under 4 KB
 const TYPE_FULL_REQUEST = 0b0001, TYPE_AUDIO = 0b0010;
 const FLAG_LAST = 0b0010;
@@ -57,53 +87,117 @@ export function createAsrFrameGuard() {
     };
 }
 
-type Report = { kind: "start" } | { kind: "tick"; reservation: string | null }
+type Report = { kind: "start" } | { kind: "tick"; reservation: string | null; seconds: number }
     | { kind: "end"; reservation: string | null; inputAudioSeconds: number };
+/** The marketplace's answer. `seconds` is what it holds for the start or the ask (absent from an older marketplace:
+ *  what was asked); a stop carries the ledger's refusal code, reset time and tier for the client. */
+export type AsrUsageAnswer = { continue: boolean; reservation?: string | null; seconds?: number | null;
+    code?: string | null; resets_at?: string | null; tier?: string | null };
 
-export function createAsrMeter<T>(o: {
-    schedule: (fn: () => Promise<void> | void, ms: number) => T;
+export function createAsrMeter<F, T>(o: {
+    schedule: (fn: () => void, ms: number) => T;
     cancel: (timer: T) => void;
-    report: (r: Report) => Promise<{ continue: boolean; reservation?: string | null }>;
-    stop: (reason: "quota") => void;
+    report: (r: Report) => Promise<AsrUsageAnswer>;
+    /** Sends one client frame upstream; false when it could not be sent. */
+    forward: (frame: F) => boolean;
+    stop: (reason: "quota", answer: AsrUsageAnswer) => void;
 }) {
-    let active = false, ended = false, audioBytes = 0, reservation: string | null = null, tick: T | null = null;
+    let active = false, ended = false, audioBytes = 0, reservation: string | null = null;
+    // Audio seconds the ledger holds for this session: none until the start is answered.
+    let held = 0;
+    let asking = false;
+    let keepalive: T | null = null;
+    // Client frames waiting for the ledger to hold their seconds, in the order they came.
+    let waiting: { frame: F; bytes: number }[] = [];
+    let waitingBytes = 0;
     // Settles once the start answer is in (or failed), before any halt it triggers, so an end can wait for it without
     // waiting on itself.
     let markReservationKnown: () => void = () => {};
     const reservationKnown = new Promise<void>((resolve) => { markReservationKnown = resolve; });
-    const end = async (): Promise<boolean> => {
+    const sent = () => audioBytes / ASR_INPUT_BYTES_PER_SECOND;
+    const fits = (bytes: number) => (audioBytes + bytes) / ASR_INPUT_BYTES_PER_SECOND <= held;
+    // What an answer grants for an ask of `asked` seconds: its seconds, never more than asked; an answer without them
+    // (an older marketplace, or a failed report answered "continue") counts as the whole ask.
+    const grantedOf = (a: AsrUsageAnswer, asked: number) =>
+        typeof a.seconds === "number" && Number.isFinite(a.seconds) && a.seconds >= 0 ? Math.min(a.seconds, asked) : asked;
+    const send = (frame: F, bytes: number) => { if (o.forward(frame)) audioBytes += bytes; };
+    const drain = () => {
+        while (!ended && waiting.length > 0 && fits(waiting[0].bytes)) {
+            const next = waiting.shift()!;
+            waitingBytes -= next.bytes;
+            send(next.frame, next.bytes);
+        }
+    };
+    const disarm = () => { if (keepalive !== null) o.cancel(keepalive); keepalive = null; };
+    const arm = () => {
+        disarm();
+        if (!ended && reservation !== null) keepalive = o.schedule(() => { keepalive = null; if (!ended && !asking) request(0); }, ASR_KEEPALIVE_MS);
+    };
+    // `then` runs as soon as this call has ended the session, before the end report (which may take up to 5 s).
+    const end = async (then?: () => void): Promise<boolean> => {
         if (!active || ended) return false;
         ended = true;
-        if (tick) o.cancel(tick);
-        tick = null;
+        disarm();
+        waiting = []; waitingBytes = 0; // never forwarded, so never billed
+        then?.();
         await reservationKnown; // the end carries the reservation the start was given
-        await o.report({ kind: "end", reservation, inputAudioSeconds: Math.round((audioBytes / ASR_INPUT_BYTES_PER_SECOND) * 1000) / 1000 });
+        await o.report({ kind: "end", reservation, inputAudioSeconds: Math.round(sent() * 1000) / 1000 });
         return true;
     };
-    const halt = async () => { if (await end()) o.stop("quota"); };
-    const armTick = () => {
-        tick = o.schedule(async () => {
-            if (ended) return;
-            const answer = await o.report({ kind: "tick", reservation });
-            if (!answer.continue) return halt();
-            armTick();
-        }, TICK_MS);
+    // A stop closes the session at once: no audio is forwarded while the end report is on its way.
+    const halt = async (answer: AsrUsageAnswer) => { await end(() => o.stop("quota", answer)); };
+    // Every answer, the start's included: a stop ends the session; otherwise what was granted is added, the audio that
+    // now fits goes out, the hold's renewal is rearmed, and the next stretch is asked for if the audio is already near.
+    const answered = (answer: AsrUsageAnswer, asked: number) => {
+        asking = false;
+        if (ended) return;
+        if (!answer.continue) { void halt(answer); return; }
+        const granted = grantedOf(answer, asked);
+        // Never asked again at once for nothing: that would be a report loop, not a session.
+        if (asked > 0 && granted <= 0) { void halt({ ...answer, continue: false, code: answer.code ?? "USAGE_BUDGET_EXHAUSTED" }); return; }
+        held += granted;
+        drain();
+        arm();
+        ask();
+    };
+    function request(seconds: number) {
+        asking = true;
+        disarm();
+        void o.report({ kind: "tick", reservation, seconds }).then((a) => answered(a, seconds), () => answered({ continue: true }, seconds));
+    }
+    // Nothing is asked before the start (the request frame comes first and carries no audio) or while an answer is due.
+    function ask() {
+        if (!active || ended || asking || (audioBytes + waitingBytes) / ASR_INPUT_BYTES_PER_SECOND < held - ASR_LEAD_SECONDS) return;
+        request(ASR_STEP_SECONDS);
+    }
+    const begin = () => {
+        active = true;
+        asking = true;
+        void o.report({ kind: "start" }).then((answer) => {
+            reservation = answer.reservation ?? null;
+            markReservationKnown();
+            answered(answer, ASR_STEP_SECONDS);
+        }, () => { markReservationKnown(); answered({ continue: true }, ASR_STEP_SECONDS); }); // a failed report fails open, like realtime
     };
     return {
-        /** Called for each audio packet forwarded upstream, with its audio bytes. Does not delay the packet. */
-        onAudio(bytes: number) {
-            if (ended || bytes <= 0) return;
-            audioBytes += bytes;
-            if (active) return;
-            active = true;
-            void o.report({ kind: "start" }).then(async (answer) => {
-                reservation = answer.reservation ?? null;
-                markReservationKnown();
-                if (!answer.continue) { await halt(); return; }
-                if (!ended) armTick();
-            }, () => { markReservationKnown(); if (!ended) armTick(); }); // a failed report fails open, like realtime
+        /**
+         * Each client frame that passed the guard, in order, with its audio bytes (0 for the request). Forwarded now
+         * when the ledger holds its seconds and nothing is waiting, else kept until an answer makes room; the first
+         * audio packet starts the meter. False when more than ASR_BACKLOG_SECONDS would be waiting: refuse the client.
+         */
+        offer(frame: F, bytes: number): boolean {
+            if (ended) return true; // the session is over: nothing more goes upstream
+            if (bytes > 0 && !active) begin();
+            if (waiting.length === 0 && fits(bytes)) { send(frame, bytes); ask(); return true; }
+            if (waitingBytes + bytes > ASR_BACKLOG_SECONDS * ASR_INPUT_BYTES_PER_SECOND) return false;
+            waiting.push({ frame, bytes });
+            waitingBytes += bytes;
+            ask();
+            return true;
         },
-        audioSeconds: () => audioBytes / ASR_INPUT_BYTES_PER_SECOND,
+        audioSeconds: () => sent(),
+        heldSeconds: () => held,
+        waitingSeconds: () => waitingBytes / ASR_INPUT_BYTES_PER_SECOND,
         close() { void end(); },
     };
 }

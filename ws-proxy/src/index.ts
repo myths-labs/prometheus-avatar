@@ -21,7 +21,7 @@ import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
 import { createSessionMeter, signUsageReport } from './realtime-meter';
-import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, createAsrFrameGuard, createAsrMeter, ticketFitsPath } from './asr-meter';
+import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, createAsrFrameGuard, createAsrMeter, ticketFitsPath, type AsrUsageAnswer } from './asr-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -640,7 +640,7 @@ export default {
             let lease: ReturnType<typeof createLiveVoiceLease> | null = null;
             let voiceProof: ReturnType<typeof createPrivateVoiceProofObserver> | null = null;
             let meter: ReturnType<typeof createSessionMeter<ReturnType<typeof setTimeout>>> | null = null;
-            let asrMeter: ReturnType<typeof createAsrMeter<ReturnType<typeof setTimeout>>> | null = null;
+            let asrMeter: ReturnType<typeof createAsrMeter<ArrayBuffer, ReturnType<typeof setTimeout>>> | null = null;
             // Recognition on platform credentials: only the marketplace client's PCM shape passes (asr-meter.ts).
             const asrGuard = engineName === 'asr' && platformCredentials ? createAsrFrameGuard() : null;
             const frameGuard = engineName === 'doubao' && platformCredentials
@@ -687,26 +687,37 @@ export default {
                 },
             }) : null;
             // Recognition usage: the audio seconds sent upstream, reported for the ticket's subject (the "asr:" prefix
-            // removed) through the same signed path. Fail open like realtime.
+            // removed) through the same signed path. The meter forwards only audio the ledger holds (none before the
+            // start is answered), asks for seconds as the audio uses them, renews the hold while the client is quiet,
+            // and a ledger refusal (voice budget or pool used up) ends the session at once. Fail open like realtime.
             const asrSubject = asrGuard && ticketSubject?.startsWith(ASR_TICKET_PREFIX) ? ticketSubject.slice(ASR_TICKET_PREFIX.length) : null;
-            asrMeter = asrSubject && usageUrl && usageSecret ? createAsrMeter<ReturnType<typeof setTimeout>>({
-                schedule: (fn, ms) => setTimeout(() => { void fn(); }, ms),
+            asrMeter = asrSubject && usageUrl && usageSecret ? createAsrMeter<ArrayBuffer, ReturnType<typeof setTimeout>>({
+                schedule: (fn, ms) => setTimeout(fn, ms),
                 cancel: (t) => clearTimeout(t),
                 report: async (r) => {
                     const body = JSON.stringify(r.kind === "start"
                         ? { event: "start", session: crypto.randomUUID(), subject: asrSubject, meter: "asr_seconds" }
-                        : r.kind === "tick" ? { event: "tick", reservation: r.reservation }
+                        : r.kind === "tick" ? { event: "tick", reservation: r.reservation, seconds: r.seconds }
                         : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds });
                     try {
                         // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
                         const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
                             "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
-                        return res.ok ? await res.json() as { continue: boolean; reservation?: string | null } : { continue: true, reservation: null };
+                        return res.ok ? await res.json() as AsrUsageAnswer : { continue: true, reservation: null };
                     } catch { return { continue: true, reservation: null }; }
                 },
-                stop: () => {
+                // Audio the ledger holds, in the client's order; a frame that waited for an answer goes out when it comes.
+                forward: (frame) => {
+                    if (clientClosed || upstreamClosed) return false;
+                    try { upstreamWs.send(frame); return true; } catch (e) { console.error(`[WS-Relay] asr: error sending to upstream:`, e); return false; }
+                },
+                stop: (_reason, answer) => {
                     clientClosed = true; upstreamClosed = true;
-                    try { serverWs.close(4402, "Voice is text-only for now"); } catch { }
+                    // The client is told why before the close (marketplace src/lib/voiceAsrSession.ts reads both).
+                    const code = typeof answer.code === "string" && /^[A-Z][A-Z_]{2,63}$/.test(answer.code) ? answer.code : "USAGE_REFUSED";
+                    const text = (v: unknown) => (typeof v === "string" && v.length <= 64 ? v : null);
+                    try { serverWs.send(JSON.stringify({ type: "usage-stop", code, resets_at: text(answer.resets_at), tier: text(answer.tier) })); } catch { }
+                    try { serverWs.close(4402, code); } catch { }
                     try { upstreamWs.close(1000, "Voice session ended"); } catch { }
                 },
             }) : null;
@@ -724,8 +735,13 @@ export default {
                     if (clientClosed || upstreamClosed) return;
                     const verdict = asrGuard.inspect(event.data);
                     if (!verdict.ok) { console.warn(`[WS-Relay] asr: refused a client frame (${verdict.reason})`); rejectFrame(); return; }
-                    try { upstreamWs.send(event.data); } catch (e) { console.error(`[WS-Relay] asr: error sending to upstream:`, e); return; }
-                    asrMeter?.onAudio(verdict.audioBytes);
+                    // Metered: the meter forwards only audio the ledger holds and keeps the rest, in order, until it answers
+                    // (asr-meter.ts, B-167). Too much waiting is not a microphone.
+                    if (asrMeter) {
+                        if (!asrMeter.offer(event.data as ArrayBuffer, verdict.audioBytes)) { console.warn(`[WS-Relay] asr: too much audio waiting for the ledger`); rejectFrame(); }
+                        return;
+                    }
+                    try { upstreamWs.send(event.data); } catch (e) { console.error(`[WS-Relay] asr: error sending to upstream:`, e); }
                     return;
                 }
                 if (frameGuard) {

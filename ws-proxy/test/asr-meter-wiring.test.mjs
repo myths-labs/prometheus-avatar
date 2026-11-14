@@ -30,13 +30,21 @@ test('a platform /asr call cannot pick its endpoint or resource', () => {
     assert.match(src, /engine\.headers\(applicationEnv, platformParams\)/);
 });
 
-test('every client frame passes the guard before it is sent upstream, and the meter counts only what was sent', () => {
+test('every client frame passes the guard, then the meter, which alone sends metered audio upstream', () => {
     const handler = between('// Client → Upstream', 'if (frameGuard) {');
     const inspect = handler.indexOf('asrGuard.inspect(event.data)');
+    const offer = handler.indexOf('asrMeter.offer(event.data as ArrayBuffer, verdict.audioBytes)');
     const send = handler.indexOf('upstreamWs.send(event.data)');
-    const feed = handler.indexOf('asrMeter?.onAudio(verdict.audioBytes)');
-    assert.ok(inspect > 0 && send > inspect && feed > send, 'guard, then send, then meter');
-    assert.ok(handler.slice(inspect, send).includes('rejectFrame()'), 'a refused frame closes the socket');
+    assert.ok(inspect > 0 && offer > inspect && send > offer, 'guard, then the meter (which forwards what the ledger holds), then the unmetered send');
+    assert.ok(handler.slice(inspect, offer).includes('rejectFrame()'), 'a refused frame closes the socket');
+    const metered = handler.slice(offer, send);
+    assert.ok(metered.includes('rejectFrame()'), 'too much audio waiting for the ledger closes the socket (B-167)');
+    assert.ok(metered.includes('return;'), 'a metered frame never reaches the unmetered send');
+    // The meter's forward is the only other way upstream, and it sends nothing once either side is closed.
+    const forward = between('forward: (frame) => {', 'stop: (_reason, answer) => {');
+    assert.ok(forward.indexOf('if (clientClosed || upstreamClosed) return false;') < forward.indexOf('upstreamWs.send(frame); return true;'));
+    assert.match(src, /createAsrMeter<ArrayBuffer, ReturnType<typeof setTimeout>>\(\{\s*schedule: \(fn, ms\) => setTimeout\(fn, ms\),\s*cancel: \(t\) => clearTimeout\(t\),/,
+        'the hold renewal runs on a real timer, cancelled on every end');
     assert.match(src, /const asrGuard = engineName === 'asr' && platformCredentials \? createAsrFrameGuard\(\) : null;/);
 });
 
@@ -44,7 +52,8 @@ test('the meter reports the ticket subject without its prefix, as asr_seconds, a
     assert.match(src, /ticketSubject\.slice\(ASR_TICKET_PREFIX\.length\)/);
     assert.match(src, /\{ event: "start", session: crypto\.randomUUID\(\), subject: asrSubject, meter: "asr_seconds" \}/);
     assert.match(src, /\{ event: "end", reservation: r\.reservation, audio_seconds: r\.inputAudioSeconds \}/);
-    const asrReport = between('subject: asrSubject, meter: "asr_seconds"', 'stop: () => {');
+    assert.match(src, /\{ event: "tick", reservation: r\.reservation, seconds: r\.seconds \}/, 'each ask names its seconds (B-167)');
+    const asrReport = between('subject: asrSubject, meter: "asr_seconds"', 'stop: (_reason, answer) => {');
     assert.ok(asrReport.includes('signal: AbortSignal.timeout(5000)'), 'a stuck usage report must not hold the socket open');
     for (const [start, end] of [
         ['const rejectFrame = () => {', '};'],
@@ -54,4 +63,13 @@ test('the meter reports the ticket subject without its prefix, as asr_seconds, a
     ]) {
         assert.ok(between(start, end).includes('asrMeter?.close()'), `${start} does not close the recognition meter`);
     }
+});
+
+test('a ledger stop tells the client why, then closes 4402 with the code (B-167)', () => {
+    const stop = between('subject: asrSubject, meter: "asr_seconds"', '}) : null;');
+    const frame = stop.indexOf('serverWs.send(JSON.stringify({ type: "usage-stop", code, resets_at: text(answer.resets_at), tier: text(answer.tier) }))');
+    const close = stop.indexOf('serverWs.close(4402, code)');
+    assert.ok(frame > 0 && close > frame, 'the usage-stop frame goes out before the 4402 close');
+    assert.ok(stop.indexOf('clientClosed = true; upstreamClosed = true;') < frame, 'no audio is forwarded once stopped');
+    assert.match(stop, /upstreamWs\.close\(1000, "Voice session ended"\)/);
 });
