@@ -92,7 +92,9 @@ function main() {
     if (!a.skipVersionCheck) {
         if (!a.expectVersion) { console.log('VERSION CHECK: --expect-version is required'); failed = true; }
         else {
-            const r = spawnSync('wrangler', ['deployments', 'list', '--name', 'ws-relay-proxy'], { cwd: a.wranglerCwd ?? a.candidate, encoding: 'utf8' });
+            // The candidate's own wrangler when installed (it is not on PATH in a worktree), else the one on PATH.
+            const local = join(a.candidate, 'node_modules', '.bin', 'wrangler');
+            const r = spawnSync(existsSync(local) ? local : 'wrangler', ['deployments', 'list', '--name', 'ws-relay-proxy'], { cwd: a.wranglerCwd ?? a.candidate, encoding: 'utf8' });
             const latest = r.status === 0 ? latestDeployedVersion(r.stdout) : null;
             if (!latest) { console.log(`VERSION CHECK: could not read the latest version (wrangler exit ${r.status})`); failed = true; }
             else if (!latest.startsWith(a.expectVersion)) { console.log(`VERSION CHECK: latest deployed version is ${latest}, not the recorded ${a.expectVersion}; someone deployed since`); failed = true; }
