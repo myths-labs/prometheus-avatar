@@ -49,8 +49,8 @@ test('every client frame goes through handleAsrClientFrame; the recognition bran
 
 test('the meter reports the ticket subject without its prefix, as asr_seconds, and every end closes it', () => {
     assert.match(src, /ticketSubject\.slice\(ASR_TICKET_PREFIX\.length\)/);
-    assert.match(src, /\{ event: "start", session: crypto\.randomUUID\(\), subject: asrSubject, meter: "asr_seconds" \}/);
-    assert.match(src, /\{ event: "end", reservation: r\.reservation, audio_seconds: r\.inputAudioSeconds \}/);
+    assert.match(src, /\{ event: "start", session: r\.session, subject: asrSubject, meter: "asr_seconds" \}/);
+    assert.match(src, /\{ event: "end", reservation: r\.reservation, audio_seconds: r\.inputAudioSeconds, session: r\.session \}/);
     assert.match(src, /\{ event: "tick", reservation: r\.reservation, seconds: r\.seconds \}/, 'each ask names its seconds (B-167)');
     const asrReport = between('subject: asrSubject, meter: "asr_seconds"', 'stop: (_reason, answer) => {');
     assert.ok(asrReport.includes('signal: AbortSignal.timeout(5000)'), 'a stuck usage report must not hold the socket open');

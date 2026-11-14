@@ -21,7 +21,7 @@ import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
 import { createSessionMeter, signUsageReport } from './realtime-meter';
-import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, asrMeteringConfigured, createAsrFrameGuard, createAsrMeter, handleAsrClientFrame, liveGrantFitsPath, ticketFitsPath, usageDoorClosed, type AsrUsageAnswer } from './asr-meter';
+import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, asrMeteringConfigured, createAsrFrameGuard, createAsrMeter, handleAsrClientFrame, liveGrantFitsPath, ticketFitsPath, usageDoorClosed, UsageReportError, asrSubjectHash, formatFailOpenLog, type AsrUsageAnswer } from './asr-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -708,20 +708,28 @@ export default {
                 cancel: (t) => clearTimeout(t),
                 report: async (r) => {
                     const body = JSON.stringify(r.kind === "start"
-                        ? { event: "start", session: crypto.randomUUID(), subject: asrSubject, meter: "asr_seconds" }
+                        ? { event: "start", session: r.session, subject: asrSubject, meter: "asr_seconds" }
                         : r.kind === "tick" ? { event: "tick", reservation: r.reservation, seconds: r.seconds }
-                        : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds });
-                    if (r.kind === "end" && r.reservation === null) console.warn(`[WS-Relay] asr: end without a reservation, ${r.inputAudioSeconds} s of audio not billed (subject ${asrSubject})`);
+                        : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds, session: r.session });
+                    if (r.kind === "end" && r.reservation === null) void asrSubjectHash(asrSubject).then((h) => console.warn(`[WS-Relay] asr: end without a reservation subject_hash=${h} unreserved_audio_seconds=${r.inputAudioSeconds}`));
                     // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
                     // A refusal (4xx) is an answer that closes the door; a timeout, network error, 5xx or unreadable body
                     // THROWS, and the meter lets one step through unchecked, then stops (asr-meter.ts ASR_FAIL_OPEN_STEPS).
-                    const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
-                        "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
+                    let res: Response;
+                    try {
+                        res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
+                            "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
+                    } catch (e) { throw new UsageReportError((e as { name?: string })?.name === "TimeoutError" ? "timeout" : "network"); }
                     const door = usageDoorClosed(res.status);
-                    if (door) return door;
-                    if (!res.ok) throw new Error(`usage report status ${res.status}`);
+                    if (door) {
+                        if (res.status === 401 || res.status === 403) console.error(`[WS-Relay] ALERT asr: the usage endpoint refused our report (HTTP ${res.status}); check RELAY_USAGE_SECRET against the marketplace. Recognition is closed.`);
+                        else console.warn(`[WS-Relay] asr: the usage endpoint refused our report (HTTP ${res.status}); recognition is closed`);
+                        return door;
+                    }
+                    if (!res.ok) throw new UsageReportError("5xx");
                     return await res.json() as AsrUsageAnswer;
                 },
+                onFailOpen: (info) => { void asrSubjectHash(asrSubject).then((h) => console.warn(`[WS-Relay] ${formatFailOpenLog({ subjectHash: h, reason: info.reason, unreservedSeconds: info.unreservedSeconds, report: info.report })}`)); },
                 // Audio the ledger holds, in the client's order; a frame that waited for an answer goes out when it comes.
                 forward: (frame) => {
                     if (clientClosed || upstreamClosed) return false;

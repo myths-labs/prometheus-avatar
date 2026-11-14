@@ -38,12 +38,12 @@ test('a: wiring: the refusal comes before the upstream connection, with close 10
     assert.ok(src.indexOf('url.searchParams.get("byok") === "1"') < gate);
 });
 
-test('b: a 4xx refusal closes the door (401, 403, 400, 404...); 408, 429 and everything else is a failed report, not a refusal', () => {
+test('b: every 4xx closes the door; 2xx and 5xx are not refusals', () => {
     const door = asr.usageDoorClosed;
     assert.equal(typeof door, 'function');
-    for (const status of [400, 401, 403, 404, 410, 422]) assert.deepEqual(door(status), { continue: false, code: asr.ASR_USAGE_UNAVAILABLE_CODE }, String(status));
+    for (const status of [400, 401, 403, 404, 408, 410, 422, 429]) assert.deepEqual(door(status), { continue: false, code: asr.ASR_USAGE_UNAVAILABLE_CODE }, String(status));
     assert.equal(asr.ASR_USAGE_UNAVAILABLE_CODE, 'USAGE_UNAVAILABLE', 'the marketplace ledger already uses this code; the client reads it as try again');
-    for (const status of [200, 204, 408, 429, 500, 502, 503, 504]) assert.equal(door(status), null, String(status));
+    for (const status of [200, 204, 500, 502, 503, 504]) assert.equal(door(status), null, String(status));
 });
 
 function meterWith(startAnswer, tickAnswer) {
@@ -86,8 +86,8 @@ test('b: a tick answered with the closed door stops the session; audio held so f
 
 test('b: wiring: 4xx closes the door, 5xx and a thrown fetch propagate to the meter fail-open budget', () => {
     const report = between('subject: asrSubject, meter: "asr_seconds"', 'forward: (frame) => {');
-    assert.match(report, /const door = usageDoorClosed\(res\.status\);\s*if \(door\) return door;/);
-    assert.match(report, /if \(!res\.ok\) throw new Error/, 'a 5xx is a failed report: the meter counts it, it is not "continue"');
+    assert.match(report, /const door = usageDoorClosed\(res\.status\);\s*if \(door\) \{[\s\S]*?return door;/);
+    assert.match(report, /if \(!res\.ok\) throw new UsageReportError\("5xx"\)/, 'a 5xx is a failed report: the meter counts it, it is not "continue"');
     assert.doesNotMatch(report, /continue: true, reservation: null/, 'no failure is turned into continue here any more');
     assert.doesNotMatch(report, /catch \{ return/, 'a timeout or network error propagates to the meter');
 });

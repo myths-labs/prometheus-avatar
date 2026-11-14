@@ -59,7 +59,7 @@ function harness(answers = {}) {
         schedule: (fn, ms) => { const t = {fn, ms, live: true}; timers.push(t); return t; },
         cancel: (t) => { t.live = false; },
         report: async (r) => {
-            reports.push(r); log.push(r.kind === 'tick' && r.seconds === 0 ? 'renew' : r.kind);
+            reports.push(r.session === undefined ? r : (({session, ...rest}) => rest)(r)); log.push(r.kind === 'tick' && r.seconds === 0 ? 'renew' : r.kind);
             if (r.kind === 'start' && answers.holdStart) return new Promise((resolve) => { pendingStart = resolve; });
             if (r.kind === 'start' && answers.failStart) throw new Error('network');
             if (r.kind === 'start') return answers.start ?? {continue: true, reservation: 'res-1', seconds: 60};
@@ -305,9 +305,10 @@ test('a failed start report fails open and still ends', async () => {
     await h.settle(); await h.settle();
     assert.equal(h.stops.length, 0);
     assert.equal(h.sent(), 0.1, 'forwarded: one step, failed open');
-    assert.equal(h.armed().length, 0, 'no reservation, so no renewal');
+    assert.deepEqual(h.armed().map((t) => t.ms), [5000], 'no reservation, so no renewal; only the start retry is armed');
     h.meter.close();
     await h.settle();
+    assert.equal(h.armed().length, 0, 'the end cancels the retry');
     assert.deepEqual(h.reports.at(-1), {kind: 'end', reservation: null, inputAudioSeconds: 0.1});
 });
 
