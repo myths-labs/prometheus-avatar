@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createAsrFrameGuard, createAsrMeter, ASR_BACKLOG_FRAMES, ASR_BACKLOG_SECONDS, ASR_INPUT_BYTES_PER_SECOND, ASR_KEEPALIVE_MS, ASR_LEAD_SECONDS,
+import {createAsrFrameGuard, createAsrMeter, ASR_BACKLOG_FRAMES, ASR_BACKLOG_SECONDS, ASR_FAIL_OPEN_STEPS, ASR_USAGE_UNAVAILABLE_CODE, handleAsrClientFrame, ASR_INPUT_BYTES_PER_SECOND, ASR_KEEPALIVE_MS, ASR_LEAD_SECONDS,
     ASR_STEP_SECONDS, ASR_TICKET_PREFIX} from '../src/asr-meter.ts';
 
 // SAUC v3 frame: [0x11][type<<4|flags][serialization<<4|compression][0][payload size u32][payload]
@@ -369,4 +369,87 @@ test('a legitimate 20 s backlog at the client packet size (100 ms) is accepted, 
     for (let i = 0; i < ASR_BACKLOG_SECONDS * 10; i++) assert.equal(h.meter.offer({bytes: 3200}, 3200), true, `packet ${i}`);
     assert.equal(h.meter.waitingSeconds(), ASR_BACKLOG_SECONDS);
     assert.ok(ASR_BACKLOG_FRAMES >= 2 * ASR_BACKLOG_SECONDS * 10);
+});
+
+// EVAL 1125 must-fix 1: a failed report lets ASR_FAIL_OPEN_STEPS step(s) through, not the whole session.
+test('a start that fails and asks that keep failing stop after one unchecked step, however long the client talks', async () => {
+    const h = harness({failStart: true, ticks: Array(30).fill(new Error('timeout'))});
+    await h.speak(1200);
+    assert.equal(ASR_FAIL_OPEN_STEPS, 1);
+    assert.ok(h.sent() <= ASR_STEP_SECONDS * ASR_FAIL_OPEN_STEPS, `unchecked audio ${h.sent()} s`);
+    assert.equal(h.stops.length, 1);
+    assert.equal(h.stops[0].answer.code, ASR_USAGE_UNAVAILABLE_CODE);
+});
+
+test('one failed ask is let through; the next ask answers and metering goes on as usual (the failure count resets)', async () => {
+    const h = harness({ticks: [new Error('500'), {continue: true, seconds: 60}, {continue: true, seconds: 60}]});
+    await h.speak(170);
+    assert.equal(h.stops.length, 0);
+    assert.equal(h.asks().length, 3, 'asked again after the failure, then answered');
+    assert.equal(h.sent(), 170);
+    // a second failure in a row, however, stops
+    const g = harness({ticks: [new Error('500'), new Error('500')]});
+    await g.speak(300);
+    assert.equal(g.stops.length, 1);
+    assert.ok(g.sent() <= 2 * ASR_STEP_SECONDS + ASR_LEAD_SECONDS);
+});
+
+test('a failed renewal lets nothing through and costs no failure step', async () => {
+    const h = harness({renew: new Error('timeout')});
+    await h.speak(1);
+    await h.fire();
+    await h.fire();
+    assert.equal(h.stops.length, 0);
+    assert.equal(h.sent(), 1);
+});
+
+test('a session whose start never got a reservation still ends once, with reservation null and at most the unchecked step of audio', async () => {
+    const h = harness({failStart: true, ticks: [new Error('timeout')]});
+    await h.speak(1200);
+    await h.settle(); await h.settle();
+    const ends = h.reports.filter((r) => r.kind === 'end');
+    assert.equal(ends.length, 1);
+    assert.equal(ends[0].reservation, null);
+    assert.ok(ends[0].inputAudioSeconds <= ASR_STEP_SECONDS, 'bounded: that audio cannot be billed to a reservation, so it is capped at the unchecked step');
+});
+
+// EVAL 1125 must-fix 3: only an absent `seconds` is an older marketplace.
+test('a grant whose seconds are present but malformed is not a full step: the session stops', async () => {
+    for (const bad of ['0', '24', -5, null, 1.5, NaN, {}]) {
+        const h = harness({ticks: [{continue: true, seconds: bad}]});
+        await h.speak(70);
+        assert.equal(h.stops.length, 1, `seconds ${JSON.stringify(bad)} must stop`);
+        assert.equal(h.stops[0].answer.code, ASR_USAGE_UNAVAILABLE_CODE);
+        assert.ok(h.sent() <= 60 + ASR_LEAD_SECONDS + 1, `${JSON.stringify(bad)}: ${h.sent()} s`);
+    }
+    const old = harness({ticks: [{continue: true}]});
+    await old.speak(70);
+    assert.equal(old.stops.length, 0, 'an absent field is the older marketplace: the whole ask');
+    assert.equal(old.meter.heldSeconds(), 120);
+});
+
+// The one road upstream: guard, then the meter. Run for real, not read as text.
+test('recognition audio reaches upstream only through the meter; with no meter nothing is sent and the socket is refused', () => {
+    const request = (() => { const b = new TextEncoder().encode(JSON.stringify({audio: {format: 'pcm', rate: 16000, bits: 16, channel: 1}}));
+        const buf = new ArrayBuffer(8 + b.length), u = new Uint8Array(buf); u.set([0x11, 0x10, 0x10, 0]); new DataView(buf).setUint32(4, b.length); u.set(b, 8); return buf; })();
+    const pcm = (n) => { const buf = new ArrayBuffer(8 + n), u = new Uint8Array(buf); u.set([0x11, 0x20, 0x00, 0]); new DataView(buf).setUint32(4, n); return buf; };
+    const offered = [], rejected = [];
+    const guard = createAsrFrameGuard();
+    const meter = {offer: (f, bytes) => { offered.push([f, bytes]); return true; }};
+    handleAsrClientFrame(request, {guard, meter, reject: (w) => rejected.push(w)});
+    handleAsrClientFrame(pcm(3200), {guard, meter, reject: (w) => rejected.push(w)});
+    assert.deepEqual(offered.map(([, b]) => b), [0, 3200]);
+    assert.deepEqual(rejected, []);
+    // a refused frame never reaches the meter
+    handleAsrClientFrame('{"text":1}', {guard, meter, reject: (w) => rejected.push(w)});
+    assert.equal(offered.length, 2);
+    assert.equal(rejected.length, 1);
+    // no meter: refused, nothing offered anywhere
+    const g2 = createAsrFrameGuard(), rej2 = [];
+    handleAsrClientFrame(request, {guard: g2, meter: null, reject: (w) => rej2.push(w)});
+    assert.deepEqual(rej2, ['no usage meter']);
+    // a meter that says too much is waiting refuses the socket
+    const g3 = createAsrFrameGuard(), rej3 = [];
+    handleAsrClientFrame(request, {guard: g3, meter: {offer: () => false}, reject: (w) => rej3.push(w)});
+    assert.equal(rej3.length, 1);
 });

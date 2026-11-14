@@ -33,19 +33,15 @@ test('a platform /asr call cannot pick its endpoint or resource', () => {
     assert.match(src, /engine\.headers\(applicationEnv, platformParams\)/);
 });
 
-test('every client frame passes the guard, then the meter, which alone sends metered audio upstream', () => {
+test('every client frame goes through handleAsrClientFrame; the recognition branch has no send of its own', () => {
     const handler = between('// Client → Upstream', 'if (frameGuard) {');
-    const inspect = handler.indexOf('asrGuard.inspect(event.data)');
-    const offer = handler.indexOf('asrMeter.offer(event.data as ArrayBuffer, verdict.audioBytes)');
-    const send = handler.indexOf('upstreamWs.send(event.data)');
-    assert.ok(inspect > 0 && offer > inspect && send > offer, 'guard, then the meter (which forwards what the ledger holds), then the unmetered send');
-    assert.ok(handler.slice(inspect, offer).includes('rejectFrame()'), 'a refused frame closes the socket');
-    const metered = handler.slice(offer, send);
-    assert.ok(metered.includes('rejectFrame()'), 'too much audio waiting for the ledger closes the socket (B-167)');
-    assert.ok(metered.includes('return;'), 'a metered frame never reaches the unmetered send');
-    // The meter's forward is the only other way upstream, and it sends nothing once either side is closed.
+    assert.match(handler, /handleAsrClientFrame\(event\.data, \{ guard: asrGuard, meter: asrMeter, reject: /);
+    assert.ok(handler.includes('return;'));
+    assert.ok(!handler.includes('upstreamWs.send'), 'the recognition branch never sends upstream itself (the meter forwards)');
+    // The meter's forward is the only road upstream, and it sends nothing once either side is closed.
     const forward = between('forward: (frame) => {', 'stop: (_reason, answer) => {');
-    assert.ok(forward.indexOf('if (clientClosed || upstreamClosed) return false;') < forward.indexOf('upstreamWs.send(frame); return true;'));
+    const guardAt = forward.indexOf('if (clientClosed || upstreamClosed) return false;'), sendAt = forward.indexOf('upstreamWs.send(frame); return true;');
+    assert.ok(guardAt >= 0 && sendAt > guardAt);
     assert.match(src, /createAsrMeter<ArrayBuffer, ReturnType<typeof setTimeout>>\(\{\s*schedule: \(fn, ms\) => setTimeout\(fn, ms\),\s*cancel: \(t\) => clearTimeout\(t\),/,
         'the hold renewal runs on a real timer, cancelled on every end');
     assert.match(src, /const asrGuard = engineName === 'asr' && platformCredentials \? createAsrFrameGuard\(\) : null;/);
@@ -73,6 +69,7 @@ test('a ledger stop tells the client why, then closes 4402 with the code (B-167)
     const frame = stop.indexOf('serverWs.send(JSON.stringify({ type: "usage-stop", code, resets_at: text(answer.resets_at), tier: text(answer.tier) }))');
     const close = stop.indexOf('serverWs.close(4402, code)');
     assert.ok(frame > 0 && close > frame, 'the usage-stop frame goes out before the 4402 close');
-    assert.ok(stop.indexOf('clientClosed = true; upstreamClosed = true;') < frame, 'no audio is forwarded once stopped');
+    const flagAt = stop.indexOf('clientClosed = true; upstreamClosed = true;');
+    assert.ok(flagAt >= 0 && flagAt < frame, 'no audio is forwarded once stopped');
     assert.match(stop, /upstreamWs\.close\(1000, "Voice session ended"\)/);
 });

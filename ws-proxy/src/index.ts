@@ -21,7 +21,7 @@ import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
 import { createSessionMeter, signUsageReport } from './realtime-meter';
-import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, createAsrFrameGuard, createAsrMeter, liveGrantFitsPath, ticketFitsPath, type AsrUsageAnswer } from './asr-meter';
+import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, asrMeteringConfigured, createAsrFrameGuard, createAsrMeter, handleAsrClientFrame, liveGrantFitsPath, ticketFitsPath, usageDoorClosed, type AsrUsageAnswer } from './asr-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -562,6 +562,17 @@ export default {
             return new Response(null, { status: 101, webSocket: clientWs });
         }
 
+        // Fail closed (⑨, EVAL 1125): platform recognition spends our credentials and is paid for by audio, so with no way to report
+        // usage (RELAY_USAGE_SECRET or MARKETPLACE_USAGE_URL missing) the socket is refused with 1011 before any upstream connection
+        // exists. A close code needs the upgrade, so the client gets its 101 and then the close; nothing is ever sent upstream.
+        if (engineName === 'asr' && platformCredentials && !asrMeteringConfigured(env.MARKETPLACE_USAGE_URL, env.RELAY_USAGE_SECRET)) {
+            console.error(`[WS-Relay] asr: usage metering is not configured (RELAY_USAGE_SECRET / MARKETPLACE_USAGE_URL); refusing the socket`);
+            const [refusedClient, refusedServer] = Object.values(new WebSocketPair());
+            refusedServer.accept();
+            refusedServer.close(1011, 'usage metering unavailable');
+            return new Response(null, { status: 101, webSocket: refusedClient });
+        }
+
         let applicationEnv=env;
         if(liveGrant?.providerAppSha256){
             try{
@@ -700,12 +711,16 @@ export default {
                         ? { event: "start", session: crypto.randomUUID(), subject: asrSubject, meter: "asr_seconds" }
                         : r.kind === "tick" ? { event: "tick", reservation: r.reservation, seconds: r.seconds }
                         : { event: "end", reservation: r.reservation, audio_seconds: r.inputAudioSeconds });
-                    try {
-                        // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
-                        const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
-                            "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
-                        return res.ok ? await res.json() as AsrUsageAnswer : { continue: true, reservation: null };
-                    } catch { return { continue: true, reservation: null }; }
+                    if (r.kind === "end" && r.reservation === null) console.warn(`[WS-Relay] asr: end without a reservation, ${r.inputAudioSeconds} s of audio not billed (subject ${asrSubject})`);
+                    // Bounded: the end waits for the start's answer, so a stuck report must not hold the socket open.
+                    // A refusal (4xx) is an answer that closes the door; a timeout, network error, 5xx or unreadable body
+                    // THROWS, and the meter lets one step through unchecked, then stops (asr-meter.ts ASR_FAIL_OPEN_STEPS).
+                    const res = await fetch(usageUrl, { method: "POST", headers: { "Content-Type": "application/json",
+                        "x-internal-call": await signUsageReport(usageSecret, body) }, body, signal: AbortSignal.timeout(5000) });
+                    const door = usageDoorClosed(res.status);
+                    if (door) return door;
+                    if (!res.ok) throw new Error(`usage report status ${res.status}`);
+                    return await res.json() as AsrUsageAnswer;
                 },
                 // Audio the ledger holds, in the client's order; a frame that waited for an answer goes out when it comes.
                 forward: (frame) => {
@@ -734,15 +749,8 @@ export default {
             serverWs.addEventListener("message", (event) => {
                 if (asrGuard) {
                     if (clientClosed || upstreamClosed) return;
-                    const verdict = asrGuard.inspect(event.data);
-                    if (!verdict.ok) { console.warn(`[WS-Relay] asr: refused a client frame (${verdict.reason})`); rejectFrame(); return; }
-                    // Metered: the meter forwards only audio the ledger holds and keeps the rest, in order, until it answers
-                    // (asr-meter.ts, B-167). Too much waiting is not a microphone.
-                    if (asrMeter) {
-                        if (!asrMeter.offer(event.data as ArrayBuffer, verdict.audioBytes)) { console.warn(`[WS-Relay] asr: too much audio waiting for the ledger`); rejectFrame(); }
-                        return;
-                    }
-                    try { upstreamWs.send(event.data); } catch (e) { console.error(`[WS-Relay] asr: error sending to upstream:`, e); }
+                    // The only road upstream for recognition audio is the meter (asr-meter.ts handleAsrClientFrame); no meter, no send.
+                    handleAsrClientFrame(event.data, { guard: asrGuard, meter: asrMeter, reject: (why) => { console.warn(`[WS-Relay] asr: ${why}`); rejectFrame(); } });
                     return;
                 }
                 if (frameGuard) {

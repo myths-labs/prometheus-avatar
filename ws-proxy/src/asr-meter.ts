@@ -29,11 +29,14 @@
  *     meter asks for 0 seconds, which only renews the hold; two renewals fit in the 120 s, so one lost report is not a
  *     lapsed hold. The renewal is never refused for the budget (what is held is already paid for), only by the pool
  *     switches, which stop the session as an ask would.
- * A report that fails or times out (5 s, under the 10 s lead) fails open with what it asked for, as before: a
- * database outage must not hang up a conversation. Each such answer lets one step through unchecked, and a start that
- * fails open leaves the whole session unmetered (it has no reservation to extend). An answer that says continue but
- * grants nothing for a non-zero ask cannot come from the ledger; it is taken as the end of the budget rather than asked
- * again at once.
+ * A report that fails to answer (timeout at 5 s, under the 10 s lead; network error; 5xx; unreadable answer) lets ONE step
+ * through unchecked (ASR_FAIL_OPEN_STEPS); the next consecutive failure stops the session (USAGE_UNAVAILABLE), because a
+ * database outage must not hang up a conversation but must not make it free either. A start that failed has no
+ * reservation to extend, so its end report carries none and that audio is not billed: that is bounded by the one step
+ * (60 s) and logged by the relay. A 4xx answer (usageDoorClosed) is a refusal and stops at once; so does an answer whose
+ * `seconds` is present but malformed. Only an absent `seconds` means an older marketplace (the whole ask). An answer
+ * that says continue but grants nothing for a non-zero ask cannot come from the ledger; it is taken as the end of the
+ * budget rather than asked again at once.
  *
  * Frame layout (SAUC v3, marketplace-app src/lib/voiceAsrProtocol.ts): [4B header][4B big-endian payload size][payload]
  *   header byte 0 = 0x11, byte 1 = type << 4 | flags, byte 2 = serialization << 4 | compression, byte 3 = 0.
@@ -54,6 +57,28 @@ export const ASR_BACKLOG_SECONDS = 20;
  * client that cuts smaller packets, and the request frame. A hostile client cannot queue more than this.
  */
 export const ASR_BACKLOG_FRAMES = 400;
+/**
+ * Consecutive usage reports (start or ask) that may fail (timeout, network error, 5xx, unreadable answer) before the
+ * audio goes on: each failure lets one step (ASR_STEP_SECONDS) through unchecked, the next consecutive failure stops the
+ * session. One failure is a database hiccup; a run of them is not a conversation to keep paying for. A report that
+ * answers resets the count. How long to fail open is a money decision (⑨): change the number here only.
+ */
+export const ASR_FAIL_OPEN_STEPS = 1;
+/** The marketplace ledger's own code for "cannot answer now"; the client reads it as try again. */
+export const ASR_USAGE_UNAVAILABLE_CODE = "USAGE_UNAVAILABLE";
+/**
+ * A usage endpoint that refuses us (4xx: bad secret, unknown or lapsed reservation, malformed report) is a closed door,
+ * not an outage: nothing it says later is any better, so the session stops and no audio is forwarded. 408 and 429 are
+ * the two 4xx that mean "later" and count as a failed report like a timeout. Anything else (2xx, 5xx) is null here.
+ */
+export function usageDoorClosed(status: number): AsrUsageAnswer | null {
+    return status >= 400 && status < 500 && status !== 408 && status !== 429
+        ? { continue: false, code: ASR_USAGE_UNAVAILABLE_CODE } : null;
+}
+/** Platform recognition is metered only when both halves of the report path are configured. */
+export function asrMeteringConfigured(usageUrl: string | undefined, usageSecret: string | undefined): boolean {
+    return typeof usageUrl === "string" && usageUrl !== "" && typeof usageSecret === "string" && usageSecret !== "";
+}
 /** Renew the hold this long after the last answer: twice inside the route's 120 s TTL, each with 5 s to answer. */
 export const ASR_KEEPALIVE_MS = 50_000;
 const MAX_FRAME_BYTES = 64 * 1024; // 100 ms of audio is 3,200 bytes; a request is well under 4 KB
@@ -113,6 +138,8 @@ export function createAsrMeter<F, T>(o: {
     // Audio seconds the ledger holds for this session: none until the start is answered.
     let held = 0;
     let asking = false;
+    // Consecutive failed start/ask reports (see ASR_FAIL_OPEN_STEPS).
+    let failures = 0;
     let keepalive: T | null = null;
     // Client frames waiting for the ledger to hold their seconds, in the order they came.
     let waiting: { frame: F; bytes: number }[] = [];
@@ -123,10 +150,12 @@ export function createAsrMeter<F, T>(o: {
     const reservationKnown = new Promise<void>((resolve) => { markReservationKnown = resolve; });
     const sent = () => audioBytes / ASR_INPUT_BYTES_PER_SECOND;
     const fits = (bytes: number) => (audioBytes + bytes) / ASR_INPUT_BYTES_PER_SECOND <= held;
-    // What an answer grants for an ask of `asked` seconds: its seconds, never more than asked; an answer without them
-    // (an older marketplace, or a failed report answered "continue") counts as the whole ask.
-    const grantedOf = (a: AsrUsageAnswer, asked: number) =>
-        typeof a.seconds === "number" && Number.isFinite(a.seconds) && a.seconds >= 0 ? Math.min(a.seconds, asked) : asked;
+    // What an answer grants for an ask of `asked` seconds: its seconds, never more than asked. Only an absent field means
+    // an older marketplace (the whole ask); a present but malformed one ("0", -5, null, 1.5) is not a grant: null.
+    const grantedOf = (a: AsrUsageAnswer, asked: number): number | null => {
+        if (a.seconds === undefined) return asked;
+        return typeof a.seconds === "number" && Number.isInteger(a.seconds) && a.seconds >= 0 ? Math.min(a.seconds, asked) : null;
+    };
     const send = (frame: F, bytes: number) => { if (o.forward(frame)) audioBytes += bytes; };
     const drain = () => {
         while (!ended && waiting.length > 0 && fits(waiting[0].bytes)) {
@@ -148,7 +177,7 @@ export function createAsrMeter<F, T>(o: {
         waiting = []; waitingBytes = 0; // never forwarded, so never billed
         then?.();
         await reservationKnown; // the end carries the reservation the start was given
-        await o.report({ kind: "end", reservation, inputAudioSeconds: Math.round(sent() * 1000) / 1000 });
+        try { await o.report({ kind: "end", reservation, inputAudioSeconds: Math.round(sent() * 1000) / 1000 }); } catch { /* nothing more to do */ }
         return true;
     };
     // A stop closes the session at once: no audio is forwarded while the end report is on its way.
@@ -160,6 +189,7 @@ export function createAsrMeter<F, T>(o: {
         if (ended) return;
         if (!answer.continue) { void halt(answer); return; }
         const granted = grantedOf(answer, asked);
+        if (granted === null) { void halt({ ...answer, continue: false, code: ASR_USAGE_UNAVAILABLE_CODE }); return; }
         // Never asked again at once for nothing: that would be a report loop, not a session.
         if (asked > 0 && granted <= 0) { void halt({ ...answer, continue: false, code: answer.code ?? "USAGE_BUDGET_EXHAUSTED" }); return; }
         held += granted;
@@ -167,10 +197,19 @@ export function createAsrMeter<F, T>(o: {
         arm();
         ask();
     };
+    // A report that failed to answer. A renewal (0 s) lets nothing through, so it costs nothing. An ask or the start lets one
+    // step through unchecked, up to ASR_FAIL_OPEN_STEPS in a row; the next one stops the session.
+    function failedReport(asked: number) {
+        if (asked > 0) {
+            failures++;
+            if (failures > ASR_FAIL_OPEN_STEPS) { asking = false; void halt({ continue: false, code: ASR_USAGE_UNAVAILABLE_CODE }); return; }
+        }
+        answered({ continue: true }, asked);
+    }
     function request(seconds: number) {
         asking = true;
         disarm();
-        void o.report({ kind: "tick", reservation, seconds }).then((a) => answered(a, seconds), () => answered({ continue: true }, seconds));
+        void o.report({ kind: "tick", reservation, seconds }).then((a) => { failures = 0; answered(a, seconds); }, () => failedReport(seconds));
     }
     // Nothing is asked before the start (the request frame comes first and carries no audio) or while an answer is due.
     function ask() {
@@ -183,8 +222,9 @@ export function createAsrMeter<F, T>(o: {
         void o.report({ kind: "start" }).then((answer) => {
             reservation = answer.reservation ?? null;
             markReservationKnown();
+            failures = 0;
             answered(answer, ASR_STEP_SECONDS);
-        }, () => { markReservationKnown(); answered({ continue: true }, ASR_STEP_SECONDS); }); // a failed report fails open, like realtime
+        }, () => { markReservationKnown(); failedReport(ASR_STEP_SECONDS); }); // no reservation: one unchecked step, then stop
     };
     return {
         /**
@@ -208,6 +248,22 @@ export function createAsrMeter<F, T>(o: {
         waitingSeconds: () => waitingBytes / ASR_INPUT_BYTES_PER_SECOND,
         close() { void end(); },
     };
+}
+
+/**
+ * What happens to each client frame on platform recognition, with no way to reach the upstream except the meter: the
+ * guard checks the frame, the meter forwards it (when the ledger holds its seconds) or keeps it waiting. No meter means
+ * no recognition (the relay refuses such a socket before it connects, so this is the last line), never an unmetered send.
+ */
+export function handleAsrClientFrame(data: unknown, o: {
+    guard: { inspect(data: unknown): AsrFrameVerdict };
+    meter: { offer(frame: ArrayBuffer, bytes: number): boolean } | null;
+    reject: (why: string) => void;
+}): void {
+    const verdict = o.guard.inspect(data);
+    if (!verdict.ok) { o.reject(`refused a client frame (${verdict.reason})`); return; }
+    if (!o.meter) { o.reject("no usage meter"); return; }
+    if (!o.meter.offer(data as ArrayBuffer, verdict.audioBytes)) o.reject("too much audio waiting for the ledger");
 }
 
 /** The ticket purpose for recognition: a v1 ticket whose subject starts with this may open /asr and nothing else. */
