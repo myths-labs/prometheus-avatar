@@ -47,6 +47,13 @@ export const ASR_STEP_SECONDS = 60;
 export const ASR_LEAD_SECONDS = 10;
 /** Audio that may wait for the ledger's answer: a client's connect buffer plus a 5 s report timeout, with room. */
 export const ASR_BACKLOG_SECONDS = 20;
+/**
+ * Frames that may wait, whatever their size: the byte cap above never trips on frames that carry no audio, and an empty
+ * audio packet is a valid frame. The marketplace client sends one 3,200-byte packet per 100 ms (ASR_PACKET_BYTES in
+ * voiceAsrSession.ts), so 20 s of backlog is 20 s * 10 packets/s = 200 frames; twice that (400) leaves headroom for a
+ * client that cuts smaller packets, and the request frame. A hostile client cannot queue more than this.
+ */
+export const ASR_BACKLOG_FRAMES = 400;
 /** Renew the hold this long after the last answer: twice inside the route's 120 s TTL, each with 5 s to answer. */
 export const ASR_KEEPALIVE_MS = 50_000;
 const MAX_FRAME_BYTES = 64 * 1024; // 100 ms of audio is 3,200 bytes; a request is well under 4 KB
@@ -183,12 +190,13 @@ export function createAsrMeter<F, T>(o: {
         /**
          * Each client frame that passed the guard, in order, with its audio bytes (0 for the request). Forwarded now
          * when the ledger holds its seconds and nothing is waiting, else kept until an answer makes room; the first
-         * audio packet starts the meter. False when more than ASR_BACKLOG_SECONDS would be waiting: refuse the client.
+         * audio packet starts the meter. False when more than ASR_BACKLOG_SECONDS of audio, or ASR_BACKLOG_FRAMES frames, would be waiting: refuse the client.
          */
         offer(frame: F, bytes: number): boolean {
             if (ended) return true; // the session is over: nothing more goes upstream
             if (bytes > 0 && !active) begin();
             if (waiting.length === 0 && fits(bytes)) { send(frame, bytes); ask(); return true; }
+            if (waiting.length >= ASR_BACKLOG_FRAMES) return false;
             if (waitingBytes + bytes > ASR_BACKLOG_SECONDS * ASR_INPUT_BYTES_PER_SECOND) return false;
             waiting.push({ frame, bytes });
             waitingBytes += bytes;

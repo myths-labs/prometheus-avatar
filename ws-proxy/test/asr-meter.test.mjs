@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createAsrFrameGuard, createAsrMeter, ASR_BACKLOG_SECONDS, ASR_INPUT_BYTES_PER_SECOND, ASR_KEEPALIVE_MS, ASR_LEAD_SECONDS,
+import {createAsrFrameGuard, createAsrMeter, ASR_BACKLOG_FRAMES, ASR_BACKLOG_SECONDS, ASR_INPUT_BYTES_PER_SECOND, ASR_KEEPALIVE_MS, ASR_LEAD_SECONDS,
     ASR_STEP_SECONDS, ASR_TICKET_PREFIX} from '../src/asr-meter.ts';
 
 // SAUC v3 frame: [0x11][type<<4|flags][serialization<<4|compression][0][payload size u32][payload]
@@ -345,4 +345,28 @@ test('recognition resources: ASR 2.0 by default and for anything unknown, the le
         assert.equal(asrResource(new URLSearchParams(`resourceId=${r}`)), 'volc.seedasr.sauc.duration', r);
     }
     assert.equal(ASR_RESOURCES['volc.seedasr.sauc.duration'], 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async');
+});
+
+test('frames with no audio cannot pile up while the opening grant is pending: the frame cap refuses the next one', () => {
+    const h = harness({holdStart: true});
+    assert.equal(h.meter.offer({bytes: 3200}, 3200), true, 'the first audio packet starts the meter; its start is unanswered');
+    let queued = 0;
+    while (queued < 10_000 && h.meter.offer({bytes: 0}, 0)) queued++;
+    assert.equal(queued, ASR_BACKLOG_FRAMES - 1, 'the first audio packet already waits, so the cap-th frame in all is the last accepted');
+    assert.equal(h.meter.offer({bytes: 0}, 0), false);
+});
+
+test('normal-size frames are still bounded by the bytes cap, well before the frame cap', () => {
+    const h = harness({holdStart: true});
+    let queued = 0;
+    while (queued < 10_000 && h.meter.offer({bytes: 3200}, 3200)) queued++;
+    assert.equal(queued, ASR_BACKLOG_SECONDS * 10);
+    assert.ok(queued < ASR_BACKLOG_FRAMES);
+});
+
+test('a legitimate 20 s backlog at the client packet size (100 ms) is accepted, with 2x headroom in the frame cap', () => {
+    const h = harness({holdStart: true});
+    for (let i = 0; i < ASR_BACKLOG_SECONDS * 10; i++) assert.equal(h.meter.offer({bytes: 3200}, 3200), true, `packet ${i}`);
+    assert.equal(h.meter.waitingSeconds(), ASR_BACKLOG_SECONDS);
+    assert.ok(ASR_BACKLOG_FRAMES >= 2 * ASR_BACKLOG_SECONDS * 10);
 });
