@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -78,4 +78,53 @@ test('without --skip-version-check and without --expect-version the gate fails',
     const r = spawnSync(process.execPath, [GATE, '--live', live, '--candidate', cand, '--declared', 'src/index.ts'], {encoding: 'utf8'});
     assert.equal(r.status, 1);
     assert.match(r.stdout, /VERSION CHECK/);
+});
+
+const V = '177bbb8a-c1c6-495d-b27c-158e9c9371c4';
+const LISTING = `Created:     2026-10-13T09:51:31.828Z\nSource:      Unknown (deployment)\nVersion(s):  (100%) 131ce8ed-5b7c-48df-95d2-8467a58ae2f4\n                 Created:  x\n\nCreated:     2026-11-07T10:00:00.000Z\nVersion(s):  (100%) ${V}\n                 Created:  y\n`;
+function withWrangler(files, listing) {
+    const root = mk({...files, 'node_modules/.bin/wrangler': `#!/bin/sh\ncat <<'EOF'\n${listing}EOF\n`});
+    chmodSync(join(root, 'node_modules/.bin/wrangler'), 0o755);
+    return root;
+}
+function gateReal(live, candidate, declared, version) {
+    const r = spawnSync(process.execPath, [GATE, '--live', live, '--candidate', candidate, '--declared', declared, ...(version === undefined ? [] : ['--expect-version', version])], {encoding: 'utf8'});
+    return {code: r.status, out: r.stdout};
+}
+
+test('run through a symlink the gate still runs (it used to exit 0 without a GATE line)', () => {
+    const live = mk(BASE), cand = mk({...BASE, 'src/index.ts': 'index v2'});
+    const dir = mkdtempSync(join(tmpdir(), 'gate-link-')); made.push(dir);
+    mkdirSync(join(dir, 'scripts')); symlinkSync(GATE, join(dir, 'scripts', 'gate.mjs'));
+    const r = spawnSync(process.execPath, [join(dir, 'scripts', 'gate.mjs'), '--live', live, '--candidate', cand, '--declared', 'src/asr-meter.ts', '--skip-version-check'], {encoding: 'utf8'});
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /GATE: FAIL/);
+});
+
+test('a split (gradual) newest deployment cannot be verified: null; an old 100% line before it does not count', () => {
+    const split = `${LISTING}\nCreated:     2026-11-14T10:00:00.000Z\nVersion(s):  (50%) aaaaaaaa-c1c6-495d-b27c-158e9c9371c4\n             (50%) ${V}\n`;
+    assert.equal(latestDeployedVersion(split), null);
+    assert.equal(latestDeployedVersion(LISTING), V);
+});
+
+test('the version check needs the full version id and the exact one, read through the candidate wrangler', () => {
+    const live = mk(BASE), cand = withWrangler({...BASE, 'src/index.ts': 'index v2'}, LISTING);
+    assert.equal(gateReal(live, cand, 'src/index.ts', V).code, 0);
+    for (const bad of ['1', '177bbb8a', undefined, '177bbb8a-c1c6-495d-b27c-158e9c9371c5']) {
+        const r = gateReal(live, cand, 'src/index.ts', bad);
+        assert.equal(r.code, 1, `expect-version ${bad}`);
+        assert.match(r.out, /VERSION CHECK/);
+    }
+    const splitCand = withWrangler({...BASE, 'src/index.ts': 'index v2'}, `${LISTING}\nCreated:     2026-11-14T10:00:00.000Z\nVersion(s):  (50%) aaaaaaaa-c1c6-495d-b27c-158e9c9371c4\n             (50%) ${V}\n`);
+    assert.equal(gateReal(live, splitCand, 'src/index.ts', V).code, 1, 'a gradual rollout since: stop');
+});
+
+test('two empty or wrong-root trees do not pass as "nothing changed"', () => {
+    const empty1 = mk({'README': 'x'}), empty2 = mk({'README': 'y'});
+    const r = gate(empty1, empty2, '');
+    assert.equal(r.code, 1);
+    assert.match(r.out, /NOT A WS-PROXY TREE: live has no src\/index\.ts/);
+    const live = mk(BASE);
+    assert.equal(gate(live, empty2, '').code, 1);
+    assert.match(gate(live, empty2, '').out, /NOT A WS-PROXY TREE: candidate/);
 });

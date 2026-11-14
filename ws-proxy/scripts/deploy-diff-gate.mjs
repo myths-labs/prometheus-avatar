@@ -10,9 +10,9 @@
 // not (someone deployed in between). It reads no credentials: wrangler uses its own login.
 //
 // Usage: node scripts/deploy-diff-gate.mjs --live <dir> --candidate <dir> --declared "a b c"
-//          --expect-version <id-prefix> [--skip-version-check]   (the flag is for tests only)
+//          --expect-version <full version id> [--skip-version-check]   (the flag is for tests only)
 // <dir> is the ws-proxy directory of each tree (e.g. `git archive <sha> ws-proxy` extracted, then /ws-proxy).
-import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -62,10 +62,24 @@ export function checkDiff({ liveRoot, candidateRoot, declared }) {
     return problems;
 }
 
-/** Reads the newest 100% version id from `wrangler deployments list` (read-only; oldest deployment first). */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * The version id serving ALL traffic from the newest deployment in `wrangler deployments list` (oldest first; each
+ * deployment starts at a "Created:" line in column 0). Null when that deployment is a split (gradual rollout) or has no
+ * readable version line: the gate cannot tell what is live, so it stops.
+ */
 export function latestDeployedVersion(wranglerOutput) {
-    const ids = [...wranglerOutput.matchAll(/Version\(s\):\s+\(100%\)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi)].map((m) => m[1]);
-    return ids.length ? ids[ids.length - 1] : null;
+    const starts = [...wranglerOutput.matchAll(/^Created:/gm)].map((m) => m.index);
+    if (!starts.length) return null;
+    const block = wranglerOutput.slice(starts[starts.length - 1]);
+    const rows = [...block.matchAll(/\((\d+)%\)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi)];
+    return rows.length === 1 && rows[0][1] === '100' ? rows[0][2] : null;
+}
+
+/** A ws-proxy tree must look like one: an empty directory (or the wrong root) is not "no change". */
+export function treeProblems(label, root) {
+    return ['src/index.ts', 'wrangler.toml'].filter((f) => !existsSync(join(root, f))).map((f) => `NOT A WS-PROXY TREE: ${label} has no ${f} (${root})`);
 }
 
 function parseArgs(argv) {
@@ -83,21 +97,22 @@ function main() {
     const a = parseArgs(process.argv.slice(2));
     if (!a.live || !a.candidate || a.declared === undefined) { console.error('usage: --live <dir> --candidate <dir> --declared "<files>" --expect-version <id> [--skip-version-check]'); return 2; }
     const declared = a.declared.split(/\s+/).filter(Boolean);
-    const problems = checkDiff({ liveRoot: a.live, candidateRoot: a.candidate, declared });
+    const shape = [...treeProblems('live', a.live), ...treeProblems('candidate', a.candidate)];
+    const problems = shape.length ? shape : checkDiff({ liveRoot: a.live, candidateRoot: a.candidate, declared });
     const changed = changedFiles(a.live, a.candidate);
     console.log(`deployable files changed vs live: ${changed.join(' ') || '(none)'}`);
     console.log(`declared: ${declared.join(' ') || '(none)'}`);
     for (const p of problems) console.log(p);
     let failed = problems.length > 0;
     if (!a.skipVersionCheck) {
-        if (!a.expectVersion) { console.log('VERSION CHECK: --expect-version is required'); failed = true; }
+        if (!UUID.test(a.expectVersion ?? '')) { console.log('VERSION CHECK: --expect-version must be the full version id (uuid)'); failed = true; }
         else {
             // The candidate's own wrangler when installed (it is not on PATH in a worktree), else the one on PATH.
             const local = join(a.candidate, 'node_modules', '.bin', 'wrangler');
             const r = spawnSync(existsSync(local) ? local : 'wrangler', ['deployments', 'list', '--name', 'ws-relay-proxy'], { cwd: a.wranglerCwd ?? a.candidate, encoding: 'utf8' });
             const latest = r.status === 0 ? latestDeployedVersion(r.stdout) : null;
             if (!latest) { console.log(`VERSION CHECK: could not read the latest version (wrangler exit ${r.status})`); failed = true; }
-            else if (!latest.startsWith(a.expectVersion)) { console.log(`VERSION CHECK: latest deployed version is ${latest}, not the recorded ${a.expectVersion}; someone deployed since`); failed = true; }
+            else if (latest !== a.expectVersion) { console.log(`VERSION CHECK: latest deployed version is ${latest}, not the recorded ${a.expectVersion}; someone deployed since`); failed = true; }
             else console.log(`version check ok: latest is ${latest}`);
         }
     } else console.log('version check skipped (tests only)');
@@ -105,4 +120,7 @@ function main() {
     return failed ? 1 : 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) process.exit(main());
+// Compare real paths: the ESM loader resolves symlinks in import.meta.url but argv[1] keeps the path as typed, so a
+// symlinked checkout (macOS /tmp, a CI workspace, a bin link) used to skip main() and exit 0 without checking anything.
+const entry = process.argv[1] ? realpathSync(process.argv[1]) : null;
+if (entry && realpathSync(fileURLToPath(import.meta.url)) === entry) process.exit(main());
