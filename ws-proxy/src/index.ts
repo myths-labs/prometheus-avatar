@@ -21,7 +21,7 @@ import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
 import { createSessionMeter, signUsageReport } from './realtime-meter';
-import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, createAsrFrameGuard, createAsrMeter, ticketFitsPath, type AsrUsageAnswer } from './asr-meter';
+import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, createAsrFrameGuard, createAsrMeter, liveGrantFitsPath, ticketFitsPath, type AsrUsageAnswer } from './asr-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -382,7 +382,7 @@ export default {
             // config oracle. Fail on missing ticket first, uniformly.
             {
                 const checked = await verifyVoiceTicket(env.WS_TICKET_SECRET, url.searchParams.get("ticket") || "");
-                // A recognition ticket never opens this platform health probe, whichever engine it names.
+                // No v1 ticket opens this platform probe any more (ticketFitsPath admits /asr only), whichever engine it names.
                 const verdict = checked.valid && !ticketFitsPath(checked.sub, "test") ? { valid: false as const, reason: "wrong-purpose" } : checked;
                 if (!verdict.valid) {
                     return new Response(JSON.stringify({
@@ -474,7 +474,8 @@ export default {
             const ticket = url.searchParams.get('ticket') || '';
             liveGrant = engineName === 'doubao' && /^lv[23]\./.test(ticket) ? await verifyLiveVoiceGrant(env.WS_TICKET_SECRET, ticket) : null;
             const checked = liveGrant ? { valid: true as const, sub: liveGrant.sub } : await verifyVoiceTicket(env.WS_TICKET_SECRET, ticket);
-            const verdict = checked.valid && !ticketFitsPath(checked.sub, engineName) ? { valid: false as const, reason: "wrong-purpose" } : checked;
+            const fits = checked.valid && (liveGrant ? liveGrantFitsPath(checked.sub, engineName) : ticketFitsPath(checked.sub, engineName));
+            const verdict = checked.valid && !fits ? { valid: false as const, reason: "wrong-purpose" } : checked;
             if (verdict.valid) ticketSubject = verdict.sub;
             if (!verdict.valid) {
                 console.warn(`[WS-Relay] 🎫 ${engineName}: rejected platform-credential request (${verdict.reason})`);

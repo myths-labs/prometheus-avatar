@@ -206,11 +206,19 @@ export function createAsrMeter<F, T>(o: {
 export const ASR_TICKET_PREFIX = "asr:";
 
 /**
- * A v1 ticket minted for recognition ("asr:" subject) opens /asr only, and /asr accepts no other v1 ticket. Without
- * this any v1 ticket would open every platform path (fish-rest, test, ...) with the same subject.
+ * A v1 ticket opens /asr only, and only when it was minted for recognition ("asr:" subject). Every other platform path
+ * refuses v1 tickets: /doubao takes lv2/lv3 live-voice grants (liveGrantFitsPath), and /volcengine, /minimax and the
+ * /test probe take no ticket at all. The marketplace minted unprefixed v1 tickets for /api/volcengine-realtime-token
+ * from 2026-08-15 (35b9b425b) to 2026-09-25 (0cf3c44a0), and a deployment built in that window keeps the signing
+ * secret it was built with, so the relay must not trust a v1 ticket anywhere but /asr. None of these paths is metered.
  */
 export function ticketFitsPath(sub: string, engineName: string): boolean {
-    return (engineName === "asr") === sub.startsWith(ASR_TICKET_PREFIX);
+    return engineName === "asr" && sub.startsWith(ASR_TICKET_PREFIX);
+}
+
+/** An lv2/lv3 live-voice grant opens /doubao only, and never with a recognition subject. */
+export function liveGrantFitsPath(sub: string, engineName: string): boolean {
+    return engineName === "doubao" && !sub.startsWith(ASR_TICKET_PREFIX);
 }
 
 /** Streaming recognition resources and their endpoints; anything else falls back to ASR 2.0. */

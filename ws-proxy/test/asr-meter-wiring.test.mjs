@@ -22,6 +22,9 @@ test('every v1 ticket check applies the purpose rule', () => {
     assert.doesNotMatch(src, /ticketFitsPath\(checked\.sub, "fish-rest"\)/);
     assert.match(src, /ticketFitsPath\(checked\.sub, "test"\)/);
     assert.match(src, /ticketFitsPath\(checked\.sub, engineName\)/);
+    // An lv2/lv3 grant is judged by its own rule, so closing v1 tickets on /doubao leaves live voice open.
+    assert.match(src, /const fits = checked\.valid && \(liveGrant \? liveGrantFitsPath\(checked\.sub, engineName\) : ticketFitsPath\(checked\.sub, engineName\)\);/);
+    assert.match(src, /checked\.valid && !fits \?/);
 });
 
 test('a platform /asr call cannot pick its endpoint or resource', () => {

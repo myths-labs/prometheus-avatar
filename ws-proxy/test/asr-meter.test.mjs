@@ -315,15 +315,25 @@ test('the recognition ticket purpose is the asr: subject prefix', () => {
     assert.equal(ASR_TICKET_PREFIX, 'asr:');
 });
 
-import {ticketFitsPath, asrResource, ASR_RESOURCES} from '../src/asr-meter.ts';
+import {ticketFitsPath, liveGrantFitsPath, asrResource, ASR_RESOURCES} from '../src/asr-meter.ts';
 
-test('a recognition ticket opens /asr only, and /asr takes no other v1 ticket', () => {
+test('a v1 ticket opens /asr only, and only a recognition ticket opens it', () => {
     assert.equal(ticketFitsPath('asr:0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', 'asr'), true);
     assert.equal(ticketFitsPath('asr:anon:' + 'a'.repeat(32), 'asr'), true);
     assert.equal(ticketFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', 'asr'), false, 'an unprefixed v1 ticket');
-    for (const path of ['fish-rest', 'test', 'doubao', 'minimax', 'fish']) {
-        assert.equal(ticketFitsPath('asr:0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), false, path);
-        assert.equal(ticketFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), true, path);
+    // The old marketplace (08-15 to 09-25) minted unprefixed v1 tickets for realtime voice: none of them opens an
+    // unmetered platform path any more, and neither does a recognition ticket.
+    for (const path of ['doubao', 'volcengine', 'minimax', 'test', 'fish-rest', 'fish']) {
+        assert.equal(ticketFitsPath('asr:0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), false, `asr: ticket on ${path}`);
+        assert.equal(ticketFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), false, `unprefixed v1 ticket on ${path}`);
+    }
+});
+
+test('a live-voice grant opens /doubao only, never with a recognition subject', () => {
+    assert.equal(liveGrantFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', 'doubao'), true);
+    assert.equal(liveGrantFitsPath('asr:0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', 'doubao'), false);
+    for (const path of ['asr', 'volcengine', 'minimax', 'test']) {
+        assert.equal(liveGrantFitsPath('0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c', path), false, path);
     }
 });
 
