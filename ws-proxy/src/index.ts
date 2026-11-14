@@ -21,7 +21,7 @@ import { createDoubaoByokRelay } from './doubao-byok-relay';
 import {resolveVolcengineApplication} from './volcengine-applications';
 import {createPrivateVoiceProofObserver} from './doubao-private-voice-proof';
 import { createSessionMeter, signUsageReport } from './realtime-meter';
-import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, asrMeteringConfigured, createAsrFrameGuard, createAsrMeter, handleAsrClientFrame, liveGrantFitsPath, ticketFitsPath, usageDoorClosed, UsageReportError, asrSubjectHash, formatFailOpenLog, type AsrUsageAnswer } from './asr-meter';
+import { ASR_RESOURCES, ASR_TICKET_PREFIX, asrResource, asrMeteringConfigured, createAsrFrameGuard, createAsrMeter, handleAsrClientFrame, liveGrantFitsPath, ticketFitsPath, usageDoorClosed, UsageReportError, asrSubjectHash, formatFailOpenLog, ASR_RETRY_AFTER_SECONDS, type AsrUsageAnswer } from './asr-meter';
 
 interface Env {
     VOLCENGINE_API_KEY: string;
@@ -569,6 +569,7 @@ export default {
             console.error(`[WS-Relay] asr: usage metering is not configured (RELAY_USAGE_SECRET / MARKETPLACE_USAGE_URL); refusing the socket`);
             const [refusedClient, refusedServer] = Object.values(new WebSocketPair());
             refusedServer.accept();
+            try { refusedServer.send(JSON.stringify({ type: "usage-stop", code: "USAGE_UNAVAILABLE", resets_at: null, tier: null, retry_after: ASR_RETRY_AFTER_SECONDS })); } catch { }
             refusedServer.close(1011, 'usage metering unavailable');
             return new Response(null, { status: 101, webSocket: refusedClient });
         }
@@ -729,6 +730,7 @@ export default {
                     if (!res.ok) throw new UsageReportError("5xx");
                     return await res.json() as AsrUsageAnswer;
                 },
+                failOpenStart: false, // ⑨ 11/14: no start is ever let through unchecked, account or visitor; only a mid-session renewal gets one step
                 onFailOpen: (info) => { void asrSubjectHash(asrSubject).then((h) => console.warn(`[WS-Relay] ${formatFailOpenLog({ subjectHash: h, reason: info.reason, unreservedSeconds: info.unreservedSeconds, report: info.report })}`)); },
                 // Audio the ledger holds, in the client's order; a frame that waited for an answer goes out when it comes.
                 forward: (frame) => {
@@ -740,7 +742,7 @@ export default {
                     // The client is told why before the close (marketplace src/lib/voiceAsrSession.ts reads both).
                     const code = typeof answer.code === "string" && /^[A-Z][A-Z_]{2,63}$/.test(answer.code) ? answer.code : "USAGE_REFUSED";
                     const text = (v: unknown) => (typeof v === "string" && v.length <= 64 ? v : null);
-                    try { serverWs.send(JSON.stringify({ type: "usage-stop", code, resets_at: text(answer.resets_at), tier: text(answer.tier) })); } catch { }
+                    try { serverWs.send(JSON.stringify({ type: "usage-stop", code, resets_at: text(answer.resets_at), tier: text(answer.tier), retry_after: code === "USAGE_UNAVAILABLE" ? ASR_RETRY_AFTER_SECONDS : null })); } catch { }
                     try { serverWs.close(4402, code); } catch { }
                     try { upstreamWs.close(1000, "Voice session ended"); } catch { }
                 },

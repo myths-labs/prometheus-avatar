@@ -233,7 +233,7 @@ test('a renewal the ledger refuses (pool used up) stops the session; with no res
     assert.deepEqual(h.stops, [{reason: 'quota', answer: pool}]);
     const unmetered = harness({start: {continue: true, reservation: null, seconds: 60}});
     await unmetered.speak(5);
-    assert.equal(unmetered.armed().length, 0, 'the ledger was unreachable at the start: there is no hold to renew');
+    assert.equal(unmetered.armed().filter((t) => t.ms !== 5000).length, 0, 'the ledger was unreachable at the start: there is no hold to renew (only the start retry is armed)');
 });
 
 test('an older marketplace (answers without seconds) and a failed ask both count as what was asked: fail open', async () => {

@@ -66,6 +66,8 @@ export const ASR_BACKLOG_FRAMES = 400;
 export const ASR_FAIL_OPEN_STEPS = 1;
 /** The marketplace ledger's own code for "cannot answer now"; the client reads it as try again. */
 export const ASR_USAGE_UNAVAILABLE_CODE = "USAGE_UNAVAILABLE";
+/** Seconds a client should wait before it asks again after a USAGE_UNAVAILABLE close (sent as retry_after; the backoff itself lives in the client). */
+export const ASR_RETRY_AFTER_SECONDS = 2;
 /**
  * A usage endpoint that refuses us (any 4xx: bad secret, unknown or lapsed reservation, malformed report, rate limit) is a
  * closed door, not an outage (⑨ 11/14): the session stops and no audio is forwarded. Only a timeout, a network error or a
@@ -75,7 +77,7 @@ export function usageDoorClosed(status: number): AsrUsageAnswer | null {
     return status >= 400 && status < 500 ? { continue: false, code: ASR_USAGE_UNAVAILABLE_CODE } : null;
 }
 /** Why a usage report failed to answer: logged with each unchecked step. */
-export type AsrFailReason = "timeout" | "network" | "5xx";
+export type AsrFailReason = "timeout" | "network" | "5xx" | "unreserved";
 export class UsageReportError extends Error {
     reason: AsrFailReason;
     constructor(reason: AsrFailReason) { super(`usage report failed (${reason})`); this.reason = reason; }
@@ -144,6 +146,11 @@ type Report = { kind: "start"; session: string } | { kind: "tick"; reservation: 
 export type AsrUsageAnswer = { continue: boolean; reservation?: string | null; seconds?: number | null;
     code?: string | null; resets_at?: string | null; tier?: string | null };
 
+/** A usage answer is an object that says continue or not; a 2xx whose body is null, a list or a string is not one. */
+function isAnswer(a: unknown): a is AsrUsageAnswer {
+    return typeof a === "object" && a !== null && !Array.isArray(a) && typeof (a as { continue?: unknown }).continue === "boolean";
+}
+
 export function createAsrMeter<F, T>(o: {
     schedule: (fn: () => void, ms: number) => T;
     cancel: (timer: T) => void;
@@ -153,6 +160,9 @@ export function createAsrMeter<F, T>(o: {
     stop: (reason: "quota", answer: AsrUsageAnswer) => void;
     /** Called for each step let through unchecked after a failed report (see ASR_FAIL_OPEN_STEPS). */
     onFailOpen?: (info: { report: "start" | "tick"; reason: AsrFailReason; unreservedSeconds: number }) => void;
+    /** False for a visitor (no account to settle with): a start that fails, or answers "continue" with no reservation, stops the
+     *  session at once instead of letting an unchecked step through (marketplace B-230 P5). Default true. */
+    failOpenStart?: boolean;
     /** Idempotency key of the reservation; default a random UUID, fixed for the life of this meter. */
     sessionKey?: () => string;
 }) {
@@ -166,6 +176,9 @@ export function createAsrMeter<F, T>(o: {
     // The start failed and its step is running unchecked: the start is retried (same key) until it answers.
     let unreservedStep = false;
     let retry: T | null = null;
+    // The start attempt on its way (the first or a retry). A close while one is out waits for it: it may have created the
+    // reservation, and the end must carry it (else nobody ever releases it).
+    let startInFlight: Promise<void> | null = null;
     let keepalive: T | null = null;
     // Client frames waiting for the ledger to hold their seconds, in the order they came.
     let waiting: { frame: F; bytes: number }[] = [];
@@ -204,6 +217,7 @@ export function createAsrMeter<F, T>(o: {
         waiting = []; waitingBytes = 0; // never forwarded, so never billed
         then?.();
         await reservationKnown; // the end carries the reservation the start was given
+        if (startInFlight) await startInFlight; // ... including one a retry is still fetching (bounded by the 5 s report timeout)
         try { await o.report({ kind: "end", reservation, inputAudioSeconds: Math.round(sent() * 1000) / 1000, session }); } catch { /* nothing more to do */ }
         return true;
     };
@@ -227,6 +241,7 @@ export function createAsrMeter<F, T>(o: {
     // A report that failed to answer. A renewal (0 s) lets nothing through, so it costs nothing. An ask or the start lets one
     // step through unchecked, up to ASR_FAIL_OPEN_STEPS in a row; the next one stops the session.
     function failedReport(asked: number, kind: "start" | "tick", error: unknown) {
+        if (kind === "start" && o.failOpenStart === false) { asking = false; void halt({ continue: false, code: ASR_USAGE_UNAVAILABLE_CODE }); return; }
         if (asked > 0) {
             failures++;
             if (failures > ASR_FAIL_OPEN_STEPS) { asking = false; void halt({ continue: false, code: ASR_USAGE_UNAVAILABLE_CODE }); return; }
@@ -245,23 +260,37 @@ export function createAsrMeter<F, T>(o: {
     }
     function startAttempt(counted: boolean) {
         asking = true;
-        void o.report({ kind: "start", session }).then((answer) => {
-            reservation = answer.reservation ?? null;
+        const failed = (error: unknown) => {
+            if (!counted && unreservedStep) { asking = false; scheduleRetry(); return; } // a free retry that failed: keep going
+            markReservationKnown();
+            failedReport(ASR_STEP_SECONDS, "start", error);
+        };
+        const attempt: Promise<void> = o.report({ kind: "start", session }).then((answer) => {
+            // A body that is not an answer (null, a list) is a failed start, never a hang: end() waits for the start to settle.
+            if (!isAnswer(answer)) { failed(new UsageReportError("5xx")); return; }
+            // "Continue" with no reservation is the marketplace saying its ledger cannot be reached: nothing is held, so it is a
+            // failed start (an unchecked step at most), never a success that resets the count.
+            if (answer.continue && !answer.reservation) { failed(new UsageReportError("unreserved")); return; }
+            reservation = answer.reservation ?? null; // kept even if the session ended meanwhile: the end reads it
             markReservationKnown();
             failures = 0;
             disarmRetry();
             if (unreservedStep && answer.continue) { held = sent(); unreservedStep = false; } // what the ledger now holds starts here
             answered(answer, ASR_STEP_SECONDS);
-        }, (error) => {
-            if (!counted && unreservedStep) { asking = false; scheduleRetry(); return; } // a free retry that failed: keep going
-            markReservationKnown();
-            failedReport(ASR_STEP_SECONDS, "start", error);
-        });
+        }, failed).catch(() => { markReservationKnown(); /* a handler error must not leave end() waiting or escape as unhandled */ })
+            .finally(() => { if (startInFlight === attempt) startInFlight = null; });
+        startInFlight = attempt;
     }
     function request(seconds: number) {
         asking = true;
         disarm();
-        void o.report({ kind: "tick", reservation, seconds }).then((a) => { failures = 0; answered(a, seconds); }, (error) => failedReport(seconds, "tick", error));
+        void o.report({ kind: "tick", reservation, seconds }).then((a) => {
+            if (!isAnswer(a)) { failedReport(seconds, "tick", new UsageReportError("5xx")); return; } // 2xx with a body that is not an answer
+            // Only an ask for seconds that is answered clears the count: a renewal (0 s) that goes through says nothing about
+            // the ledger's ability to grant, and must not hand the speaker a fresh unchecked step every minute.
+            if (seconds > 0) failures = 0;
+            answered(a, seconds);
+        }, (error) => failedReport(seconds, "tick", error));
     }
     // Nothing is asked before the start (the request frame comes first and carries no audio) or while an answer is due.
     function ask() {

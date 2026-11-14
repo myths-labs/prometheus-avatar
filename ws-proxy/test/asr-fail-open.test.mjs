@@ -9,12 +9,13 @@ import {ASR_FAIL_OPEN_STEPS, ASR_INPUT_BYTES_PER_SECOND, ASR_START_RETRY_MS, ASR
 const src = fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
 const timeout = () => new UsageReportError('timeout');
 
-function harness({starts = [], ticks = []} = {}) {
+function harness({starts = [], ticks = [], failOpenStart} = {}) {
     const reports = [], forwarded = [], stops = [], timers = [], failOpens = [];
     const meter = createAsrMeter({
         schedule: (fn, ms) => { const t = {fn, ms, live: true}; timers.push(t); return t; },
         cancel: (t) => { t.live = false; },
         sessionKey: () => 'session-key-1',
+        failOpenStart,
         report: async (r) => {
             reports.push(r);
             const next = r.kind === 'start' ? starts.shift() : r.kind === 'tick' ? ticks.shift() : {continue: true};
@@ -127,4 +128,65 @@ test('wiring: the usage report classifies failures, alerts on 401/403, and no lo
     const asrBlock = src.slice(src.indexOf('asrMeter = asrSubject'), j + 400);
     assert.doesNotMatch(asrBlock, /console\.[a-z]+\([^;]*\$\{asrSubject\}/, 'a log line must not print the raw subject');
     assert.doesNotMatch(asrBlock, /crypto\.randomUUID\(\)/, 'the idempotency key comes from the meter, one per socket');
+});
+
+// ⑨ 11/14 advice 1: the marketplace answers a start "continue" with NO reservation when its ledger cannot be reached.
+const unreserved = {continue: true, reservation: null, seconds: ASR_STEP_SECONDS};
+
+test('a start answered "continue" with no reservation is a failed start: one unchecked step, logged as unreserved, never a success', async () => {
+    const h = harness({starts: [unreserved]});
+    h.meter.offer({bytes: 0}, 0);
+    await h.speak(5);
+    assert.deepEqual(h.failOpens, [{report: 'start', reason: 'unreserved', unreservedSeconds: ASR_STEP_SECONDS}]);
+    assert.equal(h.sent(), 5, 'the unchecked step lets audio through');
+    assert.equal(h.timers.filter((t) => t.live && t.ms === ASR_START_RETRY_MS).length, 1, 'and the start is retried, like any failed start');
+});
+
+test('a failed start followed by an unreserved answer is NOT 120 s with nobody counting: it stops at the 60 s mark', async () => {
+    const h = harness({starts: [timeout(), unreserved, unreserved]});
+    h.meter.offer({bytes: 0}, 0);
+    await h.speak(5);
+    await h.retryNow(); // a free retry that answers "continue, no reservation": still failed, no more audio allowed
+    assert.equal(h.meter.heldSeconds(), ASR_STEP_SECONDS, 'held is still the one unchecked step');
+    await h.speak(120);
+    assert.equal(h.stops.length, 1);
+    assert.equal(h.stops[0].answer.code, 'USAGE_UNAVAILABLE');
+    assert.ok(h.sent() <= ASR_STEP_SECONDS, `unchecked audio ${h.sent()} s`);
+});
+
+test('an unreserved start does not reset the failure count', async () => {
+    const h = harness({starts: [unreserved, unreserved]});
+    h.meter.offer({bytes: 0}, 0);
+    await h.speak(120);
+    assert.equal(h.stops.length, 1, 'the ask at the lead point is a start again and fails the second time');
+    assert.ok(h.sent() <= ASR_STEP_SECONDS);
+});
+
+// ⑨ 11/14: no start is ever let through unchecked, account or visitor. failOpenStart is false everywhere in the relay.
+test('a start that fails is closed at once with USAGE_UNAVAILABLE: no unchecked step, no retry, no audio (account and visitor alike)', async () => {
+    for (const first of [timeout(), new UsageReportError('5xx'), unreserved]) {
+        const h = harness({starts: [first], failOpenStart: false});
+        h.meter.offer({bytes: 0}, 0);
+        await h.speak(5);
+        assert.equal(h.stops.length, 1);
+        assert.equal(h.stops[0].answer.code, 'USAGE_UNAVAILABLE');
+        assert.equal(h.sent(), 0, 'not one frame went upstream');
+        assert.deepEqual(h.failOpens, [], 'nothing was let through, so nothing to log as let through');
+        assert.equal(h.timers.filter((t) => t.live).length, 0, 'no retry, no renewal');
+    }
+});
+
+test('a start that answers is metered as usual; once started, a failed mid-session renewal still gets its one step', async () => {
+    const ok = harness({failOpenStart: false});
+    ok.meter.offer({bytes: 0}, 0);
+    await ok.speak(5);
+    assert.equal(ok.stops.length, 0);
+    assert.equal(ok.sent(), 5);
+});
+
+test('wiring: the relay never fails open on a start, and tells the client when to retry', () => {
+    assert.match(src, /failOpenStart: false,/);
+    assert.doesNotMatch(src, /failOpenStart: !asrSubject/);
+    assert.match(src, /retry_after: code === "USAGE_UNAVAILABLE" \? ASR_RETRY_AFTER_SECONDS : null/);
+    assert.match(src, /type: "usage-stop", code: "USAGE_UNAVAILABLE"[^\n]*retry_after: ASR_RETRY_AFTER_SECONDS/);
 });

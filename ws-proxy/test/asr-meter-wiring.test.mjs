@@ -66,7 +66,7 @@ test('the meter reports the ticket subject without its prefix, as asr_seconds, a
 
 test('a ledger stop tells the client why, then closes 4402 with the code (B-167)', () => {
     const stop = between('subject: asrSubject, meter: "asr_seconds"', '}) : null;');
-    const frame = stop.indexOf('serverWs.send(JSON.stringify({ type: "usage-stop", code, resets_at: text(answer.resets_at), tier: text(answer.tier) }))');
+    const frame = stop.indexOf('serverWs.send(JSON.stringify({ type: "usage-stop", code, resets_at: text(answer.resets_at), tier: text(answer.tier), retry_after: code === "USAGE_UNAVAILABLE" ? ASR_RETRY_AFTER_SECONDS : null }))');
     const close = stop.indexOf('serverWs.close(4402, code)');
     assert.ok(frame > 0 && close > frame, 'the usage-stop frame goes out before the 4402 close');
     const flagAt = stop.indexOf('clientClosed = true; upstreamClosed = true;');
