@@ -7,6 +7,7 @@ import {ASR_INPUT_BYTES_PER_SECOND, ASR_KEEPALIVE_MS, ASR_START_RETRY_MS, ASR_ST
 function harness({start, tick} = {}) {
     const reports = [], forwarded = [], stops = [], timers = [];
     const meter = createAsrMeter({
+        failOpenStart: true, // these tests exercise the fail-open step; the default is closed
         schedule: (fn, ms) => { const t = {fn, ms, live: true}; timers.push(t); return t; },
         cancel: (t) => { t.live = false; },
         sessionKey: () => 'session-key-1',

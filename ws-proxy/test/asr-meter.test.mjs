@@ -56,6 +56,7 @@ function harness(answers = {}) {
     const pendingTicks = [];
     const ticks = [...(answers.ticks ?? [])];
     const meter = createAsrMeter({
+        failOpenStart: true, // these tests exercise the fail-open step; the default is closed
         schedule: (fn, ms) => { const t = {fn, ms, live: true}; timers.push(t); return t; },
         cancel: (t) => { t.live = false; },
         report: async (r) => {

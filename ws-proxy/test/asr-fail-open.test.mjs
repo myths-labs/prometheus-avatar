@@ -9,7 +9,7 @@ import {ASR_FAIL_OPEN_STEPS, ASR_INPUT_BYTES_PER_SECOND, ASR_START_RETRY_MS, ASR
 const src = fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
 const timeout = () => new UsageReportError('timeout');
 
-function harness({starts = [], ticks = [], failOpenStart} = {}) {
+function harness({starts = [], ticks = [], failOpenStart = true} = {}) {
     const reports = [], forwarded = [], stops = [], timers = [], failOpens = [];
     const meter = createAsrMeter({
         schedule: (fn, ms) => { const t = {fn, ms, live: true}; timers.push(t); return t; },
@@ -189,4 +189,23 @@ test('wiring: the relay never fails open on a start, and tells the client when t
     assert.doesNotMatch(src, /failOpenStart: !asrSubject/);
     assert.match(src, /retry_after: code === "USAGE_UNAVAILABLE" \? ASR_RETRY_AFTER_SECONDS : null/);
     assert.match(src, /type: "usage-stop", code: "USAGE_UNAVAILABLE"[^\n]*retry_after: ASR_RETRY_AFTER_SECONDS/);
+});
+
+test('failOpenStart not passed at all: a failed start closes on the spot with USAGE_UNAVAILABLE (default is closed, ⑨ 11/14)', async () => {
+    for (const first of [timeout(), new UsageReportError('5xx'), unreserved]) {
+        const stops = [], forwarded = [];
+        const meter = createAsrMeter({
+            schedule: () => ({}), cancel: () => {}, sessionKey: () => 'k',
+            report: async (r) => { if (r.kind === 'start') { if (first instanceof Error) throw first; return first; } return {continue: true}; },
+            forward: (f) => { forwarded.push(f); return true; },
+            stop: (reason, answer) => stops.push(answer),
+        });
+        meter.offer({bytes: 0}, 0);
+        for (let i = 0; i < 5; i++) { meter.offer({bytes: ASR_INPUT_BYTES_PER_SECOND}, ASR_INPUT_BYTES_PER_SECOND); await new Promise((r) => setImmediate(r)); }
+        assert.equal(stops.length, 1);
+        assert.equal(stops[0].code, 'USAGE_UNAVAILABLE');
+        assert.equal(forwarded.reduce((n, f) => n + f.bytes, 0), 0, 'not one byte of audio went upstream (the 0-byte request frame is not audio)');
+    }
+    // the code that carries it to the client also tells it when to come back
+    assert.match(src, /retry_after: code === "USAGE_UNAVAILABLE" \? ASR_RETRY_AFTER_SECONDS : null/);
 });

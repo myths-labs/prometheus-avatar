@@ -49,6 +49,7 @@ test('b: every 4xx closes the door; 2xx and 5xx are not refusals', () => {
 function meterWith(startAnswer, tickAnswer) {
     const forwarded = [], stops = [], reports = [];
     const meter = asr.createAsrMeter({
+        failOpenStart: true, // these tests exercise the fail-open step; the default is closed
         schedule: () => ({}), cancel: () => {},
         report: async (r) => { reports.push(r.kind); return r.kind === 'start' ? startAnswer : r.kind === 'tick' ? tickAnswer : { continue: true }; },
         forward: (f) => { forwarded.push(f); return true; },

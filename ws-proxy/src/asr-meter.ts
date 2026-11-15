@@ -160,8 +160,8 @@ export function createAsrMeter<F, T>(o: {
     stop: (reason: "quota", answer: AsrUsageAnswer) => void;
     /** Called for each step let through unchecked after a failed report (see ASR_FAIL_OPEN_STEPS). */
     onFailOpen?: (info: { report: "start" | "tick"; reason: AsrFailReason; unreservedSeconds: number }) => void;
-    /** False for a visitor (no account to settle with): a start that fails, or answers "continue" with no reservation, stops the
-     *  session at once instead of letting an unchecked step through (marketplace B-230 P5). Default true. */
+    /** Default false: opening a session is never let through unchecked. A start that fails, or answers "continue" with no
+     *  reservation, stops the session at once with USAGE_UNAVAILABLE (⑨ 11/14). Only an explicit true allows one unchecked step. */
     failOpenStart?: boolean;
     /** Idempotency key of the reservation; default a random UUID, fixed for the life of this meter. */
     sessionKey?: () => string;
@@ -241,7 +241,7 @@ export function createAsrMeter<F, T>(o: {
     // A report that failed to answer. A renewal (0 s) lets nothing through, so it costs nothing. An ask or the start lets one
     // step through unchecked, up to ASR_FAIL_OPEN_STEPS in a row; the next one stops the session.
     function failedReport(asked: number, kind: "start" | "tick", error: unknown) {
-        if (kind === "start" && o.failOpenStart === false) { asking = false; void halt({ continue: false, code: ASR_USAGE_UNAVAILABLE_CODE }); return; }
+        if (kind === "start" && o.failOpenStart !== true) { asking = false; void halt({ continue: false, code: ASR_USAGE_UNAVAILABLE_CODE }); return; }
         if (asked > 0) {
             failures++;
             if (failures > ASR_FAIL_OPEN_STEPS) { asking = false; void halt({ continue: false, code: ASR_USAGE_UNAVAILABLE_CODE }); return; }
