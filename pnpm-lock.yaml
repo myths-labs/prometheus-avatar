@@ -34,7 +34,7 @@ importers:
   packages/openclaw-plugin:
     dependencies:
       '@prometheusavatar/core':
-        specifier: ^0.11.4
+        specifier: ^0.11.6
         version: link:../sdk
     devDependencies:
       '@types/node':

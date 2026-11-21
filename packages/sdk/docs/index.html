@@ -1,12 +1,86 @@
 <!DOCTYPE html><html class="default" lang="en" data-base="./"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>@prometheusavatar/core</title><meta name="description" content="Documentation for @prometheusavatar/core"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script><script async src="assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="index.html" class="title">@prometheusavatar/core</a><div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><h1>@prometheusavatar/core</h1></div><div class="tsd-panel tsd-typography"><h1 id="prometheusavatarcore" class="tsd-anchor-link">@prometheusavatar/core<a href="#prometheusavatarcore" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
-<p>Give your AI agent an embodied avatar — Live2D rendering, TTS, lip-sync, and emotion analysis in one SDK.</p>
+<p>Give your AI agent an embodied avatar — a local 2D model renderer, an embed-page bridge, TTS, lip-sync, and emotion analysis in one SDK.</p>
 <h2 id="quick-start" class="tsd-anchor-link">Quick Start<a href="#quick-start" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
 <pre><code class="bash"><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">install</span><span class="hl-1"> </span><span class="hl-2">@prometheusavatar/core</span>
 </code><button type="button">Copy</button></pre>
 
-<pre><code class="ts"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">createAvatar</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@prometheusavatar/core&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">avatar</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-0">createAvatar</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">container:</span><span class="hl-1"> </span><span class="hl-4">document</span><span class="hl-1">.</span><span class="hl-0">getElementById</span><span class="hl-1">(</span><span class="hl-2">&#39;avatar&#39;</span><span class="hl-1">)!,</span><br/><span class="hl-1">  </span><span class="hl-4">modelUrl:</span><span class="hl-1"> </span><span class="hl-2">&#39;/models/haru/haru.model3.json&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-7">// Avatar speaks with auto-detected emotion + lip-sync</span><br/><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">avatar</span><span class="hl-1">.</span><span class="hl-0">speak</span><span class="hl-1">(</span><span class="hl-2">&#39;Hello! How are you today? 😊&#39;</span><span class="hl-1">);</span>
+<pre><code class="ts"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">createAvatar</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@prometheusavatar/core&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">avatar</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-0">createAvatar</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">container:</span><span class="hl-1"> </span><span class="hl-4">document</span><span class="hl-1">.</span><span class="hl-0">getElementById</span><span class="hl-1">(</span><span class="hl-2">&#39;avatar&#39;</span><span class="hl-1">)!,</span><br/><span class="hl-1">  </span><span class="hl-4">modelUrl:</span><span class="hl-1"> </span><span class="hl-2">&#39;/models/your-model/your-model.model3.json&#39;</span><span class="hl-1">, </span><span class="hl-7">// a 2D model file you host</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-7">// Avatar speaks with auto-detected emotion + lip-sync</span><br/><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">avatar</span><span class="hl-1">.</span><span class="hl-0">speak</span><span class="hl-1">(</span><span class="hl-2">&#39;Hello! How are you today? 😊&#39;</span><span class="hl-1">);</span>
 </code><button type="button">Copy</button></pre>
 
+<h2 id="drive-an-avatar-embed-page" class="tsd-anchor-link">Drive an avatar embed page<a href="#drive-an-avatar-embed-page" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>The avatar people see on <a href="https://prometheus.mythslabs.ai">prometheus.mythslabs.ai</a> is a hosted page:
+<code>POST /api/agent/avatar</code> (with your <code>pak_</code> agent key) answers an <code>embedUrl</code>. Frame it in an <code>&lt;iframe&gt;</code>
+and drive it with <code>connectEmbed</code>:</p>
+<pre><code class="ts"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">connectEmbed</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@prometheusavatar/core&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">frame</span><span class="hl-1"> = </span><span class="hl-4">document</span><span class="hl-1">.</span><span class="hl-0">getElementById</span><span class="hl-1">(</span><span class="hl-2">&#39;prometheus-embed&#39;</span><span class="hl-1">) </span><span class="hl-3">as</span><span class="hl-1"> </span><span class="hl-8">HTMLIFrameElement</span><span class="hl-1">;</span><br/><span class="hl-4">frame</span><span class="hl-1">.</span><span class="hl-4">src</span><span class="hl-1"> = </span><span class="hl-4">embedUrl</span><span class="hl-1">;</span><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">embed</span><span class="hl-1"> = </span><span class="hl-0">connectEmbed</span><span class="hl-1">(</span><span class="hl-4">frame</span><span class="hl-1">, {</span><br/><span class="hl-1">  </span><span class="hl-0">onLoaded</span><span class="hl-4">:</span><span class="hl-1"> () </span><span class="hl-5">=&gt;</span><span class="hl-1"> </span><span class="hl-4">console</span><span class="hl-1">.</span><span class="hl-0">log</span><span class="hl-1">(</span><span class="hl-2">&#39;avatar can speak now&#39;</span><span class="hl-1">),</span><br/><span class="hl-1">  </span><span class="hl-0">onViewerMessage</span><span class="hl-4">:</span><span class="hl-1"> (</span><span class="hl-4">text</span><span class="hl-1">) </span><span class="hl-5">=&gt;</span><span class="hl-1"> </span><span class="hl-4">console</span><span class="hl-1">.</span><span class="hl-0">log</span><span class="hl-1">(</span><span class="hl-2">&#39;viewer typed&#39;</span><span class="hl-1">, </span><span class="hl-4">text</span><span class="hl-1">),</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-4">embed</span><span class="hl-1">.</span><span class="hl-0">setState</span><span class="hl-1">(</span><span class="hl-2">&#39;thinking&#39;</span><span class="hl-1">);      </span><span class="hl-7">// queued until the embed is listening, then sent once</span><br/><span class="hl-4">embed</span><span class="hl-1">.</span><span class="hl-0">setEmotion</span><span class="hl-1">(</span><span class="hl-2">&#39;happy&#39;</span><span class="hl-1">);</span><br/><span class="hl-4">embed</span><span class="hl-1">.</span><span class="hl-0">speak</span><span class="hl-1">(</span><span class="hl-2">&#39;Hi there!&#39;</span><span class="hl-1">);        </span><span class="hl-7">// held until the avatar has loaded, then sent (the way to greet on load)</span><br/><span class="hl-7">// later: embed.destroy();</span>
+</code><button type="button">Copy</button></pre>
+
+<blockquote>
+<p><strong>Status:</strong> <code>connectEmbed</code> is covered by tests against stand-in windows. It has also been run in a
+headless browser against the live embed page (2026-10-22) for an avatar made with an agent key:
+<code>prometheus:ready</code> and <code>prometheus:loaded</code> arrived, and the emotion messages it sent reached the page.
+<code>speak</code> was not sent in that run, so treat <code>speak</code> as untested against the live page. The page frames
+avatars made with an agent key; the id of a Marketplace listing answers &quot;Avatar not found&quot; and never
+reports loaded.</p>
+</blockquote>
+<p>How it works (marketplace embed protocol):</p>
+<ul>
+<li>The embed posts <code>{ type: &quot;prometheus:ready&quot;, id }</code> when its message listener is attached and
+<code>{ type: &quot;prometheus:loaded&quot;, id }</code> when the avatar has loaded and can speak, once per page load.</li>
+<li><code>setEmotion</code> / <code>setState</code> are queued until <code>prometheus:ready</code>, then the queue is sent once, in order.</li>
+<li><code>speak</code> is held until <code>prometheus:loaded</code>, then sent. To greet when the avatar loads, call
+<code>embed.speak(...)</code> right after <code>connectEmbed</code>; do not put text in the embed address.</li>
+<li>Messages go to the embed's own origin only (taken from <code>iframe.src</code>, or <code>options.origin</code>), and
+incoming messages are accepted only from that origin and from that iframe's window.</li>
+<li><strong>Fallback (old embeds):</strong> if no <code>prometheus:ready</code> arrives within 8 s (<code>readyTimeoutMs</code>), everything
+queued is sent anyway and later messages go straight through, as before. If <code>prometheus:ready</code>
+arrived but <code>prometheus:loaded</code> does not within 30 s (<code>loadedTimeoutMs</code>), held <code>speak</code> messages are
+sent anyway. <code>onFallback(reason)</code> tells you when either happens.</li>
+<li>Queues hold at most 20 messages each (<code>maxQueue</code>); the oldest is dropped beyond that.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>origin</code></td>
+<td>origin of <code>iframe.src</code></td>
+<td>The embed's origin. Required if the iframe has no <code>src</code> yet</td>
+</tr>
+<tr>
+<td><code>avatarId</code></td>
+<td>—</td>
+<td>Ignore ready/loaded messages that carry a different <code>id</code></td>
+</tr>
+<tr>
+<td><code>readyTimeoutMs</code></td>
+<td><code>8000</code></td>
+<td>Wait for <code>prometheus:ready</code> before sending anyway</td>
+</tr>
+<tr>
+<td><code>loadedTimeoutMs</code></td>
+<td><code>30000</code></td>
+<td>Wait (after ready) for <code>prometheus:loaded</code> before sending held <code>speak</code> anyway</td>
+</tr>
+<tr>
+<td><code>maxQueue</code></td>
+<td><code>20</code></td>
+<td>Per-queue cap</td>
+</tr>
+<tr>
+<td><code>onReady</code> / <code>onLoaded</code> / <code>onViewerMessage</code> / <code>onFallback</code></td>
+<td>—</td>
+<td>Callbacks</td>
+</tr>
+</tbody>
+</table>
+<h2 id="local-2d-renderer" class="tsd-anchor-link">Local 2D renderer<a href="#local-2d-renderer" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p><code>createAvatar</code> draws a 2D model file (<code>.model3.json</code>) on a canvas in your own page, with TTS,
+lip-sync and emotion. The package ships no model: bring your own model file.</p>
 <h2 id="api-reference" class="tsd-anchor-link">API Reference<a href="#api-reference" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
 <h3 id="_" class="tsd-anchor-link"><code>createAvatar(options): Promise&lt;PrometheusAvatar&gt;</code><a href="#_" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <p>Factory function to create and initialize an avatar.</p>
@@ -30,7 +104,7 @@
 <td><code>modelUrl</code></td>
 <td><code>string</code></td>
 <td>required</td>
-<td>URL to Live2D model JSON</td>
+<td>URL to a 2D model file (<code>.model3.json</code>)</td>
 </tr>
 <tr>
 <td><code>width</code></td>
@@ -80,10 +154,160 @@
 <pre><code class="ts"><span class="hl-3">import</span><span class="hl-1"> </span><span class="hl-3">type</span><span class="hl-1"> { </span><span class="hl-4">ITTSEngine</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@prometheusavatar/core&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">class</span><span class="hl-1"> </span><span class="hl-8">MyTTSEngine</span><span class="hl-1"> </span><span class="hl-5">implements</span><span class="hl-1"> </span><span class="hl-8">ITTSEngine</span><span class="hl-1"> {</span><br/><span class="hl-1">  </span><span class="hl-5">async</span><span class="hl-1"> </span><span class="hl-0">speak</span><span class="hl-1">(</span><span class="hl-4">text</span><span class="hl-1">: </span><span class="hl-8">string</span><span class="hl-1">): </span><span class="hl-8">Promise</span><span class="hl-1">&lt;</span><span class="hl-8">void</span><span class="hl-1">&gt; { </span><span class="hl-7">/* ... */</span><span class="hl-1"> }</span><br/><span class="hl-1">  </span><span class="hl-0">stop</span><span class="hl-1">(): </span><span class="hl-8">void</span><span class="hl-1"> { </span><span class="hl-7">/* ... */</span><span class="hl-1"> }</span><br/><span class="hl-1">  </span><span class="hl-0">onAudioData</span><span class="hl-1">?: (</span><span class="hl-4">data</span><span class="hl-1">: </span><span class="hl-8">Float32Array</span><span class="hl-1">) </span><span class="hl-5">=&gt;</span><span class="hl-1"> </span><span class="hl-8">void</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-0">onEnd</span><span class="hl-1">?: () </span><span class="hl-5">=&gt;</span><span class="hl-1"> </span><span class="hl-8">void</span><span class="hl-1">;</span><br/><span class="hl-1">}</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">avatar</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-0">createAvatar</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">container:</span><span class="hl-1"> </span><span class="hl-4">el</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">modelUrl:</span><span class="hl-1"> </span><span class="hl-4">url</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">ttsEngine:</span><span class="hl-1"> </span><span class="hl-5">new</span><span class="hl-1"> </span><span class="hl-0">MyTTSEngine</span><span class="hl-1">(),</span><br/><span class="hl-1">});</span>
 </code><button type="button">Copy</button></pre>
 
+<h2 id="whats-new-in-v011-pro-image-generation" class="tsd-anchor-link">What's New in v0.11 — Pro Image Generation<a href="#whats-new-in-v011-pro-image-generation" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p><code>AssetCreator.createImage()</code> — AAA-grade image generation with automatic multi-provider fallback. Game-store skin preview card tier output (Genshin / Overwatch / WoW quality). BYOK-friendly for zero-marginal-cost.</p>
+<pre><code class="ts"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">AssetCreator</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@prometheusavatar/core&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">creator</span><span class="hl-1"> = </span><span class="hl-5">new</span><span class="hl-1"> </span><span class="hl-0">AssetCreator</span><span class="hl-1">();</span><br/><br/><span class="hl-7">// Simple</span><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">img</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">creator</span><span class="hl-1">.</span><span class="hl-0">createImage</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">prompt:</span><span class="hl-1"> </span><span class="hl-2">&#39;Anime shrine maiden with sakura petals, cel-shaded, Genshin Impact shop preview tier&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">style:</span><span class="hl-1"> </span><span class="hl-2">&#39;anime&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-7">// AAA Skin Preview Card (recommend ≥100-word prompts with explicit AAA benchmark named)</span><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">skin</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">creator</span><span class="hl-1">.</span><span class="hl-0">createImage</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">prompt:</span><span class="hl-1"> </span><span class="hl-2">`3D cel-shaded engine render, anime shrine maiden character, slight elevated 3/4 hero pose,</span><br/><span class="hl-2">glossy game-art materials, clean dark studio backdrop with subtle radial gradient, pink/peach gradient</span><br/><span class="hl-2">lighting, NOT flat 2D illustration. Genshin Impact / Overwatch shop preview tier. Production-ready</span><br/><span class="hl-2">AAA skin preview card.`</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">style:</span><span class="hl-1"> </span><span class="hl-2">&#39;anime&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">taskType:</span><span class="hl-1"> </span><span class="hl-2">&#39;aaa_skin&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">size:</span><span class="hl-1"> </span><span class="hl-2">&#39;1024x1536&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">quality:</span><span class="hl-1"> </span><span class="hl-2">&#39;high&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">apiKey:</span><span class="hl-1"> </span><span class="hl-4">process</span><span class="hl-1">.</span><span class="hl-4">env</span><span class="hl-1">.</span><span class="hl-6">OPENAI_API_KEY</span><span class="hl-1">, </span><span class="hl-7">// BYOK = zero platform cost</span><br/><span class="hl-1">  </span><span class="hl-4">upload:</span><span class="hl-1"> </span><span class="hl-5">true</span><span class="hl-1">,                       </span><span class="hl-7">// upload to Supabase + return publicUrl</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-4">console</span><span class="hl-1">.</span><span class="hl-0">log</span><span class="hl-1">(</span><span class="hl-4">skin</span><span class="hl-1">.</span><span class="hl-4">publicUrl</span><span class="hl-1">, </span><span class="hl-4">skin</span><span class="hl-1">.</span><span class="hl-4">platformCostUsd</span><span class="hl-1">);</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="_-2" class="tsd-anchor-link"><code>AssetCreator.createImage(options): Promise&lt;CreateImageResult&gt;</code><a href="#_-2" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prompt</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>Recommend ≥100 words with explicit AAA benchmark named for best quality.</td>
+</tr>
+<tr>
+<td><code>style</code></td>
+<td><code>ImageStyle</code></td>
+<td>none</td>
+<td><code>anime</code> / <code>cel-shade</code> / <code>cyberpunk</code> / <code>kawaii</code> / <code>fantasy</code> / <code>cartoon</code> / <code>realistic</code> / <code>photorealistic</code> / <code>pixar</code></td>
+</tr>
+<tr>
+<td><code>taskType</code></td>
+<td><code>ImageTaskType</code></td>
+<td><code>'character'</code></td>
+<td>Routes to the optimal provider per task.</td>
+</tr>
+<tr>
+<td><code>size</code></td>
+<td><code>'1024x1024'|'1024x1536'|'1536x1024'|'auto'</code></td>
+<td><code>'1024x1024'</code></td>
+<td><code>1024x1536</code> for vertical (XHS / 9:16). <code>1536x1024</code> for landscape (X / LinkedIn / 16:9).</td>
+</tr>
+<tr>
+<td><code>quality</code></td>
+<td><code>'low'|'medium'|'high'|'auto'</code></td>
+<td><code>'high'</code></td>
+<td>$0.02 low → $0.07-0.19 high (per image).</td>
+</tr>
+<tr>
+<td><code>numVariants</code></td>
+<td><code>number</code></td>
+<td><code>1</code></td>
+<td>1-4 variants.</td>
+</tr>
+<tr>
+<td><code>referenceImages</code></td>
+<td><code>string[]</code></td>
+<td>none</td>
+<td>Data URLs or HTTPS URLs · character consistency chain across multiple calls.</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td><code>'openai'|'gemini'|'gemini-flash'</code></td>
+<td>auto</td>
+<td>Override · default routes per <code>taskType</code>.</td>
+</tr>
+<tr>
+<td><code>apiKey</code></td>
+<td><code>string</code></td>
+<td>env</td>
+<td>BYOK — your own image-provider key · platform billing skipped.</td>
+</tr>
+<tr>
+<td><code>upload</code></td>
+<td><code>boolean</code></td>
+<td><code>false</code></td>
+<td>Upload to Supabase Storage and return <code>publicUrl</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Returns <code>CreateImageResult</code>:</p>
+<pre><code class="ts"><span class="hl-1">{</span><br/><span class="hl-1">  </span><span class="hl-9">provider</span><span class="hl-1">: </span><span class="hl-2">&#39;openai&#39;</span><span class="hl-1"> | </span><span class="hl-2">&#39;gemini&#39;</span><span class="hl-1"> | </span><span class="hl-2">&#39;gemini-flash&#39;</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">taskId</span><span class="hl-1">: </span><span class="hl-4">string</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">imageUrl</span><span class="hl-1">: </span><span class="hl-4">string</span><span class="hl-1">;       </span><span class="hl-7">// data URL OR https URL</span><br/><span class="hl-1">  </span><span class="hl-4">publicUrl</span><span class="hl-1">?: </span><span class="hl-4">string</span><span class="hl-1">;     </span><span class="hl-7">// when upload: true</span><br/><span class="hl-1">  </span><span class="hl-4">variants</span><span class="hl-1">?: </span><span class="hl-4">string</span><span class="hl-1">[];</span><br/><span class="hl-1">  </span><span class="hl-9">width</span><span class="hl-1">: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">height</span><span class="hl-1">: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-9">durationSec</span><span class="hl-1">: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">  </span><span class="hl-4">platformCostUsd</span><span class="hl-1">?: </span><span class="hl-4">number</span><span class="hl-1">;</span><br/><span class="hl-1">}</span>
+</code><button type="button">Copy</button></pre>
+
+<p><strong>Forge UI live at</strong> <a href="https://prometheus.mythslabs.ai/marketplace/create">prometheus.mythslabs.ai/marketplace/create</a> — visual 7-style picker reference.</p>
+<h2 id="memorybridge-nodejs" class="tsd-anchor-link">MemoryBridge (Node.js)<a href="#memorybridge-nodejs" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Shares a local memory file (JSON / TXT / MD) with the Prometheus app over a local WebSocket. The app reads the file
+when it connects and whenever it changes, and appends each conversation to it at the end of a session.</p>
+<pre><code class="ts"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">MemoryBridge</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@prometheusavatar/core&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">bridge</span><span class="hl-1"> = </span><span class="hl-5">new</span><span class="hl-1"> </span><span class="hl-0">MemoryBridge</span><span class="hl-1">({ </span><span class="hl-4">memoryFilePath:</span><span class="hl-1"> </span><span class="hl-2">&#39;./memory.md&#39;</span><span class="hl-1"> }); </span><span class="hl-7">// ws://127.0.0.1:8765</span><br/><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">bridge</span><span class="hl-1">.</span><span class="hl-0">start</span><span class="hl-1">();</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Then in the app: Settings → SDK Memory Bridge → on (default URL <code>ws://localhost:8765</code>).</p>
+<p>Defaults that protect the file (since 0.11.4):</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host</code></td>
+<td><code>&quot;127.0.0.1&quot;</code></td>
+<td>Listens on this machine only. A non-loopback value such as <code>&quot;0.0.0.0&quot;</code> prints a warning; use it only on a network you trust.</td>
+</tr>
+<tr>
+<td><code>allowedOrigins</code></td>
+<td><code>MEMORY_BRIDGE_DEFAULT_ORIGINS</code></td>
+<td>Browser pages allowed to connect: <code>https://prometheus.mythslabs.ai</code> and pages served from <code>localhost</code> / <code>127.0.0.1</code> / <code>[::1]</code> on any port. Other sites get HTTP 403. Spread the default list to add your own origin. Connections without an <code>Origin</code> header (Node clients) are allowed.</td>
+</tr>
+<tr>
+<td><code>allowedHosts</code></td>
+<td>—</td>
+<td>Extra names accepted in the <code>Host</code> header besides <code>localhost</code>, <code>127.0.0.1</code>, <code>[::1]</code> and an explicit <code>host</code>.</td>
+</tr>
+<tr>
+<td><code>maxPayloadBytes</code></td>
+<td>1 MiB</td>
+<td>Larger messages close the connection.</td>
+</tr>
+<tr>
+<td><code>maxMemoryFileBytes</code></td>
+<td>10 MiB</td>
+<td>A conversation that would grow the file past this is not written; the client gets <code>{ type: &quot;error&quot;, data: { code: &quot;memory_file_full&quot; } }</code>.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="architecture" class="tsd-anchor-link">Architecture<a href="#architecture" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
-<pre><code><span class="hl-0">PrometheusAvatar</span><span class="hl-1"> (</span><span class="hl-4">orchestrator</span><span class="hl-1">)</span><br/><span class="hl-1">├── </span><span class="hl-4">Live2DRenderer</span><span class="hl-1">  — </span><span class="hl-6">PIXI</span><span class="hl-1">.</span><span class="hl-4">js</span><span class="hl-1"> + </span><span class="hl-4">Live2D</span><span class="hl-1"> </span><span class="hl-4">Cubism</span><span class="hl-1"> </span><span class="hl-6">SDK</span><br/><span class="hl-1">├── </span><span class="hl-4">WebSpeechTTS</span><span class="hl-1">    — </span><span class="hl-4">pluggable</span><span class="hl-1"> </span><span class="hl-0">TTS</span><span class="hl-1"> (</span><span class="hl-4">Web</span><span class="hl-1"> </span><span class="hl-4">Speech</span><span class="hl-1"> </span><span class="hl-6">API</span><span class="hl-1"> </span><span class="hl-4">default</span><span class="hl-1">)</span><br/><span class="hl-1">├── </span><span class="hl-4">LipSyncEngine</span><span class="hl-1">   — </span><span class="hl-4">audio</span><span class="hl-1"> → </span><span class="hl-4">mouth</span><span class="hl-1"> </span><span class="hl-4">shape</span><span class="hl-1"> </span><span class="hl-4">mapping</span><br/><span class="hl-1">└── </span><span class="hl-4">EmotionAnalyzer</span><span class="hl-1"> — </span><span class="hl-4">text</span><span class="hl-1"> → </span><span class="hl-4">emotion</span><span class="hl-1"> </span><span class="hl-4">detection</span>
+<p><code>EmbedBridge</code> (<code>connectEmbed</code>) is separate: it talks to the hosted embed page and draws nothing itself.</p>
+<pre><code><span class="hl-0">PrometheusAvatar</span><span class="hl-1"> (</span><span class="hl-4">orchestrator</span><span class="hl-1">)</span><br/><span class="hl-1">├── </span><span class="hl-4">AvatarRenderer</span><span class="hl-1">  — </span><span class="hl-6">PIXI</span><span class="hl-1">.</span><span class="hl-4">js</span><span class="hl-1"> 2</span><span class="hl-6">D</span><span class="hl-1"> </span><span class="hl-4">model</span><span class="hl-1"> </span><span class="hl-0">renderer</span><span class="hl-1"> (.</span><span class="hl-4">model3</span><span class="hl-1">.</span><span class="hl-4">json</span><span class="hl-1">)</span><br/><span class="hl-1">├── </span><span class="hl-4">WebSpeechTTS</span><span class="hl-1">    — </span><span class="hl-4">pluggable</span><span class="hl-1"> </span><span class="hl-0">TTS</span><span class="hl-1"> (</span><span class="hl-4">Web</span><span class="hl-1"> </span><span class="hl-4">Speech</span><span class="hl-1"> </span><span class="hl-6">API</span><span class="hl-1"> </span><span class="hl-4">default</span><span class="hl-1">)</span><br/><span class="hl-1">├── </span><span class="hl-4">LipSyncEngine</span><span class="hl-1">   — </span><span class="hl-4">audio</span><span class="hl-1"> → </span><span class="hl-4">mouth</span><span class="hl-1"> </span><span class="hl-4">shape</span><span class="hl-1"> </span><span class="hl-4">mapping</span><br/><span class="hl-1">└── </span><span class="hl-4">EmotionAnalyzer</span><span class="hl-1"> — </span><span class="hl-4">text</span><span class="hl-1"> → </span><span class="hl-4">emotion</span><span class="hl-1"> </span><span class="hl-4">detection</span>
 </code><button>Copy</button></pre>
 
+<h2 id="changelog" class="tsd-anchor-link">Changelog<a href="#changelog" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="0115" class="tsd-anchor-link">0.11.5<a href="#0115" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li><strong>New:</strong> <code>connectEmbed</code> / <code>EmbedBridge</code> drive an avatar embed page: emotion and state wait for
+<code>prometheus:ready</code> and are replayed once, <code>speak</code> waits for <code>prometheus:loaded</code>, origin and source
+are checked, and an 8 s fallback keeps older embeds working (see &quot;Drive an avatar embed page&quot;,
+including its status note).</li>
+<li><strong>Renamed:</strong> the renderer class is now <code>AvatarRenderer</code>. The old class name still works and is deprecated.</li>
+<li><strong>Wording:</strong> public text says &quot;2D model file (<code>.model3.json</code>)&quot; instead of naming the runtime.</li>
+<li><strong>Agent API contract (marketplace side), documented here:</strong>
+<ul>
+<li><code>POST /api/marketplace/deploy</code> with <code>category: &quot;personas&quot;</code> must carry the prompt in
+<code>persona_config</code> or in a persona JSON file; the public <code>description</code> is never used as the prompt.
+<code>AssetDeployConfig</code> now has <code>persona_config</code>.</li>
+<li>Motions need <code>source</code>: <code>original</code> or <code>licensed_resale</code> (plus <code>body_type</code>). Library clips without
+resale rights cannot be listed (400 <code>MOTION_SOURCE_NOT_LISTABLE</code>; no <code>source</code> is 400
+<code>MOTION_SOURCE_REQUIRED</code>). <code>AssetDeployConfig</code> now has <code>source</code> and <code>body_type</code>, and <code>license</code>
+accepts <code>mit</code>.</li>
+</ul>
+</li>
+</ul>
 <h2 id="license" class="tsd-anchor-link">License<a href="#license" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
 <p>MIT — <a href="https://github.com/myths-labs">Myths Labs</a></p>
-</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#prometheusavatarcore"><span>@prometheusavatar/core</span></a><ul><li><a href="#quick-start"><span>Quick <wbr/>Start</span></a></li><li><a href="#api-reference"><span>API <wbr/>Reference</span></a></li><li><ul><li><a href="#_"><span></span></a></li><li><a href="#_-1"><span></span></a></li><li><ul><li><a href="#methods"><span>Methods</span></a></li><li><a href="#events"><span>Events</span></a></li><li><a href="#emotions"><span>Emotions</span></a></li></ul></li><li><a href="#custom-tts-engine"><span>Custom <wbr/>TTS <wbr/>Engine</span></a></li></ul></li><li><a href="#architecture"><span>Architecture</span></a></li><li><a href="#license"><span>License</span></a></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html">@prometheusavatar/core</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer></footer><div class="overlay"></div></body></html>
+<p>Third-party components and the licences that come with them, including any you must get yourself to use a 2D model file: <a href="https://github.com/myths-labs/prometheus-avatar/blob/main/THIRD_PARTY_LICENSES.md">THIRD_PARTY_LICENSES.md</a>.</p>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#prometheusavatarcore"><span>@prometheusavatar/core</span></a><ul><li><a href="#quick-start"><span>Quick <wbr/>Start</span></a></li><li><a href="#drive-an-avatar-embed-page"><span>Drive an avatar embed page</span></a></li><li><a href="#local-2d-renderer"><span>Local 2<wbr/>D renderer</span></a></li><li><a href="#api-reference"><span>API <wbr/>Reference</span></a></li><li><ul><li><a href="#_"><span></span></a></li><li><a href="#_-1"><span></span></a></li><li><ul><li><a href="#methods"><span>Methods</span></a></li><li><a href="#events"><span>Events</span></a></li><li><a href="#emotions"><span>Emotions</span></a></li></ul></li><li><a href="#custom-tts-engine"><span>Custom <wbr/>TTS <wbr/>Engine</span></a></li></ul></li><li><a href="#whats-new-in-v011-pro-image-generation"><span>What&#39;s <wbr/>New in v0.11 — <wbr/>Pro <wbr/>Image <wbr/>Generation</span></a></li><li><ul><li><a href="#_-2"><span></span></a></li></ul></li><li><a href="#memorybridge-nodejs"><span>Memory<wbr/>Bridge (<wbr/>Node.js)</span></a></li><li><a href="#architecture"><span>Architecture</span></a></li><li><a href="#changelog"><span>Changelog</span></a></li><li><ul><li><a href="#0115"><span>0.11.5</span></a></li></ul></li><li><a href="#license"><span>License</span></a></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html">@prometheusavatar/core</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>

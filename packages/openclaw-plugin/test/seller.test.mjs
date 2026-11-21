@@ -223,7 +223,11 @@ test('the avatar bridge stays out of the way without a page element, and hooks u
 
     globalThis.document = { querySelector: () => ({}) };
     try {
-        const paged = boot({ pluginConfig: { containerSelector: '#avatar' } });
+        // A page element alone draws nothing: there is no bundled model, so it says how to set modelUrl and hooks nothing up.
+        const bare = boot({ pluginConfig: { containerSelector: '#avatar' } });
+        assert.equal(bare.hooks.length, 0);
+        assert.ok(bare.logs.some(([level, m]) => level === 'error' && /modelUrl/.test(m)));
+        const paged = boot({ pluginConfig: { containerSelector: '#avatar', modelUrl: 'https://models.example.test/m/m.model3.json' } });
         assert.deepEqual(paged.hooks.map(([n]) => n).sort(), ['message_sent', 'model_call_ended', 'model_call_started']);
     } finally {
         delete globalThis.document;

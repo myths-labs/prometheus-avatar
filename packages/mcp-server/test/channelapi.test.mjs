@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ChannelApi, ChannelError } from '../dist/sellerChannel.js';
+import { ChannelApi, ChannelError } from '../.test-build/sellerChannel.js';
 
 const api = (fetchImpl) => new ChannelApi({ baseUrl: 'http://127.0.0.1:1', version: '0.4.0', fetchImpl });
 

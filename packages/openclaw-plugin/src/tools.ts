@@ -12,13 +12,15 @@ const CATEGORIES = ['skins', 'voices', 'effects', 'motions', 'accessories', 'sce
 const publishProps = {
     name: { type: 'string' },
     category: { type: 'string', enum: CATEGORIES, description: 'Launch categories: skins, motions, expressions, personas. voices are published in the Voice Creator on the site, so a voice is refused here. accessories and effects are coming soon.' },
-    description: { type: 'string', description: 'Required for personas.' },
+    description: { type: 'string', description: 'Public listing text. For a persona it is shown to buyers and is not the prompt.' },
     price: { type: 'number', description: 'Price in USD.' },
     price_points: { type: 'number', description: 'Price in platform points.' },
     price_currency: { type: 'string' },
     tags: { type: 'array', items: { type: 'string' } },
-    license: { type: 'string', enum: ['personal', 'commercial', 'cc-by'] },
-    persona_config: { type: 'object', description: 'Required for personas.' },
+    license: { type: 'string', enum: ['personal', 'commercial', 'mit', 'cc-by'], description: 'Listing licence. The marketplace accepts personal, commercial and mit.' },
+    persona_config: { type: 'object', description: 'Personas only: the private persona config, e.g. { systemPrompt, greeting, traits }. Required unless fileData is a persona JSON file that carries it.' },
+    source: { type: 'string', enum: ['original', 'licensed_resale'], description: 'Motions only (required): original = you made it; licensed_resale = your licence allows reselling it on its own. Library clips without resale rights cannot be listed.' },
+    body_type: { type: 'string', description: 'Motions only: the body type the motion is made for, e.g. humanoid.' },
     bundle_items: { type: 'array', items: {}, description: 'Required for bundles.' },
     fileData: { type: 'string', description: 'URL or Base64 string of the actual asset file.' },
     thumbnailData: { type: 'string', description: 'URL or Base64 string of the thumbnail (use prometheus_generate_image_pro or prometheus_generate_thumbnail first).' },
@@ -63,14 +65,14 @@ export function buildTools(d: ToolDeps): PluginTool[] {
         {
             name: 'prometheus_publish_listing',
             label: 'Publish to Prometheus Marketplace',
-            description: 'Publish an asset (launch categories: skins, motions, expressions, personas; voices are published in the Voice Creator on the site and are refused here; accessories and effects are coming soon) to Prometheus Marketplace through the connected seller account; the listing is sold at the account\'s rate. Needs a connection (prometheus_connect_seller). Use when the user says "Publish this to Prometheus Marketplace". The listing becomes public and cannot be withdrawn from the agent loop, so confirm with the user first. If a check fails (for example the X account is not linked), nothing is published and it says why and how to fix it.',
+            description: 'Publish an asset (launch categories: skins, motions, expressions, personas; voices are published in the Voice Creator on the site and are refused here; accessories and effects are coming soon) to Prometheus Marketplace through the connected seller account; the listing is sold at the account\'s rate. Needs a connection (prometheus_connect_seller). Use when the user says "Publish this to Prometheus Marketplace". The listing becomes public and cannot be withdrawn from the agent loop, so confirm with the user first. If a check fails (for example the X account is not linked), nothing is published and it says why and how to fix it. A persona needs its prompt in persona_config (or a persona JSON file as fileData); the public description is never the prompt. A motion needs source (original or licensed_resale) and body_type; library clips without resale rights cannot be listed.',
             parameters: { type: 'object', additionalProperties: false, properties: publishProps },
             async execute(_id, params) { return text(await d.conn.publish(params as PublishArgs)); },
         },
         {
             name: 'prometheus_deploy_asset',
             label: 'Deploy asset to Prometheus Marketplace',
-            description: 'Older name of prometheus_publish_listing, kept for compatibility. When this OpenClaw is connected to a Prometheus seller account it publishes through the connection; otherwise it deploys with the configured agent API key (pak_...). Either way the listing is sold at the account\'s current rate (prometheus_connection_status shows it). Public and not withdrawable from the agent loop: confirm with the user first.',
+            description: 'Older name of prometheus_publish_listing, kept for compatibility. When this OpenClaw is connected to a Prometheus seller account it publishes through the connection; otherwise it deploys with the configured agent API key (pak_...). Either way the listing is sold at the account\'s current rate (prometheus_connection_status shows it). Public and not withdrawable from the agent loop: confirm with the user first. A persona needs its prompt in persona_config (or a persona JSON file as fileData); the public description is never the prompt. A motion needs source (original or licensed_resale) and body_type; library clips without resale rights cannot be listed.',
             parameters: { type: 'object', additionalProperties: false, properties: publishProps },
             async execute(_id, params) {
                 const args = params as PublishArgs;
@@ -121,7 +123,7 @@ export function buildTools(d: ToolDeps): PluginTool[] {
         {
             name: 'prometheus_generate_thumbnail',
             label: 'Generate marketplace thumbnail',
-            description: 'Generate an eye-catching thumbnail image for a marketplace asset (Live2D, Voice, Backdrop).',
+            description: 'Generate an eye-catching thumbnail image for a marketplace asset (character, voice, motion, persona, backdrop).',
             parameters: {
                 type: 'object',
                 properties: { prompt: { type: 'string', description: 'Visual description of the image' }, negative_prompt: { type: 'string' } },

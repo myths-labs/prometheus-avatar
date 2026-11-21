@@ -1,7 +1,7 @@
 /**
  * Lip Sync Engine
  *
- * Drives Live2D mouth parameters from audio data or text analysis.
+ * Drives the 2D model's mouth parameters from audio data or text analysis.
  * Two modes:
  * 1. Audio-driven: analyzes audio amplitude → mouth open/close
  * 2. Text fallback: generates syllable-based mouth animation

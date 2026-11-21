@@ -1,6 +1,6 @@
 ---
 name: prometheus-avatar
-description: Sell on Prometheus Marketplace from OpenClaw (connect a seller account, publish listings at the OpenClaw seller rate) · generate AAA marketplace skin previews · show a complete Prometheus digital character (2.5D / 3D, Forge-generated) where the host has a page for it via the Prometheus image engine.
+description: Sell on Prometheus Marketplace from OpenClaw (connect a seller account, publish listings at the OpenClaw seller rate) · show an avatar inside the agent's UI where the host has a page element for it — a 2D model file (.model3.json, set as modelUrl) with TTS, lip-sync and emotion, or a hosted avatar (apiKey + avatarId) with emotion — plus generate AAA marketplace skin previews via the Prometheus image engine.
 ---
 
 # Prometheus Avatar
@@ -12,24 +12,24 @@ This skill ships with `@prometheusavatar/openclaw-plugin`. It lets your agent se
 Each Marketplace bundle is a complete digital body assembled by **Forge** — the Prometheus generation pipeline — combining 6 alive-feel layers:
 
 1. **Skeleton (rig)** — bone hierarchy for animation
-2. **Skin (texture)** — vibrant 2.5D / 3D surface
-3. **Voice** — cloned or preset TTS with audio-driven lipsync
+2. **Skin (texture)** — vibrant surface
+3. **Voice** — cloned or preset TTS
 4. **Expressions** — emotion reactions (happy / sad / thinking / surprised etc.)
 5. **Motion** — animation library (idle sway, gestures, full-body motions)
 6. **Personality** — chat tone and response style
 
 Browse bundles at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-Where the host gives the plugin a page element, the plugin renders the character there and connects it to the agent's events. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus the seller-channel and image tools.
+Where the host gives the plugin a page element (`containerSelector`), the plugin draws one 2D model file (`.model3.json`, set as `modelUrl` in the plugin config) there and connects it to the agent's events. It ships no model of its own and cannot load a Marketplace bundle by ID. Without `modelUrl` it shows nothing and logs how to set it, and the seller and image tools keep working. The exception: with a Prometheus agent key and the id of one of your hosted avatars (`apiKey` + `avatarId`, no `modelUrl`) it shows that hosted avatar and drives its expression; it never makes the hosted avatar speak. The SDK + Marketplace do the heavy lifting; this plugin is the thin client integration surface plus the seller-channel and image tools.
 
 ## When to use
 
 Use this skill when the user asks for any of:
 
-- **A visible digital character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character")
-- **Real-time TTS with audio-driven lipsync** (not just plain audio)
+- **A visible 2D character representing the agent** in the UI ("show yourself", "give me an avatar", "render a character") — needs a 2D model file configured as `modelUrl`, or a hosted avatar configured with `apiKey` + `avatarId`
+- **Text-to-speech with mouth movement** (not just plain audio): the viewer's browser voice speaks, and lip sync is estimated from the text
 - **Emotion / mood reflection** on the character (happy / sad / thinking / surprised)
-- **A cloned or preset voice** for the agent — reference a Prometheus Marketplace voice ID
+- **A different voice** for the agent — set `ttsVoice` to the name of a voice installed in the viewer's browser. This plugin cannot play cloned or Marketplace voices yet
 - **Generating an AAA-quality skin preview card** (Genshin Impact / Overwatch / WoW shop tier) for a marketplace listing or pitch deck
 - **Deploying a generated asset** (voice / skin / motion / personality bundle) to the Prometheus Marketplace catalog
 
@@ -77,7 +77,7 @@ Use when the user says "Connect my Prometheus seller account", "Publish this to 
 
 1. **`prometheus_connect_seller`** — starts the connection. Tell the user the link and the code exactly as returned (they have 10 minutes; they must sign in to Prometheus and approve). The plugin completes the connection by itself once they approve; `prometheus_connection_status` shows where it is. After they say they approved, call it and tell the user which Prometheus account it is connected to (masked email, like `a***@example.com`). If they say it is not their account, call `prometheus_disconnect_seller` (confirm: true) and warn them: someone may have tricked them into approving another connection. Also relay what the status says about the next step (the account becomes an OpenClaw seller only once it chose that registration type on the site and has a linked X account; if the status says the account is not an OpenClaw seller yet, say what is missing and never call the user a seller) or why there is none (the account already has sales or listings, or its type is already set: it will not become an OpenClaw seller).
 2. **`prometheus_connection_status`** — connected or not, the seller rates, whether the X account is linked, today's publish count. If the status says the account is not an OpenClaw seller yet, tell the user what is missing (the registration type chosen on the site, a linked X account); listings published meanwhile are sold at the account's current rate. If a publish fails because X is not linked, give the user the link the tool returned.
-3. **`prometheus_publish_listing`** — needs `name`, `category`, the file (`fileData`: URL or base64) — or `draft_asset_id` for a draft the account already holds. Forge launch scope: `skins`, `voices`, `motions`, `expressions`, `personas`; `accessories` and `effects` are coming soon (the API still accepts them, but do not promise them). `personas` also need `description` and `persona_config`. Voices are published in the Voice Creator on the site; this tool is refused for them. **Publishing is public and cannot be withdrawn from the agent loop: confirm with the user before you call it.**
+3. **`prometheus_publish_listing`** — needs `name`, `category`, the file (`fileData`: URL or base64) — or `draft_asset_id` for a draft the account already holds. Forge launch scope: `skins`, `voices`, `motions`, `expressions`, `personas`; `accessories` and `effects` are coming soon (the API still accepts them, but do not promise them). A persona needs its prompt in `persona_config` (or a persona JSON file as `fileData`); the public `description` is never the prompt. A motion needs `source` (`original` or `licensed_resale`) and `body_type`; library clips without resale rights cannot be listed. Voices are published in the Voice Creator on the site; this tool is refused for them. **Publishing is public and cannot be withdrawn from the agent loop: confirm with the user before you call it.**
 4. **`prometheus_disconnect_seller`** — only when the user asks to disconnect; pass `confirm: true`. The account's rate and the listings already published are unchanged.
 
 Rules: never invent a connection or a rate; when a tool returns a message and a fix link, tell the user both as written. If `prometheus_publish_listing` fails a check, do NOT try `prometheus_deploy_asset` to get around it: the same checks apply. The connection key is never shown to you or the user; never ask for it.
@@ -88,13 +88,13 @@ Same as `prometheus_publish_listing` when the plugin is connected. Not connected
 
 ## Avatar events (automatic · no tool call needed)
 
-With an agent API key (`apiKey` or `PROMETHEUS_API_KEY`) the plugin pushes what the agent is doing to the user's Prometheus avatar; any avatar page the user has open follows within a few seconds. This works in the OpenClaw gateway. Where the host also gives the plugin a page element (`containerSelector`), it draws the avatar there too.
+With an agent API key (`apiKey` or `PROMETHEUS_API_KEY`) the plugin pushes what the agent is doing to the user's Prometheus avatar; any avatar page the user has open follows within a few seconds. This works in the OpenClaw gateway. Where the host also gives the plugin a page element (`containerSelector`), it draws the 2D model file there too, or frames the hosted avatar (expression only).
 
-| OpenClaw hook | Avatar state update | On-screen avatar (page element only) |
-|-------------|----------------|----------------|
-| `model_call_started` | state `thinking` | Thinking expression |
-| `message_sent` | the message's emotion (state `done` only when `enableEmotion` is off) | Speaks the message with lip-sync |
-| `model_call_ended` (error) | emotion `surprised` | Surprised expression |
+| OpenClaw hook | Avatar state update | On-screen 2D model file (page element only) | Hosted avatar (page element, `apiKey` + `avatarId`) |
+|-------------|----------------|----------------|----------------|
+| `model_call_started` | state `thinking` | Thinking expression | Thinking expression |
+| `message_sent` | the message's emotion (state `done` only when `enableEmotion` is off) | Speaks the message with lip-sync | The message's expression; never spoken |
+| `model_call_ended` (error) | emotion `surprised` | Surprised expression | Surprised expression |
 
 The agent does NOT need to call a tool to trigger these. Turn the state updates off with `companionState: false`.
 
@@ -108,8 +108,8 @@ Set an option with `openclaw config set plugins.entries.prometheus-avatar.config
     "entries": {
       "prometheus-avatar": {
         "config": {
-          "avatarId": "<marketplace-bundle-id>",
-          "ttsVoice": "<marketplace-voice-id>",
+          "modelUrl": "https://your-cdn.example/models/your-model.model3.json",
+          "containerSelector": "#avatar",
           "enableLipSync": true,
           "enableEmotion": true
         }
@@ -119,9 +119,9 @@ Set an option with `openclaw config set plugins.entries.prometheus-avatar.config
 }
 ```
 
-Browse character bundles + voice IDs at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
+`modelUrl` draws your own 2D model file and wins over `avatarId`. To show a hosted avatar instead, leave `modelUrl` out and set `apiKey` (a `pak_...` agent key) and `avatarId` (the id of an avatar made with that key; a Marketplace listing ID is not one). Setting only `avatarId` shows nothing. Browse the Marketplace at [prometheus.mythslabs.ai/marketplace](https://prometheus.mythslabs.ai/marketplace).
 
-**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`) which routes to the Prometheus voice backend. No TTS API key needed — voices live on the Prometheus Marketplace and are referenced via `ttsVoice` (Marketplace voice ID).
+**TTS**: handled by the Prometheus SDK (`@prometheusavatar/core`), which uses the browser's built-in speech synthesis by default: no TTS API key and no request. The optional `ttsVoice` picks a voice installed in the viewer's browser by name; an unknown name is ignored. Marketplace and cloned voices are not played by this plugin yet.
 
 **BYOK for image generation** (zero-marginal-cost path):
 - `OPENAI_API_KEY` env var or `apiKey` argument → unlocks BYOK image generation for `prometheus_generate_image_pro` (bypasses platform billing).

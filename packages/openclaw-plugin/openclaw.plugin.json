@@ -1,7 +1,8 @@
 {
     "id": "prometheus-avatar",
     "name": "Prometheus Avatar",
-    "description": "Sell on Prometheus Marketplace from OpenClaw at the OpenClaw seller rate, generate AAA-quality images for skin previews, and give your agent an avatar.",
+    "version": "0.11.0",
+    "description": "Sell on Prometheus Marketplace from OpenClaw at the OpenClaw seller rate, generate AAA-quality images for skin previews, and give your agent a 2D avatar.",
     "categories": [
         "media"
     ],
@@ -28,19 +29,19 @@
         "properties": {
             "apiKey": {
                 "type": "string",
-                "description": "Prometheus agent API key (pak_...), used for the AI agent rate deploys and the image tools. Falls back to the PROMETHEUS_API_KEY environment variable. Get one at prometheus.mythslabs.ai/settings/agent-keys. Not needed for the seller channel: connect with prometheus_connect_seller instead."
+                "description": "Prometheus agent API key (pak_...), used for the AI agent rate deploys, the image tools and avatar state updates, and, together with avatarId, to show a hosted avatar. It is never put into the avatar's page address or sent to it. Falls back to the PROMETHEUS_API_KEY environment variable (only when the plugin talks to the production address). Get one at prometheus.mythslabs.ai/settings/agent-keys. Not needed for the seller channel: connect with prometheus_connect_seller instead."
             },
             "avatarId": {
                 "type": "string",
-                "description": "Reserved: marketplace avatar ID. ID-based model resolution is not available yet; use modelUrl."
+                "description": "ID of a hosted avatar made with your Prometheus agent key. With apiKey also set (and no modelUrl) the plugin shows that hosted avatar in the page element (containerSelector) and drives its expression; it never makes it speak. A Marketplace listing ID cannot be shown. When only avatarId is set, no avatar is shown and the plugin logs an error that says to set apiKey or modelUrl (the seller and image tools still work)."
             },
             "modelUrl": {
                 "type": "string",
-                "description": "Direct URL to a Live2D model file (.model3.json)."
+                "description": "Direct URL to a 2D model file (.model3.json). Wins over avatarId. Needed to draw your own model: without it the plugin logs how to set it and shows nothing, unless apiKey and avatarId are both set (the seller and image tools still work)."
             },
             "containerSelector": {
                 "type": "string",
-                "description": "CSS selector of the page element to draw the avatar into. Only used by browser-hosted OpenClaw UIs; the gateway has no page."
+                "description": "CSS selector of the page element to draw the avatar into (or to frame the hosted avatar in). Only used by browser-hosted OpenClaw UIs; the gateway has no page."
             },
             "companionState": {
                 "type": "boolean",
@@ -50,21 +51,21 @@
             "ttsProvider": {
                 "type": "string",
                 "deprecated": true,
-                "description": "DEPRECATED since 0.10.0 and ignored. TTS goes through the Prometheus SDK."
+                "description": "DEPRECATED since 0.10.0 and ignored. TTS goes through the Prometheus SDK (@prometheusavatar/core), which uses the browser's built-in speech synthesis."
             },
             "ttsVoice": {
                 "type": "string",
-                "description": "Prometheus Marketplace voice ID (e.g. saturn_zh_female_keainvsheng_tob)."
+                "description": "Name (or voiceURI) of a voice installed in the viewer's browser. An unknown name, a Marketplace voice ID included, is ignored and the default voice speaks."
             },
             "enableLipSync": {
                 "type": "boolean",
                 "default": true,
-                "description": "Audio-driven lip synchronization."
+                "description": "Speak agent messages aloud in a 2D model file's avatar, with mouth movement estimated from the text; false means agent messages are not spoken. Has no effect on a hosted avatar: the plugin never makes it speak."
             },
             "enableEmotion": {
                 "type": "boolean",
                 "default": true,
-                "description": "Emotion analysis from text."
+                "description": "Enable emotion analysis from text; the result drives the expression of the 2D model file's avatar and of a hosted avatar alike"
             },
             "channelBaseUrl": {
                 "type": "string",

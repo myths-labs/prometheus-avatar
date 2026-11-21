@@ -39,6 +39,7 @@ yarn-error.log*
 memory/
 convo/
 CLAUDE.md
+AGENTS.md
 USER.md
 MEMORIES.md
 .agent/skills/

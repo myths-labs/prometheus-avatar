@@ -72,7 +72,7 @@ export default function TermsPage() {
 
                     <section>
                         <h2 className="text-lg font-semibold text-[#eae6df] mb-3">9. Contact</h2>
-                        <p>For questions about these Terms, contact us at <a href="mailto:jc@mythslabs.ai" className="text-[#00d4aa] hover:underline">jc@mythslabs.ai</a>.</p>
+                        <p>For questions about these Terms, contact us at <a href="mailto:support@mythslabs.ai" className="text-[#00d4aa] hover:underline">support@mythslabs.ai</a>.</p>
                     </section>
                 </div>
             </div>

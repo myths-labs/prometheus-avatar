@@ -6,47 +6,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — core 0.11.4 · mcp-server 0.4.0 · openclaw-plugin 0.11.0
+## [Unreleased] — core 0.11.6 · mcp-server 0.4.0 · openclaw-plugin 0.11.0
+
+Not published yet. Publish order below.
 
 ### ⚠️ Release order (hard dependency — do not publish out of order)
 
 1. **Backend first**: Prometheus must be running the build with `POST /api/channels/link/start`, `/link/token`,
    `/publish`, `GET /whoami` and `POST /unlink-self` (seller channels). Without it, connecting says the channel
    is not available yet (the clients handle a 404 and gateway errors in plain words).
-2. **`@prometheusavatar/core@0.11.4`** — must reach npm **before** the plugin: `openclaw-plugin@0.11.0`
-   declares `^0.11.4`, so publishing the plugin first makes every fresh install fail with ETARGET.
+2. **`@prometheusavatar/core@0.11.6`** — must reach npm **before** the plugin: `openclaw-plugin@0.11.0`
+   declares `^0.11.6`, so publishing the plugin first makes every fresh install fail with ETARGET.
 3. **`@prometheusavatar/mcp-server@0.4.0`** (independent of core), then **`@prometheusavatar/openclaw-plugin@0.11.0`**.
 
 ### Why the plugin is a rewrite
-`openclaw-plugin@0.10.2` cannot be installed on OpenClaw 2026.9.6 (`package.json missing openclaw.extensions`) and
-its entry only exported a legacy `activate`. 0.11.0 is written for the current OpenClaw plugin API: a plain default
+`openclaw-plugin@0.10.2` cannot be installed on OpenClaw 2026.9.6 (`package.json missing openclaw.extensions`), and
+its entry, like 0.10.3's, only exported a legacy `activate`. 0.11.0 is written for the current OpenClaw plugin API: a plain default
 export with a synchronous `register(api)` and object-form tools, a manifest with `contracts.tools`, and a JSON-Schema
 config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `test/loader.real-openclaw.test.mjs`.
 
 ### Added
 - **core**: `SellerChannelApi` (device-flow client for the seller channels), `SellerChannelError`,
   `AssetCreator.publishViaChannel()` / `publishDraftViaChannel()`; `AssetDeployConfig` gains `price_points`,
-  `price_currency`, `persona_config`, `bundle_items`.
+  `price_currency`, `bundle_items` (`persona_config`, `source` and `body_type` came in 0.11.5).
 - **openclaw-plugin**: seller channel tools `prometheus_connect_seller`, `prometheus_connection_status`,
   `prometheus_publish_listing`, `prometheus_disconnect_seller`; `prometheus_deploy_asset` kept as an alias (publishes
   through the connection when connected, else the API-key deploy). The channel key is kept in OpenClaw plugin state
   when OpenClaw allows it to a third-party plugin, otherwise in a 0600 file under the OpenClaw state directory.
   New config `containerSelector`. Requires OpenClaw 2026.9.6+.
 - **mcp-server**: Hermes Agent seller channel: `connect_seller`, `seller_connection_status`, `publish_listing`,
-  `disconnect_seller` (14 tools total). Checks `PROMETHEUS_CHANNEL=hermes`, a Hermes ancestor process and the MCP client
+  `disconnect_seller` (21 tools total, with the 7 workspace tools of 0.3.6). Checks `PROMETHEUS_CHANNEL=hermes`, a Hermes ancestor process and the MCP client
   handshake; key in `~/.prometheus/channel-hermes.json` (0600).
 - **openclaw-plugin**: avatar state updates: with an agent API key, `model_call_started`, `message_sent` and `model_call_ended` push `thinking` / the emotion of the sent message / `surprised` to `POST /api/agent/avatar/state` (the channel `set_avatar_state` uses), so any open avatar page follows even though the gateway has no page. Transitions only, spaced out; off by itself when the route does not exist or the key is rejected (an account with no avatar yet is tried again once a minute); `companionState: false` turns it off.
 - **core / openclaw-plugin / mcp-server**: the token response's `account_hint` (masked account email) is kept with the key and shown by the connection status ("connected to the Prometheus account a***@…"), so someone tricked into approving another person's connection can see the account is wrong; the skills tell the agent to say so and to disconnect on a mismatch.
 - **core / openclaw-plugin / mcp-server**: contract v1.4: receiving a key no longer sets the account type. The token response's `next_step` (`link_x`) and `registration_note` (`ACCOUNT_HAS_SELLER_HISTORY`, `IDENTITY_LOCKED`) are told to the user right after approval and by the status (the account becomes an OpenClaw / Hermes seller only once the X account is linked; or why the account will not become one), and the note is kept in the saved key record.
 - **skills**: "Sell on Prometheus" in `prometheus-companion` and the plugin's bundled skill.
+- **openclaw-plugin**: what 0.10.3 added on the old entry is kept in the `register(api)` entry. The hosted avatar: with a
+  page element (`containerSelector`), no `modelUrl`, an agent key and an `avatarId`, the plugin frames
+  `https://prometheus.mythslabs.ai/embed/<avatarId>` (nothing added to the address; an `avatarId` that is not 1-64 letters,
+  digits, `_` or `-` is refused) and drives its expression through core's `connectEmbed` from `model_call_started`,
+  `message_sent` and `model_call_ended`. Expression only: the hosted avatar is never made to speak, and the key never goes
+  into the address, the frame or a message. No default model: without `modelUrl` (and without the hosted-avatar settings)
+  it logs one error that says how to set it and shows nothing; the seller and image tools keep working.
+  `prometheus_publish_listing` and `prometheus_deploy_asset` take `source` and `body_type` (motions) and say where a
+  persona's prompt goes; `license` accepts `mit`.
 
 ### Changed
 - **openclaw-plugin**: the on-screen avatar now runs only where the host gives the plugin a page element
   (`containerSelector`); the OpenClaw gateway has none, so it logs once and skips (state updates above still work).
-  README states the OpenClaw community-list milestone in the past tense with its evidence (PR #52752, merged
-  April 20, 2026).
-
----
+  README states the OpenClaw community-list milestone in the past tense with its evidence (openclaw/openclaw
+  pull request 52752, merged April 20, 2026).
+- **openclaw-plugin**: the hosted avatar reports that it loaded with the log line "Hosted avatar ready." instead of the
+  `avatar:ready` event (see Removed).
 
 ### Removed
 - **openclaw-plugin**: the `avatar:ready` / `avatar:speak` events and the `events` block of the manifest. They were emitted
@@ -79,7 +90,175 @@ config. It is loaded and exercised against a real OpenClaw 2026.9.6 gateway by `
 - **Docs**: configuration paths follow the real host (`plugins.entries.prometheus-avatar.config`), tool counts are current,
   and the two version badges in the root README now read npm.
 
-## [Released 2026-07-30] — core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2
+---
+
+## [core 0.11.5 · mcp-server 0.3.7 · openclaw-plugin 0.10.3] — 2026-11-01
+
+Published to npm on 2026-11-01: core first, then openclaw-plugin and mcp-server.
+
+### Added
+- **core**: `connectEmbed` / `EmbedBridge` drive an avatar embed page from a parent page.
+  Emotion and state are queued until the embed posts `prometheus:ready`, then sent once in
+  order; `speak` is held until it posts `prometheus:loaded`; messages go to the embed's own
+  origin only, and incoming ones are accepted only from that origin and that iframe. If no
+  `prometheus:ready` arrives within 8 s (an older embed), everything is sent as before; if
+  `prometheus:loaded` does not follow within 30 s, held `speak` messages are sent anyway.
+  Tested against stand-in windows, and run in a headless browser against the live embed page
+  (2026-10-22) for an avatar made with an agent key: `prometheus:ready` and `prometheus:loaded`
+  arrived and the emotion messages it sent reached the page. `speak` was not sent in that run. The id
+  of a Marketplace listing is not an embeddable id: the page answers "Avatar not found" and never
+  reports loaded.
+- **openclaw-plugin**: with no `modelUrl`, a config that has both a Prometheus agent key (`apiKey`,
+  or the `PROMETHEUS_API_KEY` variable) and an `avatarId` now shows that hosted avatar: the plugin
+  frames the hosted avatar page and drives its expression through core's `connectEmbed`. `modelUrl`
+  still wins when set; every other combination keeps logging how to configure and shows nothing.
+  The page address carries nothing after the avatar id, agent events send expression only
+  (thinking, error, the sentiment of a message), the plugin never makes the hosted avatar speak, and
+  the key never goes into the address, the frame or a message. The plugin now depends on core
+  `^0.11.5` (the release that adds `connectEmbed`).
+- **core**: `AssetDeployConfig` gains `persona_config`, `source` and `body_type`; `license`
+  accepts `mit`. **openclaw-plugin**: `prometheus_deploy_asset` passes them through.
+- `THIRD_PARTY_LICENSES.md` says that the MIT licence does not include a licence from the
+  owner of the 2D model runtime, that the runtime is not bundled, and that users get their own.
+  It links the owner's own terms (the runtime's licence agreement, the release licence, the rules
+  for Expandable Applications, and the two documents for the sample models) and points the sample
+  models at their current page; the old free-models address no longer exists.
+
+### Changed
+- **openclaw-plugin**: no default model. It used to fall back to a sample path that was never in
+  the package, which could only fail to load. Without `modelUrl` it now logs one error that says
+  how to set it, shows no avatar and keeps the creator tools working. Set `modelUrl` to a 2D model
+  file you host.
+- Public text in core and openclaw-plugin says "2D avatar" / "2D model file (.model3.json)"
+  instead of naming the runtime, and claims no 3D or 2.5D ability. The renderer class is now
+  `AvatarRenderer`; the old class name is a deprecated alias.
+- Docs now match the code on voices: the default text-to-speech is the browser's built-in speech
+  synthesis (no key, no request), and `ttsVoice` in openclaw-plugin names a voice installed in the
+  viewer's browser. The plugin docs no longer promise Marketplace or cloned voices, and the bundled
+  skill no longer says the plugin renders a 2.5D / 3D character. The root README is rewritten the
+  same way (no sample model, features that are only examples or only in the demo app say so).
+- **core**: the embed docs (README, the `connectEmbed` / `EmbedBridge` comments, the bundled skill)
+  no longer suggest `?speak=` (the embed page is dropping it). To greet on load, call
+  `embed.speak(...)`; it is held until the avatar has loaded.
+- The API reference in `packages/sdk/docs` is regenerated from the current sources.
+- **mcp-server** (0.3.7): share links no longer carry a message for the page to speak. `share_avatar` has no `message`
+  parameter any more and builds the link from the avatar id and the referral code (`ref`) only. A caller that still
+  passes `message` is not refused, the value is ignored. The result now says that opening the link only shows the
+  avatar, and that a page embedding it can make it speak by posting `{ type: 'prometheus:speak', text }` to the iframe
+  from its own code, after the iframe has posted `{ type: 'prometheus:loaded' }`; a speak message sent earlier is not
+  kept. The `speak` tool's result says the same.
+  Why: text that rides in a link should not be spoken because someone opened the link, so links should not ask the
+  page to speak.
+- **mcp-server** (0.3.7): `share_avatar` refuses an `avatar_id` that is not a plain id (1-64 letters, digits, `_` or
+  `-`), whether the caller passed it or the account lookup returned it: the answer is an error and no link or embed
+  code is made. An empty `avatar_id` is refused instead of being treated as left out.
+- **mcp-server** (0.3.7): the `speak` tool's description and README row no longer say the avatar plays the audio
+  with lip-sync animation. The tool returns the audio to your client; it does not make an open embed speak.
+- **demo**, **core**, **mcp-server**, **openclaw-plugin**: the contact on the demo legal pages and the package `author`
+  field now use the company role address / name (`support@mythslabs.ai`, `Myths Labs`).
+
+### Agent API contract (marketplace)
+- `POST /api/marketplace/deploy`, category `personas`: the prompt comes from `persona_config` or
+  a persona file; the public description is never the prompt.
+- Motions need `source` (`original` | `licensed_resale`); library clips without resale rights
+  cannot be listed.
+
+### Fixed
+- **core**, **openclaw-plugin**: the published packages now include the MIT `LICENSE` file (core 0.11.4 and
+  openclaw-plugin 0.10.2 went out without it), and a test in each package pins what it publishes. Takes effect with
+  the next release of each package.
+
+### Notes for the release
+- mcp-server 0.3.7: links made by 0.3.6 and earlier may still carry the speak query parameter; this release does not
+  change links that already exist.
+- No ordering dependency on `core` or `openclaw-plugin`.
+
+---
+
+## [mcp-server 0.3.6] — 2026-10-21
+
+### Added
+- **mcp-server**: seven workspace tools (17 tools total) that put what an agent produces into the user's
+  Prometheus workspace panes:
+  - for models: `save_work` (Markdown to the Work pane), `upsert_task` (to-do with an optional due date),
+    `complete_task`, `log_visited_page` (http/https pages the agent visited). The model gives the least it can;
+    entry id, operation id, millisecond timestamp, account header, role and input mode are produced locally.
+  - kept for exact control: `prometheus_read_workspace`, `prometheus_save_workspace_entry`,
+    `prometheus_get_workspace_operation`.
+  - `external_key` derives the entry id deterministically (UUIDv5), so repeating a call updates the same entry;
+    an unconfirmed write (network drop, timeout, 5xx, a key revoked mid-save) is remembered for 24 hours with its
+    operation id and replayed unchanged, so a retry does not create a second entry; a 409 re-reads the entry and retries once.
+    A repeat after those 24 hours, after the state folder was deleted, or after a restart with
+    `PROMETHEUS_MCP_STATE_DIR=off` (memory only) counts as a new save.
+    The record is kept per account, the way the website counts operations, not per key: after the user replaces a
+    revoked key, the repeated call still re-sends the original operation.
+  - errors say which field is wrong, whether anything was saved, and what to do next. `next_step` follows from what the
+    answer means, and an earlier unconfirmed try of the same save only changes how a repeat must look: a refusal is never
+    answered with "call again unchanged now". A read that dropped, timed out or got a 408 / 5xx says to wait a moment and
+    call again unchanged.
+  - when the repeat of an unconfirmed write is refused, the result says whether that settles it. `workspace_category_full`
+    (the website's replay check runs before its cap, so the earlier try was not stored) and `workspace_account_unavailable`
+    (the account, and everything it held, is gone) are final: `nothing_was_saved`, the record is dropped, do not retry.
+    Any other refusal (key, request shape, category, size, an unknown status) keeps `unknown_may_have_been_saved` and the
+    record, and `next_step` says not to repeat unchanged now but to tell the user, who can look in their workspace first.
+    When a read the repeat needs before it can re-send (the account lookup, the task read-back, the category list) fails,
+    the outcome is `unknown_may_have_been_saved` as well.
+  - a full category (HTTP 422 `WORKSPACE_CATEGORY_FULL`: work, todo and browse hold at most 2,000 entries that are not
+    archived) is reported as final (`workspace_category_full`): nothing saved, not retried, the user is asked to make room.
+  - the state kept between calls is one small file per unconfirmed write, filed under the account (plus one per key
+    for the account id behind it), created and removed atomically, so several MCP servers sharing `~/.prometheus-mcp`
+    (Claude Desktop and Cursor) never touch each other's records of different calls. (Two servers making the very same call
+    at the same instant can still lose one record, and a later repeat of that call may then add a second copy.)
+    A state folder or subfolder that is a symbolic link is not swept. State left by pre-release builds (a single
+    `workspace-state.json`, or per-key folders) is moved into this layout on start; unreadable files cannot stop a start.
+  - `complete_task` (and any read-back after a 409) gives up after 60 seconds in total with `workspace_lookup_timeout`:
+    nothing changed, and the model is told so, instead of paging back for minutes.
+  - ids in the three exact-control tools are checked like the website checks them (any 8-4-4-4-12 hexadecimal digits),
+    so the official account `00000000-0000-0000-0000-000000000001` is accepted.
+  - the website's request limit (HTTP 429 with `Retry-After`, per Agent key and per account) is
+    reported as `workspace_rate_limited` with `retry_after_seconds` (whole seconds from `Retry-After`, at most 3600) and
+    says whether a read or a write was limited.
+    Nothing was saved or changed by that try, and it is not retried by itself; `next_step` names the wait in seconds.
+    When the 429 (or a refused key) answers the replay of an earlier unconfirmed write, the result says
+    `unknown_may_have_been_saved`, that write stays remembered, and the next call re-sends the same operation and
+    entry id, so the entry is not stored twice (within the 24 hours and the state folder above).
+  - README: setup for Claude Desktop, Claude Code and Cursor, and a standing-rule snippet for each.
+- **mcp-server**: reads (snapshots, receipts) ignore keys they do not know, so a website that adds fields later
+  does not break installed copies. Requests still follow the website's current shape exactly.
+
+### Notes for the release
+- Needs the website's `/api/agent/workspace` route (in production). `log_visited_page` also needs the `browse`
+  category, in production since 2026-10-19.
+- No ordering dependency on the website's request limit: earlier versions of this package do not call the workspace
+  route, and this one handles its 429.
+- No ordering dependency on `core` or `openclaw-plugin`.
+
+---
+
+## [core 0.11.4] — 2026-10-14
+
+Security release: core only. mcp-server does not depend on core, and
+openclaw-plugin (`^0.11.3`) does not use MemoryBridge and picks up 0.11.4 on a fresh install,
+so neither needs a new version.
+
+### Security
+- **core**: `MemoryBridge` listens on `127.0.0.1` by default (new `host` option; a non-loopback
+  value prints a warning). It refuses browser connections from origins other than the Prometheus
+  app and pages served from this machine (new `allowedOrigins` option, default
+  `MEMORY_BRIDGE_DEFAULT_ORIGINS`) and Host headers that do not name this machine (new
+  `allowedHosts` option). Incoming messages are capped at 1 MiB (`maxPayloadBytes`) and client
+  writes cannot grow the memory file past 10 MiB (`maxMemoryFileBytes`). In 0.11.0–0.11.3 the
+  bridge listened on every network interface and did not check where a connection came from.
+  Upgrade if you run `MemoryBridge`.
+
+### Changed
+- **core**: `conversation_sync` keeps only `user` / `assistant` entries with text content.
+  `status` includes `host`; `address` returns the listening address. With `port: 0` the bridge
+  reports the port it was given.
+
+---
+
+## [core 0.11.3 · mcp-server 0.3.5 · openclaw-plugin 0.10.2] — 2026-07-30
 
 ### ⚠️ Release order (hard dependency — do not publish out of order)
 

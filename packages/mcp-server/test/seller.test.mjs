@@ -149,7 +149,7 @@ test('a revoked key is noticed and removed; disconnect needs confirm=true and re
 });
 
 test('a plain-http PROMETHEUS_API_URL to another host is refused so the key never travels unencrypted', async () => {
-    const { ChannelApi } = await import('../dist/sellerChannel.js');
+    const { ChannelApi } = await import('../.test-build/sellerChannel.js');
     assert.throws(() => new ChannelApi({ baseUrl: 'http://prometheus.mythslabs.ai', version: '0.4.0' }), /https/);
     assert.doesNotThrow(() => new ChannelApi({ baseUrl: 'http://127.0.0.1:1', version: '0.4.0' }));
 });

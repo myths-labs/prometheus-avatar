@@ -5,7 +5,9 @@
  *   listings at the OpenClaw rate: prometheus_connect_seller, prometheus_connection_status,
  *   prometheus_publish_listing (+ prometheus_deploy_asset, the older name), prometheus_disconnect_seller.
  * - Image tools: prometheus_generate_image_pro, prometheus_generate_thumbnail.
- * - Avatar bridge: agent events -> on-screen avatar, where the host gives the plugin a page element.
+ * - Avatar bridge: agent events -> on-screen avatar, where the host gives the plugin a page element: a 2D model file
+ *   (`modelUrl`), or, with an agent key and an `avatarId`, a hosted avatar page driven through core's `connectEmbed`
+ *   (expression only, never made to speak). The plugin ships no model of its own.
  * - Companion state: agent activity -> the user's Prometheus avatar through the platform's state channel (works in the gateway).
  *
  * `register` must be synchronous (OpenClaw rejects an async one), so everything slow happens inside the tools.
@@ -51,6 +53,6 @@ function register(api: PluginApi): void {
 export default {
     id: 'prometheus-avatar',
     name: 'Prometheus Avatar',
-    description: 'Sell on Prometheus Marketplace from OpenClaw at the OpenClaw seller rate, generate AAA images, and give your agent an avatar.',
+    description: 'Sell on Prometheus Marketplace from OpenClaw at the OpenClaw seller rate, generate AAA images, and give your agent a 2D avatar.',
     register,
 };

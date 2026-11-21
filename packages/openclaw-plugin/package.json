@@ -1,7 +1,7 @@
 {
     "name": "@prometheusavatar/openclaw-plugin",
     "version": "0.11.0",
-    "description": "Prometheus for OpenClaw: connect a seller account and publish listings at the OpenClaw seller rate, AAA image generation for skin previews, and an avatar bridge. Ships with a bundled skill.",
+    "description": "Prometheus for OpenClaw: connect a seller account and publish listings at the OpenClaw seller rate, AAA image generation for skin previews, and a 2D avatar bridge (a .model3.json file you host, or a hosted avatar with an agent key). Ships with a bundled skill.",
     "type": "module",
     "main": "./dist/index.js",
     "license": "MIT",
@@ -16,7 +16,7 @@
     "keywords": [
         "openclaw",
         "openclaw-plugin",
-        "live2d",
+        "2d-avatar",
         "avatar",
         "lip-sync",
         "tts",
@@ -30,10 +30,10 @@
         "type": "git",
         "url": "https://github.com/myths-labs/prometheus-avatar"
     },
-    "author": "Myths Labs (JC)",
+    "author": "Myths Labs",
     "homepage": "https://prometheus.mythslabs.ai",
     "dependencies": {
-        "@prometheusavatar/core": "^0.11.4"
+        "@prometheusavatar/core": "^0.11.6"
     },
     "openclaw": {
         "compat": {
@@ -49,7 +49,7 @@
     "scripts": {
         "build": "tsup src/index.ts --format esm --clean",
         "typecheck": "tsc --noEmit",
-        "test": "tsup src/index.ts --format esm --clean && node --test test/*.test.mjs"
+        "test": "npm run build && node --test test/*.test.mjs"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",

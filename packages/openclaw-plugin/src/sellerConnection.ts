@@ -462,6 +462,8 @@ export interface PublishArgs {
     license?: AssetDeployConfig['license'];
     persona_config?: Record<string, unknown>;
     bundle_items?: unknown[];
+    source?: AssetDeployConfig['source'];
+    body_type?: string;
     fileData?: string;
     file_url?: string;
     thumbnailData?: string;
