@@ -48,9 +48,9 @@ try {
     const { tools } = await mcp.client.listTools();
     const names = tools.map(t => t.name);
     steps.push({ step: 0, name: 'tools/list', tools: names, count: names.length, descriptions: Object.fromEntries(tools.filter(t => /^(save_work|upsert_task|complete_task|log_visited_page)$/.test(t.name)).map(t => [t.name, t.description])) });
-    expect('17 tools listed', names.length === 17, names);
+    expect('21 tools listed', names.length === 21, names);
     await new Promise(resolve => setTimeout(resolve, 100));
-    expect('start-up banner says 17 tools', /17 tools available/.test(mcp.stderr()), mcp.stderr());
+    expect('start-up banner says 21 tools', /21 tools available/.test(mcp.stderr()), mcp.stderr());
 
     // 1. save_work, then an update through the same external_key
     const w1 = await step('save_work: new', mcp, 'save_work', { content: '# Launch checklist\n\n- [x] build\n- [ ] sign\n\n```bash\nnpm pack\n```', title: 'Launch checklist', external_key: 'launch-checklist' });

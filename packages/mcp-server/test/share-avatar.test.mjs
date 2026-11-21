@@ -260,17 +260,19 @@ test('an avatar id the website returns for the account is held to the same rule,
 });
 
 // ── The changelog entry ────────────────────────────────────────────────────────────────────────────────────────────
-test('the changelog describes these share links inside the one [Unreleased] section: speak only after prometheus:loaded, no claim about the website, no absolute wording', () => {
+// 0.3.7 (these share links) went out on 2026-11-01, so its entries now sit under that release's dated heading.
+test('the changelog describes these share links inside the 0.3.7 release section, next to one [Unreleased] section: speak only after prometheus:loaded, no claim about the website, no absolute wording', () => {
     const changelog = readFileSync(join(PACKAGE, '..', '..', 'CHANGELOG.md'), 'utf8');
     const unreleasedHeadings = changelog.split('\n').filter(line => /^## \[Unreleased\]/i.test(line));
     assert.equal(unreleasedHeadings.length, 1, `one [Unreleased] section: ${unreleasedHeadings.join(' | ')}`);
-    const start = changelog.indexOf('\n## [Unreleased]');
+    const start = changelog.indexOf('\n## [core 0.11.5 · mcp-server 0.3.7 · openclaw-plugin 0.10.3]');
+    assert.ok(start >= 0, 'the 0.3.7 release section is there');
     const section = changelog.slice(start, changelog.indexOf('\n---', start + 1));
     const bullets = section.split(/\n(?=- )/);
     const shareEntry = bullets.find(bullet => /share links no longer carry a message/.test(bullet));
     const idEntry = bullets.find(bullet => /refuses an `avatar_id`/.test(bullet));
-    assert.ok(shareEntry, 'the share link entry is in the [Unreleased] section');
-    assert.ok(idEntry, 'the avatar id entry is in the [Unreleased] section');
+    assert.ok(shareEntry, 'the share link entry is in the 0.3.7 release section');
+    assert.ok(idEntry, 'the avatar id entry is in the 0.3.7 release section');
     assertSpeakWaitsForLoaded('CHANGELOG share link entry', shareEntry);
     for (const [name, entry] of [['share link entry', shareEntry], ['avatar id entry', idEntry]]) {
         assert.ok(!SPEAK_QUERY.test(entry), `${name}: does not spell out the link that asks the page to speak`);

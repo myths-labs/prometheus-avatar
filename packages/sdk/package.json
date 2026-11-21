@@ -1,6 +1,6 @@
 {
     "name": "@prometheusavatar/core",
-    "version": "0.11.5",
+    "version": "0.11.6",
     "description": "Give your AI agent an embodied avatar — a 2D model renderer, an embed-page bridge, TTS, lip-sync and emotion analysis in one SDK",
     "type": "module",
     "main": "./dist/index.js",

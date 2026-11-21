@@ -2,7 +2,7 @@
 /**
  * Prometheus Avatar MCP Server (S068 · Phase 11 Day 3 — version lives in package.json only, see PKG_VERSION below)
  *
- * Model Context Protocol server that exposes 17 tools for AI agents
+ * Model Context Protocol server that exposes 21 tools for AI agents
  * to interact with the Prometheus Avatar platform:
  *
  *   1. create_avatar       — Initialize an avatar instance
@@ -24,6 +24,9 @@
  *  11. log_visited_page     — Record a page the agent visited (browse list)
  *  12-14. prometheus_read_workspace / prometheus_save_workspace_entry /
  *         prometheus_get_workspace_operation — low-level read, exact save, receipt lookup
+ *
+ * Hermes Agent seller channel (v0.4, see sellerChannel.ts):
+ *  15-18. connect_seller / seller_connection_status / publish_listing / disconnect_seller
  * 
  * Usage:
  *   npx @prometheusavatar/mcp-server
@@ -44,6 +47,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { createRequire } from "node:module";
 import { registerWorkspaceTools } from "./workspace-tools.js";
+import { SellerConnection, KeyFile, defaultKeyFile, registerSellerTools } from "./sellerChannel.js";
 
 // Read the version from package.json at runtime. It used to be typed in by
 // hand in two places and both had drifted: serverInfo said 0.3.2 while the
@@ -741,6 +745,26 @@ MIT — Myths Labs
 `,
         }],
     })
+);
+
+// ═══════════════════════════════════════════════════════════════
+// Hermes Agent seller channel (connect_seller, seller_connection_status, publish_listing, disconnect_seller)
+// ═══════════════════════════════════════════════════════════════
+
+registerSellerTools(
+    registerTool as (...args: any[]) => unknown,
+    new SellerConnection({
+        version: PKG_VERSION,
+        baseUrl: process.env.PROMETHEUS_API_URL,
+        keyFile: new KeyFile(defaultKeyFile()),
+        // The client's name and whether it declared sampling come from the MCP `initialize` handshake.
+        getClient: () => {
+            const v = server.server.getClientVersion();
+            if (!v) return null;
+            return { name: v.name, version: v.version, sampling: server.server.getClientCapabilities()?.sampling !== undefined };
+        },
+        log: (m) => console.error(`[Prometheus MCP] ${m}`),
+    }),
 );
 
 // ═══════════════════════════════════════════════════════════════

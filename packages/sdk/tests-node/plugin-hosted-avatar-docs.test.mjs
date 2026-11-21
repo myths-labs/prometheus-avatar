@@ -5,13 +5,18 @@
 // Run: node --experimental-strip-types --test packages/sdk/tests-node/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const plugin = (rel) => readFileSync(join(repoRoot, 'packages', 'openclaw-plugin', rel), 'utf8');
 const manifest = () => JSON.parse(plugin('openclaw.plugin.json'));
+// The manifest's config is a JSON Schema since openclaw-plugin 0.11.0: each option sits under `properties`.
+const option = (name) => manifest().configSchema.properties[name];
+// The plugin's code since 0.11.0 is split over several files (the hosted avatar lives in src/avatarBridge.ts): read them all.
+const SOURCES = readdirSync(join(repoRoot, 'packages', 'openclaw-plugin', 'src')).filter((name) => name.endsWith('.ts')).map((name) => `src/${name}`);
+const source = () => SOURCES.map((rel) => plugin(rel)).join('\n');
 const DOCS = ['README.md', 'openclaw.plugin.json', 'skills/prometheus-avatar/SKILL.md'];
 
 const HOSTED_OVERCLAIM = [
@@ -24,8 +29,8 @@ test('the plugin docs describe the hosted avatar as needing apiKey and avatarId,
     assert.match(readme, /### Showing a hosted avatar/);
     assert.match(readme, /set both `apiKey` and `avatarId`/);
     assert.match(readme, /If `modelUrl` is also set, the 2D model file is drawn and `avatarId` is not used/);
-    assert.match(manifest().configSchema.avatarId.description, /With apiKey also set \(and no modelUrl\)/);
-    assert.match(manifest().configSchema.modelUrl.description, /Wins over avatarId/);
+    assert.match(option('avatarId').description, /With apiKey also set \(and no modelUrl\)/);
+    assert.match(option('modelUrl').description, /Wins over avatarId/);
     assert.match(plugin('skills/prometheus-avatar/SKILL.md'), /`apiKey` \(a `pak_\.\.\.` agent key\) and `avatarId`/);
 });
 
@@ -33,18 +38,19 @@ test('the plugin docs say the hosted avatar is never made to speak and the key n
     const readme = plugin('README.md');
     assert.match(readme, /does not make the hosted avatar speak/);
     assert.match(readme, /It is never put into the avatar's page address or sent to it/);
-    assert.match(manifest().configSchema.avatarId.description, /never makes it speak/);
-    assert.match(manifest().configSchema.apiKey.description, /never put into the avatar's page address or sent to it/);
-    assert.match(manifest().configSchema.enableLipSync.description, /never makes it speak/);
+    assert.match(option('avatarId').description, /never makes it speak/);
+    assert.match(option('apiKey').description, /never put into the avatar's page address or sent to it/);
+    assert.match(option('enableLipSync').description, /never makes it speak/);
     assert.match(plugin('skills/prometheus-avatar/SKILL.md'), /never makes the hosted avatar speak/);
 });
 
 test('the page address in the docs is the one the code builds, with nothing after it', () => {
-    const src = plugin('src/index.ts');
+    const src = source();
+    assert.ok(SOURCES.includes('src/avatarBridge.ts'), 'the hosted avatar code is where this test expects it');
     assert.match(src, /const PROMETHEUS_ORIGIN = 'https:\/\/prometheus\.mythslabs\.ai';/);
     assert.match(src, /frame\.src = `\$\{PROMETHEUS_ORIGIN\}\/embed\/\$\{avatarId\}`;/);
     assert.match(plugin('README.md'), /`https:\/\/prometheus\.mythslabs\.ai\/embed\/<avatarId>`, with nothing added to it/);
-    for (const rel of [...DOCS, 'src/index.ts']) assert.doesNotMatch(plugin(rel), /speak=|\?speak/i, rel);
+    for (const rel of [...DOCS, ...SOURCES]) assert.doesNotMatch(plugin(rel), /speak=|\?speak/i, rel);
 });
 
 test('no plugin doc calls the hosted avatar the default or promises it for every kind of avatar', () => {
@@ -70,9 +76,9 @@ test('the hosted-avatar overclaim scan catches the wording it exists for (revers
 });
 
 test('the enableLipSync text matches what the code does: it decides whether agent messages are spoken', () => {
-    const src = plugin('src/index.ts');
+    const src = source();
     assert.match(src, /if \(config\.enableLipSync !== false\) \{\s*await avatar\.speak\(text\);/);
-    assert.match(manifest().configSchema.enableLipSync.description, /false means agent messages are not spoken/);
+    assert.match(option('enableLipSync').description, /false means agent messages are not spoken/);
     assert.match(plugin('README.md'), /`false` means agent messages are not spoken/);
     for (const rel of DOCS) assert.doesNotMatch(plugin(rel), /audio-driven/i, rel);
 });

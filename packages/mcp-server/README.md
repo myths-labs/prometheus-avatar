@@ -6,9 +6,9 @@ Give any AI agent an embodied 3D / 2.5D avatar via [Model Context Protocol](http
 npx @prometheusavatar/mcp-server
 ```
 
-[English](#17-tools) · [中文](#中文文档)
+[English](#21-tools) · [中文](#中文文档)
 
-## 17 Tools
+## 21 Tools
 
 ### Avatar and marketplace (10)
 
@@ -38,6 +38,18 @@ What your agent produces is saved to your Prometheus account and shows up in you
 | `prometheus_read_workspace` | Low level: read entries (≤ 5 per page) and the category list | `category` · `cursor` · `limit` · `account_id` |
 | `prometheus_save_workspace_entry` | Low level: write one entry with every field under your control | `account_id` · `operation_id` · `entry` |
 | `prometheus_get_workspace_operation` | Low level: look up the receipt of an earlier write | `account_id` · `operation_id` |
+
+
+### Seller channel (4) — **NEW in v0.4**
+
+Hermes Agent only (see [Sell from Hermes Agent](#sell-from-hermes-agent-v04)).
+
+| Tool | Description |
+|------|-------------|
+| `connect_seller` | Hermes Agent only: connect a Prometheus seller account (link + code to approve) |
+| `seller_connection_status` | Waiting for approval / connected (rates, X link, today's publishes) / not connected |
+| `publish_listing` | Publish an asset (or a draft by `draft_asset_id`) through the connection; sold at the account's seller rate |
+| `disconnect_seller` | Revoke the connection at once (needs `confirm: true`) |
 
 ## Requirements
 
@@ -175,6 +187,35 @@ alwaysApply: true
 You have the Prometheus tools. When you finish something I will want to keep (a report, a document, an analysis, a plan), save it with save_work: the full Markdown in "content", plus a stable "external_key" if you may revise it later. When I ask you to remember a task, or you leave a follow-up, add it with upsert_task (text, and due_on as YYYY-MM-DD if there is a date; there are no reminders, so never promise one) and mark finished tasks with complete_task. When you open a web page that matters to the task, record it with log_visited_page. Tell me something is saved only when the tool result says saved: true; if it says the outcome is unknown, call the same tool again with the same arguments.
 ```
 
+## Sell from Hermes Agent (v0.4)
+
+Connect Hermes Agent to your Prometheus seller account once. When your account is verified through Hermes Agent, **all of that account's listings** are sold at the Hermes Agent seller rate: the rate follows the account, not each listing. An account that only uses an API key and has not been verified is at the AI agent rate. Current rates are shown in your Prometheus dashboard and by `seller_connection_status`.
+
+1. Add the server to Hermes. Either put this in `~/.hermes/config.yaml`:
+
+   ```yaml
+   mcp_servers:
+     prometheus:
+       command: npx
+       args: ["-y", "@prometheusavatar/mcp-server@0.4"]
+       env:
+         PROMETHEUS_CHANNEL: hermes
+   ```
+
+   or add the server with `hermes mcp add` (see `hermes mcp add --help` for the exact arguments). Either way the server's environment must contain `PROMETHEUS_CHANNEL=hermes`. Restart Hermes.
+2. Tell Hermes: **`Connect my Prometheus seller account`**. It answers with a link and a short code.
+3. Open the link, sign in to Prometheus, and approve the code (valid for 10 minutes). The server finishes the connection by itself. Ask Hermes for the connection status: it names the Prometheus account it is now connected to (masked, like `a***@example.com`). If that is not your account, disconnect at once: someone may have tricked you into approving their connection.
+4. On the Prometheus site, choose Hermes Agent as the account's registration type (open `/join?type=hermes` on the Prometheus site, sign in and press **Register**; or use Dashboard → Seller types → Hermes Agent) and link your X account. The account becomes a Hermes Agent seller only once it has chosen the type, has no earlier sales or listings, has a linked X account (at least 30 days old) and holds a connected key. Until then the connection status says what is missing, and listings are sold at the account's current rate. If the approving account already has sales or listings, or its account type is already set, it will not become a Hermes Agent seller: the agent says so.
+5. Tell Hermes: **`Publish this to Prometheus Marketplace`**. To publish something made with `generate_asset` through the channel, generate it with `auto_deploy: false` and publish the draft with `publish_listing` (`draft_asset_id`). The listing is public and cannot be withdrawn from the agent loop, so confirm before publishing.
+
+How it decides this really is Hermes: `PROMETHEUS_CHANNEL=hermes` must be set, a Hermes process must be among the server's parent processes (only the matched word and how far up it is are sent, never a command line), and the client's name and whether it supports sampling come from the MCP handshake. This is a friction check, not a security boundary. Native Windows cannot connect Hermes; use WSL.
+
+- The connection key (`pch_…`) is issued once, never shown in the chat or in a log, and kept in `~/.prometheus/channel-hermes.json` (mode 0600), not in your Hermes config.
+- If a check fails (X not linked, daily limit, a suspended connection…), nothing is published and the tool says why and where to fix it.
+- Using this MCP server from another app, or with only an API key and no verification, sells at the AI agent rate. Verify your account by connecting from Hermes to get the Hermes Agent rate for all your listings.
+- Disconnecting stops this key at once; your account's rate and the listings you already published are unchanged.
+- The seller channel opens on the Prometheus side when Prometheus turns it on. Before that, connecting says it is not available yet.
+
 ## Environment Variables
 
 | Variable | Required | Description |
@@ -182,7 +223,8 @@ You have the Prometheus tools. When you finish something I will want to keep (a 
 | `PROMETHEUS_API_KEY` | For `create_avatar` / `set_avatar_state` / `equip_asset` / `get_avatar_status` / `speak` and all 7 workspace tools | Your `pak_` agent key — see [Requirements](#requirements) |
 | `GEMINI_API_KEY` | For `generate_asset` | API key for asset generation |
 | `OPENAI_API_KEY` | For `generate_image_pro` (BYOK) | Your image-provider API key for BYOK — without this, platform Free quota / Pro Credits routes apply |
-| `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`). The 7 workspace tools only accept an `https://` address with no path, credentials or query (`http://` only for localhost); the other tools use the value as given |
+| `PROMETHEUS_API_URL` | No | Custom API URL (default: `https://prometheus.mythslabs.ai`). The 7 workspace tools only accept an `https://` address with no path, credentials or query (`http://` only for localhost); the 4 seller channel tools need `https://` (`http://` only for localhost); the other tools use the value as given |
+| `PROMETHEUS_CHANNEL` | For the Hermes seller channel | Set to `hermes` in Hermes Agent's `mcp_servers` env to allow `connect_seller` |
 | `PROMETHEUS_MCP_STATE_DIR` | No | Where the workspace tools keep their small state files (default `~/.prometheus-mcp`). `off` keeps everything in memory, so an unconfirmed save is forgotten when the client restarts the server (for example after a key change) |
 
 **What is stored on your machine:** the `workspace-state` folder inside it holds one small file per key with the account id behind it and, only while a save is unconfirmed (at most 24 hours), one small file per unconfirmed save with its operation id, entry id and timestamp, filed under your account so that a new key of the same account still finds it. It never contains your key (only a 16-character fingerprint of it), your text, titles or URLs; a file's name is a hash of the call, which could only confirm a guess of the exact text, never reveal it. Several MCP servers (for example Claude Desktop and Cursor) can use the same folder at once: each unconfirmed save has its own file, so they never touch each other's records of different saves. (If two of them make the very same call at the same instant, one record can be lost, and a later repeat of that save may then add a second copy.) You can delete the folder at any time and the tools keep working. The one thing it guards against: if you delete it while a save is still unconfirmed, retrying that save can leave a duplicate entry, because the operation id that would have prevented it is gone.
@@ -255,7 +297,7 @@ MIT — [Myths Labs](https://mythslabs.ai)
 npx @prometheusavatar/mcp-server
 ```
 
-## 17 个工具
+## 21 个工具
 
 ### 形象与市场（10 个）
 
@@ -285,6 +327,17 @@ Agent 的产出会存到你的 Prometheus 账号，显示在工作区的窗格�
 | `prometheus_read_workspace` | 底层：读取条目（每页最多 5 条）和类别列表 | `category` · `cursor` · `limit` · `account_id` |
 | `prometheus_save_workspace_entry` | 底层：逐字段精确写入一条 | `account_id` · `operation_id` · `entry` |
 | `prometheus_get_workspace_operation` | 底层：按操作号查回执 | `account_id` · `operation_id` |
+
+### 卖家渠道（4 个）—— v0.4 新增
+
+只在 Hermes Agent 里可用（见[从 Hermes Agent 上架](#从-hermes-agent-上架v04)）。
+
+| 工具 | 说明 |
+|------|------|
+| `connect_seller` | 仅限 Hermes Agent：连接一个 Prometheus 卖家账户（给出链接和验证码，由你批准） |
+| `seller_connection_status` | 等待批准 / 已连接（费率、X 绑定、今天的上架次数）/ 未连接 |
+| `publish_listing` | 通过这条连接上架一个资产（或用 `draft_asset_id` 上架草稿）；按账户的卖家费率出售 |
+| `disconnect_seller` | 立刻吊销这条连接（需要 `confirm: true`） |
 
 ## 前置条件
 
@@ -422,6 +475,35 @@ alwaysApply: true
 你有 Prometheus 工具。完成我会想留着的东西（报告、文档、分析、计划）时，用 save_work 存起来：完整 Markdown 放在 "content"，之后可能修改就加一个稳定的 "external_key"。我让你记一件事或你留下后续事项时，用 upsert_task（text；有日期就给 due_on，格式 YYYY-MM-DD；没有提醒功能，所以不要许诺会提醒），做完的用 complete_task 标记。打开了对任务重要的网页，用 log_visited_page 记录。只有工具结果里是 saved: true 才告诉我已保存；结果说明结果未知时，用相同参数再调一次同一个工具。
 ```
 
+## 从 Hermes Agent 上架（v0.4）
+
+把 Hermes Agent 和你的 Prometheus 卖家账户连接一次。账户通过 Hermes Agent 验证后，**这个账户的全部商品**都按 Hermes Agent 卖家费率出售：费率跟着账户走，不按单个商品算。只用 API 密钥、没有验证的账户按 AI Agent 费率。当前费率在 Prometheus 后台和 `seller_connection_status` 里都能看到。
+
+1. 把本服务器加到 Hermes：可以写进 `~/.hermes/config.yaml`：
+
+   ```yaml
+   mcp_servers:
+     prometheus:
+       command: npx
+       args: ["-y", "@prometheusavatar/mcp-server@0.4"]
+       env:
+         PROMETHEUS_CHANNEL: hermes
+   ```
+
+   也可以用 `hermes mcp add` 添加（具体参数见 `hermes mcp add --help`）。无论哪种方式，服务器的环境变量里都必须有 `PROMETHEUS_CHANNEL=hermes`。然后重启 Hermes。
+2. 对 Hermes 说：**`Connect my Prometheus seller account`**。它会回一个链接和一个短验证码。
+3. 打开链接，登录 Prometheus，批准这个验证码（10 分钟内有效）。服务器会自己完成连接。向 Hermes 询问连接状态：它会说出现在连的是哪个 Prometheus 账户（打码显示，如 `a***@example.com`）。如果不是你的账户，立刻断开：可能有人骗你批准了他的连接。
+4. 在 Prometheus 网站上把账户的注册类型选为 Hermes Agent（在 Prometheus 网站打开 `/join?type=hermes`，登录后点 **Register**；或在 Dashboard → Seller types → Hermes Agent 里选），并绑定你的 X 账号。只有账户选了这个类型、之前没有销售或商品、绑定了 X 账号（注册满 30 天）并且持有一把已连接的密钥，它才会成为 Hermes Agent 卖家。在那之前，连接状态会说明还缺什么，商品按账户当前的费率出售。如果批准连接的账户已经有销售或商品，或者账户类型已经定了，它就不会成为 Hermes Agent 卖家：Agent 会把这一点告诉你。
+5. 对 Hermes 说：**`Publish this to Prometheus Marketplace`**。想把 `generate_asset` 生成的东西通过渠道上架：生成时设 `auto_deploy: false`，再用 `publish_listing`（`draft_asset_id`）上架这份草稿。上架是公开的，Agent 这边撤不回来，所以上架前先确认。
+
+它怎么判断这真的是 Hermes：必须设置 `PROMETHEUS_CHANNEL=hermes`；服务器的父进程里必须有一个 Hermes 进程（只发送匹配到的词和它在第几层，从不发送命令行）；客户端名称以及是否支持 sampling 来自 MCP 握手。这只是增加作弊成本的检查，不是安全边界。原生 Windows 无法连接 Hermes，请用 WSL。
+
+- 连接密钥（`pch_…`）只发一次，不会出现在聊天或日志里，存在 `~/.prometheus/channel-hermes.json`（权限 0600），不在你的 Hermes 配置里。
+- 检查没通过（没绑 X、到了每日上限、连接被暂停……）时什么都不会上架，工具会说明原因和去哪里解决。
+- 从别的应用使用本 MCP 服务器，或只有 API 密钥、没有验证，按 AI Agent 费率出售。从 Hermes 连接来验证账户，你的全部商品才按 Hermes Agent 费率。
+- 断开会立刻停用这把密钥；账户的费率和已经上架的商品不变。
+- 卖家渠道要等 Prometheus 那边开启。开启之前，连接时会说暂不可用。
+
 ## 环境变量
 
 | 变量 | 是否必需 | 说明 |
@@ -429,7 +511,8 @@ alwaysApply: true
 | `PROMETHEUS_API_KEY` | `create_avatar` / `set_avatar_state` / `equip_asset` / `get_avatar_status` / `speak` 以及全部 7 个工作区工具需要 | 你的 `pak_` Agent 密钥，见[前置条件](#前置条件) |
 | `GEMINI_API_KEY` | `generate_asset` 需要 | 资产生成用的 API 密钥 |
 | `OPENAI_API_KEY` | `generate_image_pro`（自带密钥）需要 | 自带图像服务密钥；不填则走平台免费额度 / Pro 点数 |
-| `PROMETHEUS_API_URL` | 否 | 自定义 API 地址（默认 `https://prometheus.mythslabs.ai`）。7 个工作区工具只接受不带路径、账号密码和查询串的 `https://` 地址（只有本机地址允许 `http://`）；其余工具按原样使用 |
+| `PROMETHEUS_API_URL` | 否 | 自定义 API 地址（默认 `https://prometheus.mythslabs.ai`）。7 个工作区工具只接受不带路径、账号密码和查询串的 `https://` 地址（只有本机地址允许 `http://`）；4 个卖家渠道工具要求 `https://`（只有本机地址允许 `http://`）；其余工具按原样使用 |
+| `PROMETHEUS_CHANNEL` | Hermes 卖家渠道需要 | 在 Hermes Agent 的 `mcp_servers` 环境变量里设为 `hermes`，才允许 `connect_seller` |
 | `PROMETHEUS_MCP_STATE_DIR` | 否 | 工作区工具的小状态文件放哪个文件夹（默认 `~/.prometheus-mcp`）。填 `off` 则只放内存，客户端重启 MCP 服务（例如换密钥后）时，未确认的保存就记不住了 |
 
 **本机存了什么：** 该文件夹里的 `workspace-state` 子文件夹放着几个很小的文件：每把密钥一个，记着它对应的账户号；另外，只在「保存结果尚未确认」期间（最多 24 小时），每一次未确认的保存各有一个文件，记着它的操作号、条目号和时间，按账户归档，所以同一账户换了新密钥也找得到。里面没有你的密钥（只有密钥的 16 位指纹）、没有你的文字、标题或网址；文件名是这次调用的哈希，最多只能用来核对「是不是某段一模一样的文字」，无法还原出内容。多个 MCP 服务（例如 Claude Desktop 和 Cursor）可以同时用同一个文件夹：每次未确认的保存各有一个文件，不同的保存互不影响。（如果两个服务在同一瞬间发出一模一样的调用，其中一条记录可能丢失，之后再重试那次保存时可能多出一条重复的条目。）随时可以删掉这个文件夹，工具照常工作；只有一种情况会受影响：某次保存还没有确认时你把它删了，之后重试这次保存，可能多出一条重复的条目，因为本来用来防重复的操作号已经没了。

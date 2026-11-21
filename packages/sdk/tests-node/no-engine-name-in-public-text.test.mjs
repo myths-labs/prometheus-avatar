@@ -100,7 +100,7 @@ test('the allowed technical tokens are still where the allowlist expects them', 
 test('the plugin manifest says 2D avatar, and no package description or keyword names the engine', () => {
     const manifest = JSON.parse(readFileSync(join(packagesDir, 'openclaw-plugin', 'openclaw.plugin.json'), 'utf8'));
     assert.match(manifest.description, /\b2D avatar\b/);
-    assert.match(manifest.configSchema.modelUrl.description, /2D model file \(\.model3\.json\)/);
+    assert.match(manifest.configSchema.properties.modelUrl.description, /2D model file \(\.model3\.json\)/);
     for (const pkg of PACKAGES) {
         const json = JSON.parse(readFileSync(join(packagesDir, pkg, 'package.json'), 'utf8'));
         assert.ok(!ENGINE.test(json.description), `${pkg} description`);
@@ -362,9 +362,11 @@ test('no source comment, generated docs page or plugin skill of core or the plug
 
 test('the plugin manifest says an avatarId alone shows no avatar and points at modelUrl; modelUrl says what happens without it', () => {
     const manifest = JSON.parse(readFileSync(join(packagesDir, 'openclaw-plugin', 'openclaw.plugin.json'), 'utf8'));
-    assert.match(manifest.configSchema.avatarId.description, /only avatarId is set[^.]*no avatar is shown/);
-    assert.match(manifest.configSchema.avatarId.description, /modelUrl/);
-    assert.match(manifest.configSchema.modelUrl.description, /without it the plugin logs how to set it and shows nothing/);
+    // A JSON Schema since openclaw-plugin 0.11.0: each option sits under `properties`.
+    const { properties } = manifest.configSchema;
+    assert.match(properties.avatarId.description, /only avatarId is set[^.]*no avatar is shown/);
+    assert.match(properties.avatarId.description, /modelUrl/);
+    assert.match(properties.modelUrl.description, /without it the plugin logs how to set it and shows nothing/);
 });
 
 test('the default-model scan catches the old wording (reverse check)', () => {
